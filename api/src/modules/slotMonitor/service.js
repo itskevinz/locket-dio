@@ -17,19 +17,24 @@ const {
   getAutoRequestRetryDelayMs,
   normalizeAutoRequestFailure,
 } = require("./autoRequestPolicy");
+const {
+  DEFAULT_NORMAL_INTERVAL_MS,
+  FAST_INTERVAL_MS,
+  FAST_WINDOW_MS,
+  MIN_WORKER_DELAY_MS,
+  clampNormalIntervalMs,
+  hasSnapshotChanged,
+  pollIntervalForState,
+  rateLimitBackoffMs,
+  jitteredIntervalMs,
+} = require("./pollingPolicy");
 
-function readIntervalMs(value, fallback) {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.round(parsed);
-}
-
-const POLL_INTERVAL_MS = Math.min(
-  3 * 60 * 1000,
-  Math.max(5_000, readIntervalMs(process.env.SLOT_POLL_INTERVAL_MS, 45_000)),
+const POLL_INTERVAL_MS = clampNormalIntervalMs(
+  process.env.SLOT_POLL_INTERVAL_MS,
+  DEFAULT_NORMAL_INTERVAL_MS,
 );
-const POLL_JITTER_MS = Math.min(2_000, Math.max(500, Math.floor(POLL_INTERVAL_MS * 0.15)));
-const BATCH_SIZE = 2;
+const CELEB_BATCH_SIZE = 2;
+const USER_ACTION_BATCH_SIZE = 2;
 const BATCH_DELAY_MS = 150;
 const ID_TOKEN_CACHE_MS = 45 * 60 * 1000;
 const VAPID_CONFIG_KEY = "slot_monitor_vapid_v1";
@@ -37,8 +42,14 @@ let vapidPromise = null;
 let workerTimer = null;
 let workerRunning = false;
 const userSessionCache = new Map();
+const celebPollingState = new Map();
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function errorStatus(error) {
+  const value = Number(error?.status || error?.response?.status || 0);
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
 
 function cacheUserIdToken(userUid, idToken) {
   if (!userUid || !idToken) return;
@@ -110,6 +121,8 @@ async function getPublicConfig() {
         : "ENCRYPTION_KEY_UNAVAILABLE",
       vapidPublicKey: null,
       pollIntervalMs: POLL_INTERVAL_MS,
+      fastPollIntervalMs: FAST_INTERVAL_MS,
+      adaptivePolling: true,
     };
   }
 
@@ -118,6 +131,8 @@ async function getPublicConfig() {
     enabled: true,
     vapidPublicKey: keys.publicKey,
     pollIntervalMs: POLL_INTERVAL_MS,
+    fastPollIntervalMs: FAST_INTERVAL_MS,
+    adaptivePolling: true,
   };
 }
 
@@ -368,25 +383,70 @@ async function sendRealCelebrityRequest(userUid, idToken, watch) {
   };
 }
 
-async function checkOneWatch(userUid, idToken, watch, { notify = true } = {}) {
-  try {
-    const result = await friendServices.FindFriendByUserName(idToken, watch.username);
-    const snapshot = extractCelebritySnapshot(result);
-    if (!snapshot) throw new Error("Celebrity slot data unavailable");
+async function markAutoRequestSessionFailure(userUid, watch, error) {
+  const failure = normalizeAutoRequestFailure(error, {
+    defaultCode: "SLOT_SESSION_ERROR",
+    defaultMessage: "Không thể làm mới phiên đăng nhập nền.",
+  });
+  const statusSuffix = failure.status ? ` [HTTP ${failure.status}]` : "";
+  await store.markAutoRequestResult(userUid, watch.celeb_uid, {
+    status: "FAILED",
+    error: `${failure.code}${statusSuffix}: ${failure.message}`,
+  }).catch(() => {});
+  return {
+    enabled: true,
+    attempted: false,
+    success: false,
+    code: failure.code,
+    message: failure.message,
+    status: failure.status,
+    retryable: failure.retryable,
+    attempts: 0,
+  };
+}
 
+async function processWatchSnapshot(
+  userUid,
+  watch,
+  snapshot,
+  { notify = true, idToken = null } = {},
+) {
+  try {
     const transition = computeTransition(watch, snapshot);
     await store.updateWatchSnapshot(userUid, watch.celeb_uid, transition);
 
+    let autoRequest = {
+      enabled: false,
+      attempted: false,
+      success: null,
+      code: null,
+      message: null,
+    };
+
     if (notify && transition.shouldNotify) {
       const count = transition.availableSlots;
-      const autoRequest = await sendRealCelebrityRequest(userUid, idToken, watch);
+
+      if (watch.auto_request_enabled) {
+        let requestIdToken = idToken;
+        if (!requestIdToken) {
+          try {
+            requestIdToken = await refreshUserSession(userUid);
+          } catch (error) {
+            autoRequest = await markAutoRequestSessionFailure(userUid, watch, error);
+          }
+        }
+        if (requestIdToken) {
+          autoRequest = await sendRealCelebrityRequest(userUid, requestIdToken, watch);
+        }
+      }
+
       let body = `@${watch.username} hiện còn ${count.toLocaleString("vi-VN")} slot trống. Nhấn để kết bạn ngay!`;
       let title = "🔥 Slot vừa mở!";
 
       if (autoRequest.success === true) {
         title = "⚡ Có slot — đã gửi request Celeb!";
         body = `@${watch.username} còn ${count.toLocaleString("vi-VN")} slot. Railway đã gửi yêu cầu kết bạn Celeb thật và Locket đã xác nhận.`;
-      } else if (autoRequest.enabled && autoRequest.attempted) {
+      } else if (autoRequest.enabled && autoRequest.success === false) {
         title = "⚠️ Có slot nhưng tự kết bạn chưa thành công";
         body = `@${watch.username} còn ${count.toLocaleString("vi-VN")} slot. Locket chưa xác nhận request tự động; mở Duchi Locket để thử ngay.`;
       }
@@ -421,58 +481,285 @@ async function checkOneWatch(userUid, idToken, watch, { notify = true } = {}) {
       ]);
     }
 
-    return { ok: true, transition };
+    return { ok: true, transition, autoRequest };
   } catch (error) {
-    console.warn("[slot-monitor] celeb check failed", {
+    console.warn("[slot-monitor] watch snapshot processing failed", {
       userUid,
       username: watch.username,
-      status: error?.response?.status || null,
+      status: errorStatus(error),
       code: error?.code || null,
     });
     return { ok: false, error };
   }
 }
 
-async function checkUserWatches(userUid) {
-  const idToken = await refreshUserSession(userUid);
-  const watches = await store.listActiveWatchesForUser(userUid);
-
-  for (let i = 0; i < watches.length; i += BATCH_SIZE) {
-    const batch = watches.slice(i, i + BATCH_SIZE);
-    await Promise.all(batch.map((watch) => checkOneWatch(userUid, idToken, watch)));
-    if (i + BATCH_SIZE < watches.length) await sleep(BATCH_DELAY_MS);
+async function checkOneWatch(userUid, idToken, watch, { notify = true } = {}) {
+  try {
+    const result = await friendServices.FindFriendByUserName(idToken, watch.username);
+    const snapshot = extractCelebritySnapshot(result);
+    if (!snapshot) throw new Error("Celebrity slot data unavailable");
+    return processWatchSnapshot(userUid, watch, snapshot, { notify, idToken });
+  } catch (error) {
+    console.warn("[slot-monitor] celeb check failed", {
+      userUid,
+      username: watch.username,
+      status: errorStatus(error),
+      code: error?.code || null,
+    });
+    return { ok: false, error };
   }
 }
 
+async function collectActiveWatchGroups() {
+  const groups = new Map();
+  const users = await store.listActiveUsers();
+
+  for (const row of users) {
+    try {
+      const watches = await store.listActiveWatchesForUser(row.user_uid);
+      for (const watch of watches) {
+        const key = String(watch.celeb_uid || "").trim();
+        if (!key) continue;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(watch);
+      }
+    } catch (error) {
+      console.warn("[slot-monitor] failed to load user watches", {
+        userUid: row.user_uid,
+        code: error?.code || null,
+      });
+    }
+  }
+
+  return groups;
+}
+
+async function fetchSharedCelebritySnapshot(watches) {
+  let lastError = null;
+  const attemptedUsers = new Set();
+
+  for (const watch of watches) {
+    const userUid = String(watch.user_uid || "");
+    if (!userUid || attemptedUsers.has(userUid)) continue;
+    attemptedUsers.add(userUid);
+
+    let idToken;
+    try {
+      idToken = await refreshUserSession(userUid);
+    } catch (error) {
+      lastError = error;
+      console.warn("[slot-monitor] shared celeb lookup skipped invalid session", {
+        userUid,
+        username: watch.username,
+        code: error?.code || null,
+      });
+      continue;
+    }
+
+    try {
+      const result = await friendServices.FindFriendByUserName(idToken, watch.username);
+      const snapshot = extractCelebritySnapshot(result);
+      if (!snapshot) {
+        const error = new Error("Celebrity slot data unavailable");
+        error.code = "CELEB_SNAPSHOT_UNAVAILABLE";
+        throw error;
+      }
+      return { ok: true, snapshot, userUid, idToken };
+    } catch (error) {
+      lastError = error;
+      const status = errorStatus(error);
+      console.warn("[slot-monitor] shared celeb lookup failed", {
+        userUid,
+        username: watch.username,
+        status,
+        code: error?.code || null,
+      });
+
+      // 401/403 may be account-specific, so another user's valid session can
+      // still serve as the shared read. Other failures are likely upstream-wide.
+      if (status !== 401 && status !== 403) break;
+    }
+  }
+
+  return { ok: false, error: lastError || new Error("No valid session for celeb lookup") };
+}
+
+async function checkCelebrityGroup(celebUid, watches) {
+  const lookup = await fetchSharedCelebritySnapshot(watches);
+  if (!lookup.ok) {
+    return {
+      ok: false,
+      celebUid,
+      error: lookup.error,
+      status: errorStatus(lookup.error),
+      rateLimited: errorStatus(lookup.error) === 429,
+    };
+  }
+
+  const changed = hasSnapshotChanged(watches, lookup.snapshot);
+  let rateLimited = false;
+
+  for (let i = 0; i < watches.length; i += USER_ACTION_BATCH_SIZE) {
+    const batch = watches.slice(i, i + USER_ACTION_BATCH_SIZE);
+    const results = await Promise.all(
+      batch.map((watch) => {
+        const sharedToken = String(watch.user_uid) === String(lookup.userUid)
+          ? lookup.idToken
+          : null;
+        return processWatchSnapshot(watch.user_uid, watch, lookup.snapshot, {
+          notify: true,
+          idToken: sharedToken,
+        });
+      }),
+    );
+
+    if (results.some((result) => Number(result?.autoRequest?.status) === 429)) {
+      rateLimited = true;
+    }
+    if (i + USER_ACTION_BATCH_SIZE < watches.length) await sleep(BATCH_DELAY_MS);
+  }
+
+  return {
+    ok: true,
+    celebUid,
+    snapshot: lookup.snapshot,
+    changed,
+    rateLimited,
+  };
+}
+
+function getCelebPollingState(celebUid) {
+  const key = String(celebUid);
+  let state = celebPollingState.get(key);
+  if (!state) {
+    state = {
+      nextCheckAt: 0,
+      fastUntil: 0,
+      rateLimitLevel: 0,
+      backoffUntil: 0,
+    };
+    celebPollingState.set(key, state);
+  }
+  return state;
+}
+
+function scheduleStateAfterResult(state, result, now = Date.now()) {
+  if (result?.rateLimited) {
+    state.rateLimitLevel = Math.min(2, Number(state.rateLimitLevel || 0) + 1);
+    const backoffMs = rateLimitBackoffMs(state.rateLimitLevel);
+    state.backoffUntil = now + backoffMs;
+    state.fastUntil = 0;
+    state.nextCheckAt = state.backoffUntil;
+    return;
+  }
+
+  if (!result?.ok) {
+    state.rateLimitLevel = 0;
+    state.backoffUntil = 0;
+    state.fastUntil = 0;
+    state.nextCheckAt = now + jitteredIntervalMs(POLL_INTERVAL_MS);
+    return;
+  }
+
+  state.rateLimitLevel = 0;
+  state.backoffUntil = 0;
+  if (result.changed) {
+    state.fastUntil = Math.max(Number(state.fastUntil || 0), now + FAST_WINDOW_MS);
+  }
+
+  const intervalMs = pollIntervalForState({
+    fastUntil: state.fastUntil,
+    now,
+    normalIntervalMs: POLL_INTERVAL_MS,
+  });
+  state.nextCheckAt = now + jitteredIntervalMs(intervalMs);
+}
+
+function nextWorkerDelayMs(activeCelebUids, now = Date.now()) {
+  if (!activeCelebUids.size) return POLL_INTERVAL_MS;
+  let nextDelay = POLL_INTERVAL_MS;
+
+  for (const celebUid of activeCelebUids) {
+    const state = getCelebPollingState(celebUid);
+    if (!state.nextCheckAt) return MIN_WORKER_DELAY_MS;
+    nextDelay = Math.min(nextDelay, Math.max(0, state.nextCheckAt - now));
+  }
+
+  return Math.max(MIN_WORKER_DELAY_MS, Math.round(nextDelay));
+}
+
 async function runWorkerCycle() {
-  if (workerRunning || !store.isConfigured() || !getEncryptionKey()) return;
+  if (workerRunning || !store.isConfigured() || !getEncryptionKey()) {
+    return POLL_INTERVAL_MS;
+  }
+
   workerRunning = true;
   try {
     await store.ensureSchema();
-    const users = await store.listActiveUsers();
-    for (const row of users) {
-      try {
-        await checkUserWatches(row.user_uid);
-      } catch (error) {
-        console.warn("[slot-monitor] user cycle failed", {
-          userUid: row.user_uid,
-          code: error?.code || null,
-        });
+    const groups = await collectActiveWatchGroups();
+    const activeCelebUids = new Set(groups.keys());
+
+    for (const celebUid of celebPollingState.keys()) {
+      if (!activeCelebUids.has(celebUid)) celebPollingState.delete(celebUid);
+    }
+
+    const now = Date.now();
+    const dueGroups = [];
+    for (const [celebUid, watches] of groups.entries()) {
+      const state = getCelebPollingState(celebUid);
+      if (!state.nextCheckAt || now >= state.nextCheckAt) {
+        dueGroups.push([celebUid, watches]);
       }
     }
+
+    for (let i = 0; i < dueGroups.length; i += CELEB_BATCH_SIZE) {
+      const batch = dueGroups.slice(i, i + CELEB_BATCH_SIZE);
+      const results = await Promise.all(
+        batch.map(([celebUid, watches]) => checkCelebrityGroup(celebUid, watches)),
+      );
+
+      const completedAt = Date.now();
+      for (const result of results) {
+        const state = getCelebPollingState(result.celebUid);
+        scheduleStateAfterResult(state, result, completedAt);
+
+        if (result.changed) {
+          console.log("[slot-monitor] celeb activity detected; fast polling enabled", {
+            celebUid: result.celebUid,
+            intervalSeconds: FAST_INTERVAL_MS / 1000,
+            fastWindowSeconds: FAST_WINDOW_MS / 1000,
+          });
+        }
+        if (result.rateLimited) {
+          console.warn("[slot-monitor] rate limited; backing off celeb polling", {
+            celebUid: result.celebUid,
+            backoffSeconds: Math.round((state.backoffUntil - completedAt) / 1000),
+          });
+        }
+      }
+
+      if (i + CELEB_BATCH_SIZE < dueGroups.length) await sleep(BATCH_DELAY_MS);
+    }
+
+    return nextWorkerDelayMs(activeCelebUids, Date.now());
   } catch (error) {
     console.error("[slot-monitor] worker cycle failed", error?.message || error);
+    return POLL_INTERVAL_MS;
   } finally {
     workerRunning = false;
   }
 }
 
-function scheduleWorker() {
-  const jitter = Math.floor((Math.random() * 2 - 1) * POLL_JITTER_MS);
-  const delay = Math.max(5_000, POLL_INTERVAL_MS + jitter);
+function scheduleWorker(delayMs = POLL_INTERVAL_MS) {
+  const delay = Math.max(
+    MIN_WORKER_DELAY_MS,
+    Math.min(POLL_INTERVAL_MS, Math.round(Number(delayMs) || POLL_INTERVAL_MS)),
+  );
+
   workerTimer = setTimeout(async () => {
-    await runWorkerCycle();
-    scheduleWorker();
+    workerTimer = null;
+    const nextDelay = await runWorkerCycle();
+    scheduleWorker(nextDelay);
   }, delay);
   workerTimer.unref?.();
 }
@@ -488,11 +775,15 @@ function startSlotMonitorWorker() {
   }
 
   console.log(
-    `[slot-monitor] 24/7 Railway worker enabled (about every ${(POLL_INTERVAL_MS / 1000).toFixed(1)} seconds)`,
+    `[slot-monitor] adaptive 24/7 worker enabled (normal ${(POLL_INTERVAL_MS / 1000).toFixed(0)}s, fast ${(FAST_INTERVAL_MS / 1000).toFixed(0)}s, shared celeb checks)`,
   );
-  const startup = setTimeout(runWorkerCycle, 2_000);
-  startup.unref?.();
-  scheduleWorker();
+
+  workerTimer = setTimeout(async () => {
+    workerTimer = null;
+    const nextDelay = await runWorkerCycle();
+    scheduleWorker(nextDelay);
+  }, 2_000);
+  workerTimer.unref?.();
   return true;
 }
 

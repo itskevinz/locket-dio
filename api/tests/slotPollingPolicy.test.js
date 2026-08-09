@@ -1,0 +1,55 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+
+const {
+  DEFAULT_NORMAL_INTERVAL_MS,
+  FAST_INTERVAL_MS,
+  FAST_WINDOW_MS,
+  clampNormalIntervalMs,
+  hasSnapshotChanged,
+  pollIntervalForState,
+  rateLimitBackoffMs,
+  jitteredIntervalMs,
+} = require("../src/modules/slotMonitor/pollingPolicy");
+
+test("normal polling defaults to 30 seconds and stays within safe bounds", () => {
+  assert.equal(DEFAULT_NORMAL_INTERVAL_MS, 30_000);
+  assert.equal(clampNormalIntervalMs(undefined), 30_000);
+  assert.equal(clampNormalIntervalMs(1_000), 15_000);
+  assert.equal(clampNormalIntervalMs(999_999), 180_000);
+});
+
+test("snapshot movement enables the 10-second fast window", () => {
+  const watches = [{ friend_count: 999, max_friends: 1000 }];
+  assert.equal(
+    hasSnapshotChanged(watches, { friendCount: 998, maxFriends: 1000 }),
+    true,
+  );
+  assert.equal(
+    hasSnapshotChanged(watches, { friendCount: 999, maxFriends: 1000 }),
+    false,
+  );
+
+  const now = 1_000_000;
+  assert.equal(
+    pollIntervalForState({ fastUntil: now + FAST_WINDOW_MS, now }),
+    FAST_INTERVAL_MS,
+  );
+  assert.equal(
+    pollIntervalForState({ fastUntil: now - 1, now }),
+    DEFAULT_NORMAL_INTERVAL_MS,
+  );
+});
+
+test("rate limits back off to 60 seconds then 120 seconds", () => {
+  assert.equal(rateLimitBackoffMs(1), 60_000);
+  assert.equal(rateLimitBackoffMs(2), 120_000);
+  assert.equal(rateLimitBackoffMs(5), 120_000);
+});
+
+test("poll jitter is bounded and never creates a sub-5-second worker delay", () => {
+  const low = jitteredIntervalMs(10_000, () => 0);
+  const high = jitteredIntervalMs(10_000, () => 1);
+  assert.ok(low >= 5_000 && low < 10_000);
+  assert.ok(high > 10_000 && high <= 11_500);
+});
