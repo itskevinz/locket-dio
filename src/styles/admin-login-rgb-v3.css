@@ -1,0 +1,288 @@
+/* Admin Login RGB V3
+   True visible spectrum accents, while surfaces/text still follow the active app theme. */
+
+.admin-vault:not(.admin-vault--loading) {
+  --rgb-red: #ff375f;
+  --rgb-orange: #ff9f0a;
+  --rgb-yellow: #ffd60a;
+  --rgb-green: #30d158;
+  --rgb-cyan: #32d7f0;
+  --rgb-blue: #0a84ff;
+  --rgb-purple: #bf5af2;
+  --rgb-pink: #ff2d92;
+  --rgb-surface: var(--color-base-100, #fff);
+  --rgb-surface-2: var(--color-base-200, #f5f5f5);
+  --rgb-text: var(--color-base-content, #151515);
+  background:
+    radial-gradient(circle at 7% 14%, color-mix(in srgb, var(--rgb-red) 27%, transparent) 0 10%, transparent 31%),
+    radial-gradient(circle at 26% 88%, color-mix(in srgb, var(--rgb-purple) 24%, transparent) 0 9%, transparent 31%),
+    radial-gradient(circle at 52% 4%, color-mix(in srgb, var(--rgb-cyan) 24%, transparent) 0 8%, transparent 29%),
+    radial-gradient(circle at 88% 18%, color-mix(in srgb, var(--rgb-blue) 24%, transparent) 0 8%, transparent 30%),
+    radial-gradient(circle at 88% 82%, color-mix(in srgb, var(--rgb-green) 21%, transparent) 0 8%, transparent 30%),
+    radial-gradient(circle at 55% 94%, color-mix(in srgb, var(--rgb-orange) 18%, transparent) 0 8%, transparent 28%),
+    linear-gradient(135deg,
+      color-mix(in srgb, var(--rgb-surface-2) 96%, var(--rgb-pink) 4%),
+      color-mix(in srgb, var(--rgb-surface) 96%, var(--rgb-cyan) 4%) 48%,
+      color-mix(in srgb, var(--rgb-surface-2) 96%, var(--rgb-purple) 4%)) !important;
+}
+
+/* Strong moving RGB aurora */
+.admin-vault:not(.admin-vault--loading)::before {
+  opacity: .62 !important;
+  filter: blur(34px) saturate(1.55) !important;
+  background: conic-gradient(from 0deg,
+    var(--rgb-red),
+    var(--rgb-orange),
+    var(--rgb-yellow),
+    var(--rgb-green),
+    var(--rgb-cyan),
+    var(--rgb-blue),
+    var(--rgb-purple),
+    var(--rgb-pink),
+    var(--rgb-red)) !important;
+  animation: admin-rgb-orbit-a 12s linear infinite !important;
+}
+
+.admin-vault:not(.admin-vault--loading)::after {
+  opacity: .48 !important;
+  filter: blur(42px) saturate(1.65) !important;
+  background: conic-gradient(from 180deg,
+    var(--rgb-purple),
+    var(--rgb-blue),
+    var(--rgb-cyan),
+    var(--rgb-green),
+    var(--rgb-yellow),
+    var(--rgb-orange),
+    var(--rgb-red),
+    var(--rgb-pink),
+    var(--rgb-purple)) !important;
+  animation: admin-rgb-orbit-b 15s linear infinite reverse !important;
+}
+
+/* Card: unmistakable rainbow edge */
+.admin-vault-card {
+  border-color: transparent !important;
+  background:
+    linear-gradient(color-mix(in srgb, var(--rgb-surface) 86%, transparent), color-mix(in srgb, var(--rgb-surface) 82%, transparent)) padding-box,
+    conic-gradient(from var(--admin-v2-angle, 0deg),
+      var(--rgb-red), var(--rgb-orange), var(--rgb-yellow), var(--rgb-green),
+      var(--rgb-cyan), var(--rgb-blue), var(--rgb-purple), var(--rgb-pink), var(--rgb-red)) border-box !important;
+  box-shadow:
+    0 34px 90px color-mix(in srgb, var(--rgb-text) 20%, transparent),
+    0 0 42px color-mix(in srgb, var(--rgb-blue) 12%, transparent),
+    0 0 68px color-mix(in srgb, var(--rgb-pink) 10%, transparent),
+    0 0 82px color-mix(in srgb, var(--rgb-purple) 8%, transparent) !important;
+}
+
+.admin-vault-card::before {
+  opacity: .95 !important;
+  padding: 2px !important;
+  background: conic-gradient(from var(--admin-v2-angle, 0deg),
+    var(--rgb-red) 0 12.5%,
+    var(--rgb-orange) 12.5% 25%,
+    var(--rgb-yellow) 25% 37.5%,
+    var(--rgb-green) 37.5% 50%,
+    var(--rgb-cyan) 50% 62.5%,
+    var(--rgb-blue) 62.5% 75%,
+    var(--rgb-purple) 75% 87.5%,
+    var(--rgb-pink) 87.5% 100%) !important;
+  filter: drop-shadow(0 0 12px color-mix(in srgb, var(--rgb-cyan) 30%, transparent)) !important;
+  animation: admin-v2-border-spin 4.8s linear infinite !important;
+}
+
+.admin-vault-card__edge {
+  height: 3px !important;
+  left: 5% !important;
+  right: 5% !important;
+  background: linear-gradient(90deg,
+    transparent,
+    var(--rgb-red),
+    var(--rgb-orange),
+    var(--rgb-yellow),
+    var(--rgb-green),
+    var(--rgb-cyan),
+    var(--rgb-blue),
+    var(--rgb-purple),
+    var(--rgb-pink),
+    transparent) !important;
+  background-size: 240% 100% !important;
+  box-shadow: 0 0 18px var(--rgb-cyan), 0 0 30px color-mix(in srgb, var(--rgb-pink) 48%, transparent) !important;
+  animation: admin-rgb-edge 2.4s linear infinite !important;
+}
+
+/* Left identity zone: vivid but readable */
+.admin-vault-header {
+  background:
+    radial-gradient(circle at 12% 18%, color-mix(in srgb, var(--rgb-pink) 32%, transparent), transparent 34%),
+    radial-gradient(circle at 88% 14%, color-mix(in srgb, var(--rgb-cyan) 27%, transparent), transparent 34%),
+    radial-gradient(circle at 78% 82%, color-mix(in srgb, var(--rgb-purple) 27%, transparent), transparent 36%),
+    radial-gradient(circle at 16% 86%, color-mix(in srgb, var(--rgb-green) 20%, transparent), transparent 32%),
+    linear-gradient(155deg,
+      color-mix(in srgb, var(--rgb-surface) 84%, var(--rgb-pink) 16%),
+      color-mix(in srgb, var(--rgb-surface-2) 86%, var(--rgb-cyan) 14%)) !important;
+  border-right-color: color-mix(in srgb, var(--rgb-purple) 28%, transparent) !important;
+}
+
+.admin-vault-header::before {
+  opacity: .9 !important;
+  background:
+    radial-gradient(circle at 20% 25%, var(--rgb-red) 0 2px, transparent 3px),
+    radial-gradient(circle at 76% 18%, var(--rgb-cyan) 0 2px, transparent 3px),
+    radial-gradient(circle at 68% 70%, var(--rgb-purple) 0 2px, transparent 3px),
+    radial-gradient(circle at 30% 82%, var(--rgb-green) 0 2px, transparent 3px),
+    radial-gradient(circle at 48% 46%, var(--rgb-orange) 0 1.7px, transparent 2.8px) !important;
+  background-size: 78px 78px, 104px 104px, 122px 122px, 90px 90px, 66px 66px !important;
+  animation: admin-v2-particles 10s linear infinite !important;
+}
+
+.admin-vault-header h1 {
+  color: transparent !important;
+  background: linear-gradient(100deg,
+    var(--rgb-red), var(--rgb-orange), var(--rgb-green), var(--rgb-cyan), var(--rgb-blue), var(--rgb-purple), var(--rgb-pink)) !important;
+  background-size: 250% 100% !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  filter: drop-shadow(0 7px 18px color-mix(in srgb, var(--rgb-purple) 18%, transparent)) !important;
+  animation: admin-rgb-text 5s linear infinite !important;
+}
+
+.admin-vault-mark {
+  color: var(--rgb-blue) !important;
+  border-color: color-mix(in srgb, var(--rgb-purple) 54%, transparent) !important;
+  background:
+    linear-gradient(145deg,
+      color-mix(in srgb, var(--rgb-pink) 17%, var(--rgb-surface)),
+      color-mix(in srgb, var(--rgb-cyan) 18%, var(--rgb-surface-2))) !important;
+  box-shadow:
+    0 0 0 8px color-mix(in srgb, var(--rgb-cyan) 8%, transparent),
+    0 18px 46px color-mix(in srgb, var(--rgb-purple) 24%, transparent),
+    0 0 44px color-mix(in srgb, var(--rgb-pink) 24%, transparent) !important;
+}
+.admin-vault-mark__ring {
+  border-color: var(--rgb-cyan) !important;
+  box-shadow: inset 0 0 18px color-mix(in srgb, var(--rgb-purple) 24%, transparent), 0 0 18px color-mix(in srgb, var(--rgb-pink) 24%, transparent) !important;
+}
+
+.admin-vault-eyebrow,
+.admin-vault-badges span {
+  color: var(--rgb-purple) !important;
+}
+
+.admin-vault-badges span {
+  border-color: color-mix(in srgb, var(--rgb-pink) 42%, transparent) !important;
+}
+.admin-vault-badges::after {
+  color: color-mix(in srgb, var(--rgb-cyan) 76%, var(--rgb-text)) !important;
+  border-color: color-mix(in srgb, var(--rgb-cyan) 42%, transparent) !important;
+}
+
+/* PIN input: actual rainbow border instead of cyan-only */
+.admin-vault-input-wrap {
+  padding: 2px !important;
+  border-radius: 1.12rem !important;
+  background: linear-gradient(90deg,
+    var(--rgb-red), var(--rgb-orange), var(--rgb-yellow), var(--rgb-green),
+    var(--rgb-cyan), var(--rgb-blue), var(--rgb-purple), var(--rgb-pink)) !important;
+  background-size: 240% 100% !important;
+  animation: admin-rgb-input-border 3.2s linear infinite !important;
+  box-shadow: 0 0 24px color-mix(in srgb, var(--rgb-purple) 18%, transparent) !important;
+}
+.admin-vault-input-wrap::before,
+.admin-vault-input-wrap::after { display: none !important; }
+.admin-vault-input {
+  border: 0 !important;
+  border-radius: calc(1.12rem - 2px) !important;
+  background: color-mix(in srgb, var(--rgb-surface) 88%, transparent) !important;
+}
+
+/* 12-key keypad: deliberately different visible spectrum colors */
+.admin-vault-key {
+  color: var(--rgb-text) !important;
+  border-width: 1.5px !important;
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--rgb-text) 8%, transparent) !important;
+}
+.admin-vault-key:nth-child(1), .admin-vault-key:nth-child(9) {
+  border-color: color-mix(in srgb, var(--rgb-red) 65%, transparent) !important;
+  background: color-mix(in srgb, var(--rgb-red) 18%, var(--rgb-surface)) !important;
+}
+.admin-vault-key:nth-child(2), .admin-vault-key:nth-child(10) {
+  border-color: color-mix(in srgb, var(--rgb-orange) 68%, transparent) !important;
+  background: color-mix(in srgb, var(--rgb-orange) 19%, var(--rgb-surface)) !important;
+}
+.admin-vault-key:nth-child(3), .admin-vault-key:nth-child(11) {
+  border-color: color-mix(in srgb, var(--rgb-yellow) 74%, transparent) !important;
+  background: color-mix(in srgb, var(--rgb-yellow) 19%, var(--rgb-surface)) !important;
+}
+.admin-vault-key:nth-child(4), .admin-vault-key:nth-child(12) {
+  border-color: color-mix(in srgb, var(--rgb-green) 65%, transparent) !important;
+  background: color-mix(in srgb, var(--rgb-green) 18%, var(--rgb-surface)) !important;
+}
+.admin-vault-key:nth-child(5) {
+  border-color: color-mix(in srgb, var(--rgb-cyan) 68%, transparent) !important;
+  background: color-mix(in srgb, var(--rgb-cyan) 18%, var(--rgb-surface)) !important;
+}
+.admin-vault-key:nth-child(6) {
+  border-color: color-mix(in srgb, var(--rgb-blue) 68%, transparent) !important;
+  background: color-mix(in srgb, var(--rgb-blue) 18%, var(--rgb-surface)) !important;
+}
+.admin-vault-key:nth-child(7) {
+  border-color: color-mix(in srgb, var(--rgb-purple) 68%, transparent) !important;
+  background: color-mix(in srgb, var(--rgb-purple) 18%, var(--rgb-surface)) !important;
+}
+.admin-vault-key:nth-child(8) {
+  border-color: color-mix(in srgb, var(--rgb-pink) 68%, transparent) !important;
+  background: color-mix(in srgb, var(--rgb-pink) 18%, var(--rgb-surface)) !important;
+}
+.admin-vault-key:hover:not(:disabled) {
+  transform: translateY(-3px) scale(1.025) !important;
+  filter: saturate(1.45) brightness(1.04) !important;
+  box-shadow: 0 12px 26px color-mix(in srgb, var(--rgb-purple) 20%, transparent) !important;
+}
+
+/* Unlock button: obvious animated rainbow */
+.admin-vault-submit {
+  color: #fff !important;
+  border: 0 !important;
+  background: linear-gradient(100deg,
+    var(--rgb-red), var(--rgb-orange), var(--rgb-green), var(--rgb-cyan),
+    var(--rgb-blue), var(--rgb-purple), var(--rgb-pink), var(--rgb-red)) !important;
+  background-size: 300% 100% !important;
+  box-shadow:
+    0 14px 32px color-mix(in srgb, var(--rgb-blue) 24%, transparent),
+    0 0 28px color-mix(in srgb, var(--rgb-pink) 18%, transparent) !important;
+  animation: admin-rgb-submit 4s linear infinite !important;
+}
+.admin-vault-submit:disabled:not(.is-loading):not(.is-verified) {
+  filter: grayscale(.2) saturate(.55) !important;
+  opacity: .58 !important;
+}
+
+.admin-vault-identity {
+  border-color: color-mix(in srgb, var(--rgb-purple) 32%, transparent) !important;
+  background: linear-gradient(120deg,
+    color-mix(in srgb, var(--rgb-pink) 9%, var(--rgb-surface)),
+    color-mix(in srgb, var(--rgb-cyan) 9%, var(--rgb-surface))) !important;
+}
+.admin-vault-identity > span {
+  background: linear-gradient(145deg, var(--rgb-purple), var(--rgb-blue), var(--rgb-cyan)) !important;
+  color: #fff !important;
+}
+
+@keyframes admin-rgb-orbit-a {
+  from { transform: translate3d(-3%, -2%, 0) rotate(0deg) scale(.96); }
+  to { transform: translate3d(8%, 5%, 0) rotate(360deg) scale(1.08); }
+}
+@keyframes admin-rgb-orbit-b {
+  from { transform: translate3d(3%, 4%, 0) rotate(0deg) scale(.96); }
+  to { transform: translate3d(-8%, -5%, 0) rotate(360deg) scale(1.08); }
+}
+@keyframes admin-rgb-edge { to { background-position: -240% 0; } }
+@keyframes admin-rgb-text { to { background-position: -250% 0; } }
+@keyframes admin-rgb-input-border { to { background-position: -240% 0; } }
+@keyframes admin-rgb-submit { to { background-position: -300% 0; } }
+
+@media (max-width: 760px) {
+  .admin-vault:not(.admin-vault--loading)::before { opacity: .48 !important; }
+  .admin-vault:not(.admin-vault--loading)::after { opacity: .38 !important; }
+  .admin-vault-key { min-height: 3.05rem !important; }
+}
