@@ -90,11 +90,17 @@ export default function MainHomeScreen() {
         : null;
 
     if (!fileType) {
-      SonnerInfo(t("home.only_media_supported_short", { defaultValue: "Định dạng không được hỗ trợ" }));
+      SonnerInfo(
+        t("home.only_media_supported_short", {
+          defaultValue: "Định dạng không được hỗ trợ",
+        }),
+      );
       return;
     }
 
-    const proceed = await useMomentDraftStore.getState().requestReplaceOrContinue(rawFile);
+    const proceed = await useMomentDraftStore
+      .getState()
+      .requestReplaceOrContinue(rawFile);
     if (!proceed) return;
 
     usePostStore.getState().resetMedia();
@@ -138,16 +144,23 @@ export default function MainHomeScreen() {
           isFriendHistoryOpen={isFriendHistoryOpen}
           selectedFile={selectedFile}
         />
+
+        {/* Keep both main panels fixed for the whole animation. Toggling
+            position: fixed together with transform made the iOS slide snap. */}
         <div
+          data-history-panel="true"
           className={clsx(
-            "w-full h-full flex flex-1 flex-col transition-all duration-500 justify-center items-center",
+            "fixed inset-0 w-full h-full flex flex-col transition-transform duration-500 ease-out will-change-transform justify-center items-center",
             {
-              "translate-x-0": isBottomOpen,
-              "fixed translate-y-full": !isBottomOpen,
+              "translate-y-0": isBottomOpen,
+              "translate-y-full pointer-events-none": !isBottomOpen,
             },
           )}
         >
-          <div data-ios-history-scroll="true" className="w-full h-full overflow-y-auto">
+          <div
+            data-ios-history-scroll="true"
+            className="w-full h-full overflow-y-auto"
+          >
             <div data-ios-history-spacer="true" className="h-16" />
             <Suspense fallback={null}>
               <BottomHomeScreen />
@@ -160,18 +173,23 @@ export default function MainHomeScreen() {
             setIsHomeOpen={setIsHomeOpen}
           />
         </div>
+
         <div
           data-capture-stack="true"
+          data-camera-panel="true"
           className={clsx(
-            "w-full h-full flex flex-col transition-all duration-500 justify-evenly items-center",
+            "fixed inset-0 w-full h-full flex flex-col transition-transform duration-500 ease-out will-change-transform justify-evenly items-center",
             {
-              "translate-x-0": !isBottomOpen,
-              "fixed -translate-y-full": isBottomOpen,
+              "translate-y-0": !isBottomOpen,
+              "-translate-y-full pointer-events-none": isBottomOpen,
             },
           )}
         >
           <div data-capture-spacer="true" className="h-10" />
-          <div data-media-preview-shell="true" className="w-full max-w-md px-2">
+          <div
+            data-media-preview-shell="true"
+            className="w-full max-w-md px-2"
+          >
             <MediaPreview />
           </div>
           <ActionControls />
@@ -199,7 +217,10 @@ export default function MainHomeScreen() {
           </div>
 
           {!hasCaptured && !isBottomOpen && (
-            <nav className="iosCameraBottomNav" aria-label="Điều hướng camera iOS">
+            <nav
+              className="iosCameraBottomNav"
+              aria-label="Điều hướng camera iOS"
+            >
               <button
                 type="button"
                 className="iosCameraNavButton"
