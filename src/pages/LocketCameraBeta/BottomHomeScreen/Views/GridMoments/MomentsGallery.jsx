@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { ImageOff } from "lucide-react";
 import { MdSlowMotionVideo } from "react-icons/md";
 import ScrollReveal from "@/components/Effects/ScrollReveal";
 import { useSelectedStore } from "@/stores";
@@ -21,6 +22,7 @@ const MomentsGallery = ({
   const selectedFriendUid = useSelectedStore((s) => s.selectedFriendUid);
 
   const [loadedItems, setLoadedItems] = useState([]);
+  const [failedItems, setFailedItems] = useState([]);
   const lastElementRef = useRef(null);
   const observerRef = useRef(null);
 
@@ -69,11 +71,19 @@ const MomentsGallery = ({
     setLoadedItems((prev) => (prev.includes(id) ? prev : [...prev, id]));
   };
 
+  const handleFailed = (id) => {
+    setFailedItems((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    handleLoaded(id);
+  };
+
   if (moments.length === 0) {
     // Loading skeleton im lặng — không chữ "Đang tải"
     if (loading) {
       return (
-        <div className="grid gap-1 grid-cols-3 md:grid-cols-6 md:gap-2 w-full">
+        <div
+          data-ios-history-grid="true"
+          className="grid gap-1 grid-cols-3 md:grid-cols-6 md:gap-2 w-full"
+        >
           {Array.from({ length: 6 }).map((_, idx) => (
             <div
               key={`empty-sk-${idx}`}
@@ -84,16 +94,23 @@ const MomentsGallery = ({
       );
     }
     return (
-      <div className="grid grid-cols-3 md:grid-cols-6 md:gap-2 w-full h-full">
+      <div
+        data-ios-history-grid="true"
+        className="grid grid-cols-3 md:grid-cols-6 md:gap-2 w-full h-full"
+      >
         <div className="aspect-square bg-base-300/40 rounded-2xl border border-dashed border-base-content/15" />
       </div>
     );
   }
 
   return (
-    <div className="grid gap-1 grid-cols-3 md:grid-cols-6 md:gap-2">
+    <div
+      data-ios-history-grid="true"
+      className="grid gap-1 grid-cols-3 md:grid-cols-6 md:gap-2"
+    >
       {visibleMoments.map((item, index) => {
         const isLoaded = loadedItems.includes(item.id);
+        const isFailed = failedItems.includes(item.id);
         const isLastItem = index === visibleMoments.length - 1;
         // Ba hàng đầu đang nằm ngay trong viewport điện thoại: tải ưu tiên,
         // tránh Chrome Android trì hoãn ảnh do toàn bộ lưới đều `lazy`.
@@ -107,6 +124,7 @@ const MomentsGallery = ({
           >
             <div
               ref={isLastItem ? lastElementRef : null}
+              data-ios-history-tile="true"
               onClick={() => {
                 setSelectedMoment(index);
                 setSelectedMomentId(item.id);
@@ -117,14 +135,23 @@ const MomentsGallery = ({
                 <div className="absolute inset-0 skeleton w-full h-full rounded-2xl z-10" />
               )}
 
+              {isFailed && (
+                <div
+                  data-ios-history-media-error="true"
+                  className="absolute inset-0 z-20 flex items-center justify-center bg-base-300/70"
+                >
+                  <ImageOff className="h-6 w-6 opacity-65" strokeWidth={1.8} />
+                </div>
+              )}
+
               <img
                 src={item.thumbnail_url || item.image_url || item.thumbnailUrl}
                 alt=""
                 className={`object-cover w-full h-full rounded-2xl transition-opacity duration-300 ${
-                  isLoaded ? "opacity-100" : "opacity-0"
+                  isLoaded && !isFailed ? "opacity-100" : "opacity-0"
                 }`}
                 onLoad={() => handleLoaded(item.id)}
-                onError={() => handleLoaded(item.id)}
+                onError={() => handleFailed(item.id)}
                 loading={shouldPrioritize ? "eager" : "lazy"}
                 fetchPriority={shouldPrioritize ? "high" : "auto"}
                 decoding="async"

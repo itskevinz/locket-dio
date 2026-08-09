@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { ChevronDown, Download, Menu, MessageCircle } from "lucide-react";
+import {
+  ChevronDown,
+  Download,
+  Megaphone,
+  Menu,
+  MessageCircle,
+  UsersRound,
+} from "lucide-react";
 import HistorySelectFriend from "@/features/HistorySelectFriend";
 import { useAuthStore, useFriendList } from "@/stores";
 import { useAppNavigation } from "@/context/AppContext";
@@ -189,6 +196,14 @@ const HeaderHome = ({
                   {t("home.friends", { defaultValue: "Bạn" })}
                   <ChevronDown className="w-5 h-5" strokeWidth={3} />
                 </span>
+                <span data-friends-ios-content="true" className="hidden items-center gap-2">
+                  <UsersRound className="h-6 w-6" strokeWidth={2.8} />
+                  <span>
+                    {friendList.length === 1
+                      ? "1 người bạn"
+                      : `${friendList.length || 0} người bạn`}
+                  </span>
+                </span>
               </>
             )}
           </button>
@@ -211,7 +226,18 @@ const HeaderHome = ({
               onClick={() => setIsSidebarOpen(true)}
               className="w-11 h-11 flex items-center justify-center bg-base-300/70 backdrop-blur-[4px] rounded-full hover:bg-base-300 transition active:scale-105"
             >
-              <Menu size={28} strokeWidth={2} aria-hidden="true" />
+              <Menu
+                className="iosHeaderDefaultIcon"
+                size={28}
+                strokeWidth={2}
+                aria-hidden="true"
+              />
+              <Megaphone
+                className="iosHeaderMegaphoneIcon"
+                size={27}
+                strokeWidth={2.35}
+                aria-hidden="true"
+              />
             </button>
           </div>
 

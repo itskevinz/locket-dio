@@ -49,7 +49,10 @@ const SwiperView = () => {
   if (queueActive) return <QueueViewer />;
 
   return (
-    <div className="fixed inset-0 z-50 flex h-full w-full flex-col items-center justify-center">
+    <div
+      data-ios-detail-view="true"
+      className="fixed inset-0 z-50 flex h-full w-full flex-col items-center justify-center"
+    >
       <Swiper
         direction="vertical"
         className="flex h-full w-full max-w-md flex-col items-center justify-center aspect-square"

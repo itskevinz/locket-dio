@@ -1,4 +1,9 @@
-import { CalendarHeart, LayoutGrid, Share } from "lucide-react";
+import {
+  CalendarHeart,
+  LayoutGrid,
+  MessageCircle,
+  Share,
+} from "lucide-react";
 import { useMomentActivityStore, useSelectedStore } from "@/stores";
 import MomentInteraction from "./MomentInteraction";
 import { useTranslation } from "react-i18next";
@@ -10,6 +15,7 @@ const BottomMenu = ({
   setIsBottomOpen,
   setOptionModalOpen,
   setIsProfileOpen,
+  setIsHomeOpen,
 }) => {
   const { t } = useTranslation("main");
   const selectedMoment = useSelectedStore((s) => s.selectedMoment);
@@ -47,14 +53,29 @@ const BottomMenu = ({
     setIsProfileOpen?.(true);
   };
 
+  const handleOpenChat = () => {
+    resetSelection();
+    setIsBottomOpen?.(false);
+    setIsHomeOpen?.(true);
+  };
+
+  const hasSelection = selectedMoment !== null || selectedQueue !== null;
+
   return (
     <>
-      <div className="fixed z-70 w-full bottom-0 px-5 pb-10 md:pb-5 text-base-content space-y-3">
-        {typeof selectedMoment === "number" && <MomentInteraction />}
+      <div
+        data-bottom-menu-shell="true"
+        className="fixed z-70 w-full bottom-0 px-5 pb-10 md:pb-5 text-base-content space-y-3"
+      >
+        {typeof selectedMoment === "number" && (
+          <div data-ios-moment-interaction="true">
+            <MomentInteraction />
+          </div>
+        )}
 
-        <div className="grid grid-cols-3 items-center">
+        <div className="defaultBottomControls grid grid-cols-3 items-center">
           <div className="flex justify-start select-none">
-            {(selectedMoment !== null || selectedQueue !== null) && (
+            {hasSelection && (
               <button
                 type="button"
                 aria-label={t("bottom.back_to_grid", {
@@ -83,7 +104,7 @@ const BottomMenu = ({
           </div>
 
           <div className="flex justify-end">
-            {(selectedMoment !== null || selectedQueue !== null) && (
+            {hasSelection && (
               <button
                 type="button"
                 aria-label={t("bottom.share_moment", {
@@ -96,7 +117,7 @@ const BottomMenu = ({
               </button>
             )}
             {/* CALENDAR – mở lịch chuỗi / streak Lockets */}
-            {selectedMoment === null && selectedQueue === null && (
+            {!hasSelection && (
               <button
                 type="button"
                 onClick={handleOpenCalendar}
@@ -109,6 +130,94 @@ const BottomMenu = ({
                 className={circleButtonClass}
               >
                 <CalendarHeart size={28} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="iosBottomControls" aria-label="Điều hướng Locket iOS">
+          <div className="iosBottomSideSlot">
+            {hasSelection ? (
+              <button
+                type="button"
+                className="iosBottomSideButton"
+                onClick={handleClose}
+                aria-label={t("bottom.back_to_grid", {
+                  defaultValue: "Quay lại lưới bài đăng",
+                })}
+              >
+                <LayoutGrid aria-hidden="true" />
+              </button>
+            ) : null}
+          </div>
+
+          <div className="iosBottomNavPill">
+            {hasSelection ? (
+              <button
+                type="button"
+                className="iosBottomNavItem"
+                onClick={handleOpenCalendar}
+                aria-label={t("bottom.open_calendar", {
+                  defaultValue: "Mở lịch chuỗi",
+                })}
+              >
+                <CalendarHeart aria-hidden="true" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="iosBottomNavItem is-active"
+                aria-label={t("bottom.back_to_grid", {
+                  defaultValue: "Lịch sử",
+                })}
+              >
+                <LayoutGrid aria-hidden="true" />
+              </button>
+            )}
+
+            <button
+              type="button"
+              className="iosBottomShutter"
+              onClick={handleReturnHome}
+              aria-label={t("bottom.return_home", {
+                defaultValue: "Trở về camera",
+              })}
+            >
+              <span aria-hidden="true" />
+            </button>
+
+            <button
+              type="button"
+              className="iosBottomNavItem"
+              onClick={handleOpenChat}
+              aria-label="Tin nhắn"
+            >
+              <MessageCircle aria-hidden="true" />
+            </button>
+          </div>
+
+          <div className="iosBottomSideSlot">
+            {hasSelection ? (
+              <button
+                type="button"
+                className="iosBottomSideButton"
+                onClick={() => setOptionModalOpen(true)}
+                aria-label={t("bottom.share_moment", {
+                  defaultValue: "Chia sẻ bài đăng",
+                })}
+              >
+                <Share aria-hidden="true" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="iosBottomSideButton"
+                onClick={handleOpenCalendar}
+                aria-label={t("bottom.open_calendar", {
+                  defaultValue: "Mở lịch chuỗi",
+                })}
+              >
+                <CalendarHeart aria-hidden="true" />
               </button>
             )}
           </div>

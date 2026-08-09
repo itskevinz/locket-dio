@@ -1,4 +1,5 @@
 import React, { lazy, Suspense } from "react";
+import { Home, LayoutGrid, MessageCircle } from "lucide-react";
 import { useAppNavigation } from "@/context/AppContext";
 
 import HeaderHome from "./Layout/HeaderHome";
@@ -14,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import { useAppCamera } from "@/context/AppContext";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import "./mobileLocket.css";
+import "./iosLocketV2.css";
 
 const BottomHomeScreen = lazy(() => import("../BottomHomeScreen"));
 const SelectFriendsList = lazy(() => import("./Layout/SelectFriends"));
@@ -145,8 +147,8 @@ export default function MainHomeScreen() {
             },
           )}
         >
-          <div className="w-full h-full overflow-y-auto">
-            <div className="h-16" />
+          <div data-ios-history-scroll="true" className="w-full h-full overflow-y-auto">
+            <div data-ios-history-spacer="true" className="h-16" />
             <Suspense fallback={null}>
               <BottomHomeScreen />
             </Suspense>
@@ -155,6 +157,7 @@ export default function MainHomeScreen() {
             setIsBottomOpen={setIsBottomOpen}
             setOptionModalOpen={setOptionModalOpen}
             setIsProfileOpen={setIsProfileOpen}
+            setIsHomeOpen={setIsHomeOpen}
           />
         </div>
         <div
@@ -194,6 +197,38 @@ export default function MainHomeScreen() {
               <HistoryArrow setIsBottomOpen={setIsBottomOpen} />
             </div>
           </div>
+
+          {!hasCaptured && !isBottomOpen && (
+            <nav className="iosCameraBottomNav" aria-label="Điều hướng camera iOS">
+              <button
+                type="button"
+                className="iosCameraNavButton"
+                aria-label={t("bottom.back_to_grid", {
+                  defaultValue: "Mở lịch sử",
+                })}
+                onClick={() => setIsBottomOpen(true)}
+              >
+                <LayoutGrid aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className="iosCameraNavButton is-active"
+                aria-label={t("bottom.return_home", {
+                  defaultValue: "Camera",
+                })}
+              >
+                <Home aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className="iosCameraNavButton"
+                aria-label="Tin nhắn"
+                onClick={() => setIsHomeOpen(true)}
+              >
+                <MessageCircle aria-hidden="true" />
+              </button>
+            </nav>
+          )}
         </div>
       </div>
     </>

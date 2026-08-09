@@ -1,0 +1,675 @@
+/*
+ * iOS Locket layout v2.
+ * This layer only activates for the optional `theme-ios` interface on phones.
+ * Desktop/tablet structure and the selected Huy Locket color theme stay untouched.
+ */
+
+.iosHeaderMegaphoneIcon,
+.iosCameraBottomNav,
+.iosBottomControls {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  html.theme-ios {
+    --ios-locket-glass: color-mix(in srgb, var(--color-base-100) 70%, transparent);
+    --ios-locket-glass-strong: color-mix(in srgb, var(--color-base-100) 84%, transparent);
+    --ios-locket-line: color-mix(in srgb, var(--color-base-content) 14%, transparent);
+    --ios-locket-soft-shadow: 0 14px 38px color-mix(in srgb, #000 28%, transparent);
+    --ios-locket-radius: 46px;
+  }
+
+  html.theme-ios [data-locket-home="true"] {
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    overflow: hidden !important;
+    background:
+      radial-gradient(
+        circle at 22% 16%,
+        color-mix(in srgb, var(--color-primary) 9%, transparent),
+        transparent 32%
+      ),
+      radial-gradient(
+        circle at 78% 72%,
+        color-mix(in srgb, var(--color-secondary) 7%, transparent),
+        transparent 34%
+      ),
+      var(--color-base-100);
+  }
+
+  /* ── Shared iOS header ───────────────────────────────────────── */
+  html.theme-ios [data-locket-header="true"] {
+    top: 0 !important;
+    height: calc(84px + env(safe-area-inset-top, 0px)) !important;
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 18px 0 !important;
+    pointer-events: none;
+  }
+
+  html.theme-ios [data-locket-header="true"] > * {
+    pointer-events: auto;
+  }
+
+  html.theme-ios [data-header-left="true"] {
+    top: calc(12px + env(safe-area-inset-top, 0px)) !important;
+    right: 18px !important;
+    left: auto !important;
+  }
+
+  html.theme-ios [data-header-right="true"] {
+    top: calc(12px + env(safe-area-inset-top, 0px)) !important;
+    left: 18px !important;
+    right: auto !important;
+  }
+
+  html.theme-ios [data-header-update="true"],
+  html.theme-ios [data-header-chat="true"] {
+    display: none !important;
+  }
+
+  html.theme-ios [data-header-profile="true"],
+  html.theme-ios #hamburger-menu-trigger {
+    width: 56px !important;
+    height: 56px !important;
+    min-width: 56px !important;
+    min-height: 56px !important;
+    border-radius: 999px !important;
+    border: 1px solid var(--ios-locket-line) !important;
+    background: var(--ios-locket-glass) !important;
+    box-shadow:
+      0 8px 24px color-mix(in srgb, #000 20%, transparent),
+      inset 0 1px 0 color-mix(in srgb, #fff 12%, transparent) !important;
+    backdrop-filter: blur(24px) saturate(160%) !important;
+    -webkit-backdrop-filter: blur(24px) saturate(160%) !important;
+  }
+
+  html.theme-ios [data-header-profile="true"] > div:first-child {
+    width: 56px !important;
+    height: 56px !important;
+    border-radius: inherit !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  html.theme-ios [data-header-profile="true"] img {
+    width: 47px !important;
+    height: 47px !important;
+    object-fit: cover;
+  }
+
+  html.theme-ios .iosHeaderDefaultIcon {
+    display: none !important;
+  }
+
+  html.theme-ios .iosHeaderMegaphoneIcon {
+    display: block !important;
+  }
+
+  html.theme-ios [data-friends-pill="true"] {
+    top: calc(12px + env(safe-area-inset-top, 0px)) !important;
+    min-width: 154px !important;
+    min-height: 56px !important;
+    padding: 0 20px !important;
+    border-radius: 999px !important;
+    border: 1px solid var(--ios-locket-line) !important;
+    background: var(--ios-locket-glass) !important;
+    box-shadow:
+      0 8px 24px color-mix(in srgb, #000 20%, transparent),
+      inset 0 1px 0 color-mix(in srgb, #fff 12%, transparent) !important;
+    backdrop-filter: blur(24px) saturate(160%) !important;
+    -webkit-backdrop-filter: blur(24px) saturate(160%) !important;
+    font-size: clamp(1.12rem, 5vw, 1.28rem) !important;
+    font-weight: 760 !important;
+    letter-spacing: -0.025em !important;
+    white-space: nowrap;
+  }
+
+  html.theme-ios [data-friends-desktop-content="true"],
+  html.theme-ios [data-friends-mobile-content="true"] {
+    display: none !important;
+  }
+
+  html.theme-ios [data-friends-ios-content="true"] {
+    display: flex !important;
+  }
+
+  /* ── 1) Camera / Home ────────────────────────────────────────── */
+  html.theme-ios [data-capture-stack="true"] {
+    justify-content: flex-start !important;
+    gap: 8px !important;
+    padding-top: calc(92px + env(safe-area-inset-top, 0px)) !important;
+    padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px)) !important;
+    overflow: hidden !important;
+  }
+
+  html.theme-ios [data-capture-spacer="true"] {
+    display: none !important;
+  }
+
+  html.theme-ios [data-media-preview-shell="true"] {
+    order: 1 !important;
+    width: min(
+      calc(100vw - 10px),
+      max(270px, calc(100dvh - 370px)),
+      520px
+    ) !important;
+    max-width: none !important;
+    padding: 0 !important;
+    flex: 0 0 auto !important;
+  }
+
+  html.theme-ios [data-media-preview-shell="true"] > div {
+    width: 100% !important;
+    max-width: none !important;
+    aspect-ratio: 1 / 1 !important;
+    border-radius: var(--ios-locket-radius) !important;
+    overflow: hidden !important;
+    box-shadow: 0 18px 42px color-mix(in srgb, #000 24%, transparent) !important;
+  }
+
+  html.theme-ios [data-action-controls="true"] {
+    order: 2 !important;
+    flex: 0 0 auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Real Locket camera controls are a bare row, not another glass navbar. */
+  html.theme-ios .cameraControlPill {
+    width: min(calc(100vw - 42px), 390px) !important;
+    height: 94px !important;
+    margin: 0 auto !important;
+    padding: 0 4px !important;
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  html.theme-ios .cameraControlPill::before {
+    display: none !important;
+  }
+
+  html.theme-ios .actionBarCol {
+    min-height: 88px !important;
+  }
+
+  html.theme-ios .actionBarColCenter {
+    width: 94px !important;
+    min-width: 94px !important;
+  }
+
+  html.theme-ios .pillSideBtn {
+    width: 62px !important;
+    height: 62px !important;
+    min-width: 62px !important;
+    min-height: 62px !important;
+    color: var(--color-base-content) !important;
+    border-radius: 999px !important;
+  }
+
+  html.theme-ios .pillSideBtn svg {
+    width: 33px !important;
+    height: 33px !important;
+    stroke-width: 2.5 !important;
+  }
+
+  html.theme-ios #camera-shutter-button {
+    width: 92px !important;
+    height: 92px !important;
+    min-width: 92px !important;
+    min-height: 92px !important;
+  }
+
+  html.theme-ios #camera-shutter-button > div:first-child {
+    width: 84px !important;
+    height: 84px !important;
+    border-width: 5px !important;
+    border-color: var(--ios-accent, var(--color-primary)) !important;
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, #000 75%, transparent),
+      0 7px 20px color-mix(in srgb, #000 20%, transparent) !important;
+  }
+
+  html.theme-ios #camera-shutter-button > div:last-child {
+    width: 68px !important;
+    height: 68px !important;
+    background: #fff !important;
+  }
+
+  html.theme-ios [data-history-region="true"] {
+    order: 3 !important;
+    min-height: 50px !important;
+    flex: 0 0 auto !important;
+    margin: -1px 0 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  html.theme-ios [data-mobile-activity-pill="true"],
+  html.theme-ios [data-desktop-history-button="true"] {
+    display: none !important;
+  }
+
+  html.theme-ios [data-ios-history-button="true"] {
+    display: flex !important;
+    min-height: 46px !important;
+    color: var(--color-base-content) !important;
+    letter-spacing: -0.02em;
+  }
+
+  html.theme-ios [data-ios-history-thumb="true"] {
+    border: 1px solid var(--ios-locket-line) !important;
+    box-shadow: 0 5px 16px color-mix(in srgb, #000 22%, transparent);
+  }
+
+  html.theme-ios .iosCameraBottomNav {
+    position: fixed;
+    left: 50%;
+    bottom: max(12px, env(safe-area-inset-bottom, 0px));
+    z-index: 66;
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr);
+    align-items: center;
+    width: min(calc(100vw - 118px), 290px);
+    min-width: 246px;
+    height: 68px;
+    padding: 6px;
+    transform: translateX(-50%);
+    border: 1px solid var(--ios-locket-line);
+    border-radius: 999px;
+    background: var(--ios-locket-glass);
+    box-shadow:
+      0 14px 34px color-mix(in srgb, #000 30%, transparent),
+      inset 0 1px 0 color-mix(in srgb, #fff 11%, transparent);
+    backdrop-filter: blur(28px) saturate(170%);
+    -webkit-backdrop-filter: blur(28px) saturate(170%);
+  }
+
+  html.theme-ios .iosCameraNavButton {
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    margin: auto;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    color: color-mix(in srgb, var(--color-base-content) 70%, transparent);
+    background: transparent;
+  }
+
+  html.theme-ios .iosCameraNavButton.is-active {
+    color: var(--color-base-content);
+    background: color-mix(in srgb, var(--color-base-content) 18%, transparent);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 10%, transparent);
+  }
+
+  html.theme-ios .iosCameraNavButton svg {
+    width: 27px;
+    height: 27px;
+    stroke-width: 2.5;
+  }
+
+  /* ── 2) History grid ─────────────────────────────────────────── */
+  html.theme-ios [data-ios-history-scroll="true"] {
+    position: relative;
+    padding-top: calc(88px + env(safe-area-inset-top, 0px)) !important;
+    padding-bottom: calc(114px + env(safe-area-inset-bottom, 0px)) !important;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--color-base-100) 97%, #000 3%),
+        var(--color-base-100)
+      );
+  }
+
+  html.theme-ios [data-ios-history-scroll="true"]::-webkit-scrollbar {
+    display: none;
+  }
+
+  html.theme-ios [data-ios-history-spacer="true"] {
+    display: none !important;
+  }
+
+  html.theme-ios [data-ios-history-grid="true"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 4px !important;
+    width: 100% !important;
+    padding: 0 2px !important;
+  }
+
+  html.theme-ios [data-ios-history-grid="true"] > * {
+    min-width: 0;
+  }
+
+  html.theme-ios [data-ios-history-tile="true"],
+  html.theme-ios [data-ios-history-grid="true"] .skeleton {
+    border-radius: 24px !important;
+  }
+
+  html.theme-ios [data-ios-history-tile="true"] {
+    background: color-mix(in srgb, var(--color-base-200) 88%, #091014 12%) !important;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-base-content) 4%, transparent);
+  }
+
+  html.theme-ios [data-ios-history-tile="true"] img {
+    border-radius: 24px !important;
+  }
+
+  html.theme-ios [data-ios-history-media-error="true"] {
+    color: color-mix(in srgb, var(--color-base-content) 74%, transparent);
+    background: color-mix(in srgb, var(--color-base-200) 86%, #071014 14%) !important;
+  }
+
+  /* ── 3) Single moment detail ─────────────────────────────────── */
+  html.theme-ios [data-ios-detail-view="true"] {
+    z-index: 45 !important;
+    justify-content: flex-start !important;
+    padding-top: calc(92px + env(safe-area-inset-top, 0px)) !important;
+    padding-bottom: calc(154px + env(safe-area-inset-bottom, 0px)) !important;
+    overflow: hidden !important;
+    background:
+      radial-gradient(
+        circle at 18% 20%,
+        color-mix(in srgb, var(--color-primary) 11%, transparent),
+        transparent 34%
+      ),
+      radial-gradient(
+        circle at 82% 72%,
+        color-mix(in srgb, var(--color-secondary) 8%, transparent),
+        transparent 34%
+      ),
+      color-mix(in srgb, var(--color-base-100) 96%, #000 4%);
+  }
+
+  html.theme-ios [data-ios-detail-view="true"] .swiper {
+    width: 100% !important;
+    max-width: none !important;
+    height: 100% !important;
+    overflow: visible !important;
+  }
+
+  html.theme-ios [data-ios-detail-view="true"] .swiper-slide {
+    align-items: flex-start !important;
+  }
+
+  html.theme-ios [data-ios-detail-view="true"] .swiper-slide > div {
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+    padding-bottom: 0 !important;
+  }
+
+  html.theme-ios [data-ios-detail-view="true"] .moment-enter {
+    width: 100% !important;
+    padding: 0 4px !important;
+    justify-content: flex-start !important;
+  }
+
+  html.theme-ios [data-ios-detail-view="true"] .moment-enter > div {
+    width: 100% !important;
+    gap: 12px !important;
+  }
+
+  html.theme-ios
+    [data-ios-detail-view="true"]
+    .moment-enter
+    button[aria-label="Đóng khoảnh khắc"] {
+    display: none !important;
+  }
+
+  html.theme-ios
+    [data-ios-detail-view="true"]
+    .moment-enter
+    > div
+    > div:first-of-type {
+    width: min(calc(100vw - 8px), 510px) !important;
+    height: auto !important;
+    aspect-ratio: 1 / 1 !important;
+    border: 0 !important;
+    border-radius: var(--ios-locket-radius) !important;
+    overflow: hidden !important;
+    background: var(--color-base-300) !important;
+    box-shadow: 0 22px 48px color-mix(in srgb, #000 26%, transparent) !important;
+  }
+
+  html.theme-ios [data-ios-detail-view="true"] .moment-media-fade,
+  html.theme-ios [data-ios-detail-view="true"] .moment-skeleton {
+    border-radius: var(--ios-locket-radius) !important;
+  }
+
+  html.theme-ios [data-ios-detail-view="true"] .moment-enter > div > :last-child {
+    margin-top: 2px;
+  }
+
+  /* ── History/detail bottom navigation ────────────────────────── */
+  html.theme-ios [data-bottom-menu-shell="true"] {
+    bottom: max(12px, env(safe-area-inset-bottom, 0px)) !important;
+    padding: 0 10px !important;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  html.theme-ios [data-bottom-menu-shell="true"] .defaultBottomControls {
+    display: none !important;
+  }
+
+  html.theme-ios [data-ios-moment-interaction="true"] {
+    width: min(calc(100vw - 46px), 370px);
+    margin: 0 auto !important;
+  }
+
+  html.theme-ios .iosBottomControls {
+    display: grid !important;
+    grid-template-columns: 58px minmax(0, 1fr) 58px;
+    gap: 10px;
+    align-items: center;
+    width: min(calc(100vw - 20px), 455px);
+    margin: 0 auto;
+  }
+
+  html.theme-ios .iosBottomSideSlot {
+    width: 58px;
+    height: 58px;
+    display: grid;
+    place-items: center;
+  }
+
+  html.theme-ios .iosBottomSideButton {
+    display: grid;
+    place-items: center;
+    width: 58px;
+    height: 58px;
+    padding: 0;
+    border: 1px solid var(--ios-locket-line);
+    border-radius: 999px;
+    color: var(--color-base-content);
+    background: var(--ios-locket-glass);
+    box-shadow:
+      0 10px 26px color-mix(in srgb, #000 24%, transparent),
+      inset 0 1px 0 color-mix(in srgb, #fff 10%, transparent);
+    backdrop-filter: blur(24px) saturate(165%);
+    -webkit-backdrop-filter: blur(24px) saturate(165%);
+  }
+
+  html.theme-ios .iosBottomSideButton svg {
+    width: 27px;
+    height: 27px;
+    stroke-width: 2.4;
+  }
+
+  html.theme-ios .iosBottomNavPill {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    align-items: center;
+    height: 74px;
+    min-width: 0;
+    padding: 6px;
+    border: 1px solid var(--ios-locket-line);
+    border-radius: 999px;
+    background: var(--ios-locket-glass);
+    box-shadow:
+      0 14px 34px color-mix(in srgb, #000 30%, transparent),
+      inset 0 1px 0 color-mix(in srgb, #fff 11%, transparent);
+    backdrop-filter: blur(28px) saturate(175%);
+    -webkit-backdrop-filter: blur(28px) saturate(175%);
+  }
+
+  html.theme-ios .iosBottomNavItem {
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    margin: auto;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    color: color-mix(in srgb, var(--color-base-content) 72%, transparent);
+    background: transparent;
+  }
+
+  html.theme-ios .iosBottomNavItem.is-active {
+    color: var(--color-base-content);
+    background: color-mix(in srgb, var(--color-base-content) 16%, transparent);
+  }
+
+  html.theme-ios .iosBottomNavItem svg {
+    width: 27px;
+    height: 27px;
+    stroke-width: 2.45;
+  }
+
+  html.theme-ios .iosBottomShutter {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 60px;
+    height: 60px;
+    margin: auto;
+    padding: 0;
+    border: 4px solid var(--ios-accent, var(--color-primary));
+    border-radius: 999px;
+    background: #121215;
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, #000 70%, transparent),
+      0 7px 18px color-mix(in srgb, #000 22%, transparent);
+  }
+
+  html.theme-ios .iosBottomShutter > span {
+    display: block;
+    width: 45px;
+    height: 45px;
+    border-radius: 999px;
+    background: #fff;
+  }
+
+  html.theme-ios :where(
+      .iosBottomSideButton,
+      .iosBottomNavItem,
+      .iosBottomShutter,
+      .iosCameraNavButton
+    ):active {
+    transform: scale(0.94);
+  }
+
+  @media (max-height: 620px) {
+    html.theme-ios [data-locket-header="true"] {
+      height: calc(74px + env(safe-area-inset-top, 0px)) !important;
+      padding-top: calc(7px + env(safe-area-inset-top, 0px)) !important;
+    }
+
+    html.theme-ios [data-header-left="true"],
+    html.theme-ios [data-header-right="true"],
+    html.theme-ios [data-friends-pill="true"] {
+      top: calc(7px + env(safe-area-inset-top, 0px)) !important;
+    }
+
+    html.theme-ios [data-header-profile="true"],
+    html.theme-ios #hamburger-menu-trigger,
+    html.theme-ios [data-friends-pill="true"] {
+      min-height: 50px !important;
+      height: 50px !important;
+    }
+
+    html.theme-ios [data-header-profile="true"],
+    html.theme-ios #hamburger-menu-trigger {
+      width: 50px !important;
+      min-width: 50px !important;
+    }
+
+    html.theme-ios [data-capture-stack="true"] {
+      padding-top: calc(74px + env(safe-area-inset-top, 0px)) !important;
+      gap: 4px !important;
+    }
+
+    html.theme-ios [data-media-preview-shell="true"] {
+      width: min(calc(100vw - 18px), max(230px, calc(100dvh - 330px))) !important;
+    }
+
+    html.theme-ios .cameraControlPill {
+      height: 76px !important;
+    }
+
+    html.theme-ios .actionBarCol {
+      min-height: 72px !important;
+    }
+
+    html.theme-ios .actionBarColCenter {
+      width: 76px !important;
+      min-width: 76px !important;
+    }
+
+    html.theme-ios #camera-shutter-button {
+      width: 74px !important;
+      height: 74px !important;
+      min-width: 74px !important;
+      min-height: 74px !important;
+    }
+
+    html.theme-ios #camera-shutter-button > div:first-child {
+      width: 68px !important;
+      height: 68px !important;
+    }
+
+    html.theme-ios #camera-shutter-button > div:last-child {
+      width: 53px !important;
+      height: 53px !important;
+    }
+
+    html.theme-ios [data-history-region="true"] {
+      min-height: 42px !important;
+    }
+
+    html.theme-ios [data-ios-history-thumb="true"] {
+      width: 38px !important;
+      height: 38px !important;
+    }
+
+    html.theme-ios .iosCameraBottomNav,
+    html.theme-ios .iosBottomNavPill {
+      height: 62px;
+    }
+
+    html.theme-ios .iosCameraNavButton,
+    html.theme-ios .iosBottomNavItem {
+      width: 50px;
+      height: 50px;
+    }
+
+    html.theme-ios .iosBottomShutter {
+      width: 52px;
+      height: 52px;
+    }
+
+    html.theme-ios .iosBottomShutter > span {
+      width: 39px;
+      height: 39px;
+    }
+  }
+}
