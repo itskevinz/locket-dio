@@ -1,0 +1,261 @@
+/* Admin V10 — unmistakable successful-auth page transition.
+   Loaded after V9. Keep auth logic untouched; only strengthen the visual handoff. */
+
+.admin-vault-handoff {
+  perspective: 1400px !important;
+  transform-style: preserve-3d !important;
+  background: color-mix(in srgb, var(--color-base-100, #fff) 82%, transparent) !important;
+  backdrop-filter: blur(12px) saturate(1.22) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(1.22) !important;
+}
+
+/* Strong center seam so the user can clearly see the screen split open. */
+.admin-vault-handoff::before {
+  content: "" !important;
+  position: absolute !important;
+  z-index: 30 !important;
+  left: 50% !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  width: 3px !important;
+  transform: translateX(-50%) !important;
+  pointer-events: none !important;
+  background: linear-gradient(180deg,
+    transparent,
+    color-mix(in srgb, var(--color-primary, #0ea5e9) 82%, white) 18%,
+    var(--color-success, #22c55e) 50%,
+    color-mix(in srgb, var(--color-secondary, #8b5cf6) 76%, white) 82%,
+    transparent) !important;
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--color-primary, #0ea5e9) 70%, transparent),
+    0 0 30px color-mix(in srgb, var(--color-success, #22c55e) 44%, transparent) !important;
+  animation: admin-v10-center-seam 1.08s cubic-bezier(.22,1,.36,1) both !important;
+}
+
+/* A horizontal unlock pulse makes the exact unlock moment obvious. */
+.admin-vault-handoff::after {
+  content: "" !important;
+  position: absolute !important;
+  z-index: 29 !important;
+  left: 50% !important;
+  top: 50% !important;
+  width: 10px !important;
+  height: 2px !important;
+  transform: translate(-50%, -50%) !important;
+  pointer-events: none !important;
+  background: var(--color-success, #22c55e) !important;
+  box-shadow:
+    0 0 12px var(--color-success, #22c55e),
+    0 0 34px color-mix(in srgb, var(--color-success, #22c55e) 65%, transparent) !important;
+  animation: admin-v10-unlock-pulse .82s cubic-bezier(.16,1,.3,1) both !important;
+}
+
+.admin-vault-handoff__door {
+  width: 51% !important;
+  transform-origin: center center !important;
+  will-change: transform, filter !important;
+}
+
+.admin-vault-handoff__door--left {
+  animation: admin-v10-door-left 1.08s cubic-bezier(.16,1,.3,1) both !important;
+}
+
+.admin-vault-handoff__door--right {
+  animation: admin-v10-door-right 1.08s cubic-bezier(.16,1,.3,1) both !important;
+}
+
+/* Keep ACCESS GRANTED locked in the center, then snap it away as the screen opens. */
+.admin-vault-handoff__mark {
+  animation: admin-v10-verified-mark 1.04s cubic-bezier(.16,1,.3,1) both !important;
+}
+
+.admin-vault-handoff__seal {
+  animation: admin-v10-seal 1s cubic-bezier(.16,1,.3,1) both !important;
+}
+
+.admin-vault-handoff__sweep {
+  width: 26% !important;
+  filter: blur(1px) brightness(1.25) !important;
+  animation: admin-v10-success-scan .72s cubic-bezier(.16,1,.3,1) both !important;
+}
+
+/* This is the actual page change. Start much farther away and keep moving after
+   the security overlay leaves, so the user cannot miss the transition. */
+.admin-dashboard-enter {
+  transform-origin: 58% 50% !important;
+  backface-visibility: hidden !important;
+  will-change: transform, opacity, filter !important;
+  animation: admin-v10-dashboard-enter 1.18s cubic-bezier(.16,1,.3,1) both !important;
+}
+
+/* Theme-colored light curtain crosses the dashboard after it comes through. */
+.admin-dashboard-enter::before {
+  content: "" !important;
+  position: fixed !important;
+  z-index: 99990 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  left: -28vw !important;
+  width: 24vw !important;
+  min-width: 180px !important;
+  pointer-events: none !important;
+  transform: skewX(-10deg) !important;
+  background: linear-gradient(90deg,
+    transparent,
+    color-mix(in srgb, var(--color-primary, #0ea5e9) 12%, transparent),
+    color-mix(in srgb, var(--color-success, #22c55e) 20%, transparent),
+    color-mix(in srgb, var(--color-secondary, #8b5cf6) 12%, transparent),
+    transparent) !important;
+  filter: blur(4px) !important;
+  animation: admin-v10-dashboard-light 1.08s .14s cubic-bezier(.16,1,.3,1) both !important;
+}
+
+@keyframes admin-v10-center-seam {
+  0% { opacity: 0; transform: translateX(-50%) scaleY(.08); }
+  18% { opacity: 1; transform: translateX(-50%) scaleY(1); }
+  46% { opacity: 1; width: 3px; }
+  58% { opacity: 1; width: 9px; filter: brightness(1.55); }
+  76% { opacity: .65; width: 2px; }
+  100% { opacity: 0; width: 0; }
+}
+
+@keyframes admin-v10-unlock-pulse {
+  0%, 28% { opacity: 0; width: 10px; }
+  42% { opacity: 1; width: 12px; }
+  64% { opacity: 1; width: 86vw; }
+  100% { opacity: 0; width: 118vw; }
+}
+
+@keyframes admin-v10-door-left {
+  0%, 38% {
+    transform: translate3d(0,0,0) rotateY(0deg);
+    filter: brightness(1);
+  }
+  48% {
+    transform: translate3d(2.2%,0,0) rotateY(1deg);
+    filter: brightness(1.08);
+  }
+  61% {
+    transform: translate3d(-10%,0,0) rotateY(-2deg);
+    filter: brightness(1.04);
+  }
+  100% {
+    transform: translate3d(-112%,0,0) rotateY(-8deg);
+    filter: brightness(.94);
+  }
+}
+
+@keyframes admin-v10-door-right {
+  0%, 38% {
+    transform: translate3d(0,0,0) rotateY(0deg);
+    filter: brightness(1);
+  }
+  48% {
+    transform: translate3d(-2.2%,0,0) rotateY(-1deg);
+    filter: brightness(1.08);
+  }
+  61% {
+    transform: translate3d(10%,0,0) rotateY(2deg);
+    filter: brightness(1.04);
+  }
+  100% {
+    transform: translate3d(112%,0,0) rotateY(8deg);
+    filter: brightness(.94);
+  }
+}
+
+@keyframes admin-v10-verified-mark {
+  0% {
+    opacity: 0;
+    transform: translate(-50%,-46%) scale(.62);
+    filter: blur(10px);
+  }
+  17% {
+    opacity: 1;
+    transform: translate(-50%,-50%) scale(1.12);
+    filter: blur(0);
+  }
+  37% {
+    opacity: 1;
+    transform: translate(-50%,-50%) scale(1);
+  }
+  51% {
+    opacity: 1;
+    transform: translate(-50%,-50%) scale(1.04);
+  }
+  67% {
+    opacity: .9;
+    transform: translate(-50%,-50%) scale(.95);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%,-50%) scale(.72);
+    filter: blur(8px);
+  }
+}
+
+@keyframes admin-v10-seal {
+  0% { transform: scale(.62) rotate(-14deg); filter: brightness(.82); }
+  24% { transform: scale(1.18) rotate(3deg); filter: brightness(1.5); }
+  45% { transform: scale(1) rotate(0); filter: brightness(1.08); }
+  62% { transform: scale(1.1) rotate(0); filter: brightness(1.38); }
+  100% { transform: scale(.82) rotate(0); filter: brightness(.94); }
+}
+
+@keyframes admin-v10-success-scan {
+  0% { left: -30%; opacity: 0; }
+  14% { opacity: 1; }
+  72% { opacity: 1; }
+  100% { left: 118%; opacity: 0; }
+}
+
+@keyframes admin-v10-dashboard-enter {
+  0% {
+    opacity: 0;
+    transform: translate3d(160px, 0, -30px) scale(.90) rotateY(-4deg);
+    filter: blur(18px) brightness(.82) saturate(.82);
+  }
+  28% {
+    opacity: .22;
+    transform: translate3d(118px, 0, -18px) scale(.925) rotateY(-3deg);
+    filter: blur(14px) brightness(.88) saturate(.88);
+  }
+  55% {
+    opacity: .72;
+    transform: translate3d(42px, 0, -6px) scale(.975) rotateY(-1deg);
+    filter: blur(5px) brightness(.97) saturate(.96);
+  }
+  78% {
+    opacity: 1;
+    transform: translate3d(-8px, 0, 0) scale(1.008) rotateY(.25deg);
+    filter: blur(0) brightness(1.03) saturate(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0,0,0) scale(1) rotateY(0);
+    filter: blur(0) brightness(1) saturate(1);
+  }
+}
+
+@keyframes admin-v10-dashboard-light {
+  0% { left: -28vw; opacity: 0; }
+  18% { opacity: 1; }
+  78% { opacity: .9; }
+  100% { left: 118vw; opacity: 0; }
+}
+
+/* Keep the full transition on all device classes. */
+@media (max-width: 640px) {
+  .admin-dashboard-enter {
+    animation-duration: 1.18s !important;
+  }
+}
+
+html.perf-lite .admin-vault-handoff,
+html.perf-lite .admin-vault-handoff__door,
+html.perf-lite .admin-vault-handoff__mark,
+html.perf-lite .admin-dashboard-enter,
+body.perf-lite .admin-vault-handoff,
+body.perf-lite .admin-dashboard-enter {
+  animation-play-state: running !important;
+}
