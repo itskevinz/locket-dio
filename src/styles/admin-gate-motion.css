@@ -1,0 +1,68 @@
+/* Admin-only motion polish.
+   Keeps login/dashboard transitions subtle and avoids stacked scale/bounce effects. */
+
+/* Replace the generic page fade on the locked gate so it does not stack with
+   the card entrance animation. */
+[class*="via-blue-50/60"][class*="to-indigo-50/80"].animate-fade-in {
+  animation: admin-gate-screen-fade 180ms ease-out both !important;
+}
+
+/* Native-like entrance: short fade + tiny vertical travel, no zoom/scale. */
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] > .max-w-md.w-full {
+  animation: admin-gate-card-enter 240ms cubic-bezier(.22, 1, .36, 1) 20ms both !important;
+  will-change: opacity, transform;
+}
+
+/* Successful unlock -> dashboard should also feel continuous instead of
+   replaying a large generic animation. */
+[class*="via-blue-50/40"][class*="to-indigo-50/60"].animate-fade-in {
+  animation: admin-dashboard-enter 220ms cubic-bezier(.22, 1, .36, 1) both !important;
+}
+
+@keyframes admin-gate-screen-fade {
+  from { opacity: .92; }
+  to { opacity: 1; }
+}
+
+@keyframes admin-gate-card-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes admin-dashboard-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (max-width: 640px) {
+  [class*="via-blue-50/60"][class*="to-indigo-50/80"] > .max-w-md.w-full {
+    animation-duration: 210ms !important;
+    animation-delay: 0ms !important;
+  }
+
+  [class*="via-blue-50/40"][class*="to-indigo-50/60"].animate-fade-in {
+    animation-duration: 200ms !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [class*="via-blue-50/60"][class*="to-indigo-50/80"].animate-fade-in,
+  [class*="via-blue-50/60"][class*="to-indigo-50/80"] > .max-w-md.w-full,
+  [class*="via-blue-50/40"][class*="to-indigo-50/60"].animate-fade-in {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    transform: none !important;
+  }
+}
