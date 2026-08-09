@@ -1,0 +1,625 @@
+/* Admin Login V2 — colorful, decorative, theme-aware security gate.
+   Loaded last so this visual system wins over older gate experiments without
+   touching authentication logic. */
+
+.admin-vault:not(.admin-vault--loading) {
+  --admin-primary: var(--color-primary, #7c3aed);
+  --admin-secondary: var(--color-secondary, #06b6d4);
+  --admin-accent: var(--color-accent, #f43f5e);
+  --admin-info: var(--color-info, #38bdf8);
+  --admin-success: var(--color-success, #22c55e);
+  --admin-warning: var(--color-warning, #f59e0b);
+  --admin-base: var(--color-base-100, #ffffff);
+  --admin-base-2: var(--color-base-200, #f4f4f5);
+  --admin-base-3: var(--color-base-300, #e4e4e7);
+  --admin-text: var(--color-base-content, #18181b);
+  place-items: center;
+  padding: clamp(4.8rem, 8vh, 6.8rem) clamp(.8rem, 2.5vw, 2rem) 1.5rem !important;
+  background:
+    radial-gradient(circle at 8% 18%, color-mix(in srgb, var(--admin-primary) 25%, transparent) 0 7%, transparent 28%),
+    radial-gradient(circle at 88% 16%, color-mix(in srgb, var(--admin-secondary) 24%, transparent) 0 6%, transparent 27%),
+    radial-gradient(circle at 78% 88%, color-mix(in srgb, var(--admin-accent) 20%, transparent) 0 5%, transparent 28%),
+    radial-gradient(circle at 16% 88%, color-mix(in srgb, var(--admin-warning) 14%, transparent) 0 4%, transparent 25%),
+    linear-gradient(135deg,
+      color-mix(in srgb, var(--admin-base-2) 92%, var(--admin-primary) 8%),
+      color-mix(in srgb, var(--admin-base) 92%, var(--admin-secondary) 8%) 48%,
+      color-mix(in srgb, var(--admin-base-2) 90%, var(--admin-accent) 10%));
+}
+
+/* Moving color atmosphere */
+.admin-vault:not(.admin-vault--loading)::before,
+.admin-vault:not(.admin-vault--loading)::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: 999px;
+  filter: blur(18px);
+}
+
+.admin-vault:not(.admin-vault--loading)::before {
+  width: min(34rem, 76vw);
+  height: min(34rem, 76vw);
+  left: -11rem;
+  top: 10%;
+  opacity: .34;
+  background: conic-gradient(from 40deg,
+    color-mix(in srgb, var(--admin-primary) 56%, transparent),
+    color-mix(in srgb, var(--admin-secondary) 44%, transparent),
+    color-mix(in srgb, var(--admin-accent) 42%, transparent),
+    color-mix(in srgb, var(--admin-primary) 56%, transparent));
+  animation: admin-v2-orb-left 10s ease-in-out infinite alternate !important;
+}
+
+.admin-vault:not(.admin-vault--loading)::after {
+  width: min(29rem, 68vw);
+  height: min(29rem, 68vw);
+  right: -9rem;
+  bottom: -8rem;
+  opacity: .28;
+  background: conic-gradient(from 160deg,
+    color-mix(in srgb, var(--admin-accent) 48%, transparent),
+    color-mix(in srgb, var(--admin-warning) 36%, transparent),
+    color-mix(in srgb, var(--admin-secondary) 48%, transparent),
+    color-mix(in srgb, var(--admin-accent) 48%, transparent));
+  animation: admin-v2-orb-right 12s ease-in-out infinite alternate !important;
+}
+
+.admin-vault-grid {
+  z-index: -2 !important;
+  opacity: .34 !important;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--admin-primary) 11%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--admin-secondary) 10%, transparent) 1px, transparent 1px),
+    radial-gradient(circle, color-mix(in srgb, var(--admin-accent) 19%, transparent) 1.2px, transparent 1.5px) !important;
+  background-size: 48px 48px, 48px 48px, 96px 96px !important;
+  mask-image: radial-gradient(ellipse at center, black 14%, rgba(0,0,0,.82) 56%, transparent 92%) !important;
+  animation: admin-v2-grid-drift 16s linear infinite !important;
+}
+
+.admin-vault-glow {
+  display: block !important;
+  filter: blur(75px) !important;
+  opacity: .22 !important;
+  animation: admin-v2-glow-float 7s ease-in-out infinite alternate !important;
+}
+.admin-vault-glow--one { background: var(--admin-primary) !important; }
+.admin-vault-glow--two { background: var(--admin-secondary) !important; animation-delay: -2.2s !important; }
+
+/* Main two-panel card */
+.admin-vault-card {
+  position: relative !important;
+  width: min(100%, 68rem) !important;
+  min-height: min(42rem, calc(100svh - 7.2rem));
+  display: grid !important;
+  grid-template-columns: minmax(18rem, .88fr) minmax(25rem, 1.12fr) !important;
+  grid-template-rows: 1fr auto auto !important;
+  overflow: hidden !important;
+  border: 1px solid color-mix(in srgb, var(--admin-primary) 19%, var(--vault-border)) !important;
+  border-radius: clamp(1.8rem, 3vw, 2.8rem) !important;
+  background: color-mix(in srgb, var(--admin-base) 76%, transparent) !important;
+  box-shadow:
+    0 34px 90px color-mix(in srgb, var(--admin-text) 20%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--admin-base) 62%, transparent) inset,
+    0 0 80px color-mix(in srgb, var(--admin-primary) 10%, transparent),
+    0 0 90px color-mix(in srgb, var(--admin-secondary) 8%, transparent) !important;
+  backdrop-filter: blur(26px) saturate(1.2) !important;
+  animation: admin-v2-card-enter 760ms cubic-bezier(.22,1,.36,1) both !important;
+}
+
+/* Decorative multicolor border runner */
+.admin-vault-card::before {
+  content: "" !important;
+  position: absolute !important;
+  z-index: 30 !important;
+  inset: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  left: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  opacity: .7 !important;
+  pointer-events: none !important;
+  border-radius: inherit !important;
+  padding: 1px !important;
+  background: conic-gradient(from var(--admin-v2-angle, 0deg),
+    transparent 0 16%,
+    color-mix(in srgb, var(--admin-primary) 75%, transparent) 23%,
+    color-mix(in srgb, var(--admin-secondary) 70%, transparent) 31%,
+    transparent 39% 63%,
+    color-mix(in srgb, var(--admin-accent) 68%, transparent) 72%,
+    color-mix(in srgb, var(--admin-warning) 55%, transparent) 80%,
+    transparent 88% 100%) !important;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0) !important;
+  -webkit-mask-composite: xor !important;
+  mask-composite: exclude !important;
+  filter: none !important;
+  transform: none !important;
+  animation: admin-v2-border-spin 7s linear infinite !important;
+}
+
+.admin-vault-card::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  width: 18rem;
+  height: 18rem;
+  right: -7rem;
+  top: -8rem;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle,
+    color-mix(in srgb, var(--admin-accent) 22%, transparent),
+    color-mix(in srgb, var(--admin-secondary) 8%, transparent) 48%,
+    transparent 70%);
+  animation: admin-v2-card-orb 5.8s ease-in-out infinite alternate !important;
+}
+
+.admin-vault-card__edge {
+  z-index: 31 !important;
+  top: 0 !important;
+  left: 8% !important;
+  right: 8% !important;
+  height: 2px !important;
+  background: linear-gradient(90deg,
+    transparent,
+    var(--admin-primary),
+    var(--admin-secondary),
+    var(--admin-accent),
+    transparent) !important;
+  background-size: 220% 100% !important;
+  box-shadow: 0 0 28px color-mix(in srgb, var(--admin-primary) 35%, transparent) !important;
+  animation: admin-v2-edge-flow 2.8s linear infinite !important;
+}
+
+/* Left identity / decorative side */
+.admin-vault-header {
+  position: relative !important;
+  z-index: 2 !important;
+  grid-column: 1 !important;
+  grid-row: 1 / 3 !important;
+  min-width: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  text-align: left !important;
+  padding: clamp(2rem, 4vw, 3.3rem) clamp(1.65rem, 3.4vw, 3rem) !important;
+  overflow: hidden !important;
+  border-right: 1px solid color-mix(in srgb, var(--admin-primary) 14%, var(--vault-border)) !important;
+  background:
+    radial-gradient(circle at 15% 20%, color-mix(in srgb, var(--admin-primary) 28%, transparent), transparent 34%),
+    radial-gradient(circle at 90% 78%, color-mix(in srgb, var(--admin-secondary) 22%, transparent), transparent 35%),
+    radial-gradient(circle at 60% 5%, color-mix(in srgb, var(--admin-accent) 15%, transparent), transparent 31%),
+    linear-gradient(155deg,
+      color-mix(in srgb, var(--admin-base) 80%, var(--admin-primary) 20%),
+      color-mix(in srgb, var(--admin-base-2) 85%, var(--admin-secondary) 15%)) !important;
+}
+
+.admin-vault-header::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  opacity: .72;
+  background:
+    radial-gradient(circle at 22% 28%, color-mix(in srgb, var(--admin-primary) 52%, transparent) 0 2px, transparent 3px),
+    radial-gradient(circle at 76% 17%, color-mix(in srgb, var(--admin-secondary) 48%, transparent) 0 2px, transparent 3px),
+    radial-gradient(circle at 68% 72%, color-mix(in srgb, var(--admin-accent) 46%, transparent) 0 2px, transparent 3px),
+    radial-gradient(circle at 28% 82%, color-mix(in srgb, var(--admin-warning) 45%, transparent) 0 2px, transparent 3px);
+  background-size: 78px 78px, 104px 104px, 122px 122px, 90px 90px;
+  animation: admin-v2-particles 14s linear infinite !important;
+}
+
+.admin-vault-header::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  width: 15rem;
+  height: 15rem;
+  right: -7rem;
+  bottom: -6rem;
+  border-radius: 48% 52% 58% 42%;
+  border: 1px solid color-mix(in srgb, var(--admin-secondary) 22%, transparent);
+  box-shadow:
+    0 0 0 18px color-mix(in srgb, var(--admin-primary) 5%, transparent),
+    0 0 0 36px color-mix(in srgb, var(--admin-accent) 4%, transparent);
+  animation: admin-v2-shape-spin 18s linear infinite !important;
+}
+
+.admin-vault-badges {
+  position: absolute !important;
+  top: 1.35rem !important;
+  left: 1.5rem !important;
+  right: 1.5rem !important;
+  margin: 0 !important;
+  z-index: 4 !important;
+}
+.admin-vault-badges span {
+  padding: .45rem .7rem !important;
+  border: 1px solid color-mix(in srgb, var(--admin-primary) 24%, transparent) !important;
+  border-radius: 999px !important;
+  color: color-mix(in srgb, var(--admin-primary) 78%, var(--admin-text)) !important;
+  background: color-mix(in srgb, var(--admin-base) 68%, transparent) !important;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--admin-primary) 9%, transparent) !important;
+  backdrop-filter: blur(12px) !important;
+}
+.admin-vault-badges::after {
+  content: "TLS 1.3  •  2FA READY";
+  padding: .43rem .66rem;
+  border: 1px solid color-mix(in srgb, var(--admin-secondary) 22%, transparent);
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--admin-secondary) 72%, var(--admin-text));
+  background: color-mix(in srgb, var(--admin-base) 66%, transparent);
+  font-size: .47rem;
+  font-weight: 900;
+  letter-spacing: .09em;
+  backdrop-filter: blur(12px);
+}
+
+.admin-vault-mark {
+  margin: 0 0 1.5rem !important;
+  width: 5.7rem !important;
+  height: 5.7rem !important;
+  border-radius: 1.8rem !important;
+  border: 1px solid color-mix(in srgb, var(--admin-primary) 28%, transparent) !important;
+  color: var(--admin-primary) !important;
+  background:
+    linear-gradient(145deg,
+      color-mix(in srgb, var(--admin-primary) 18%, var(--admin-base)),
+      color-mix(in srgb, var(--admin-secondary) 13%, var(--admin-base-2))) !important;
+  box-shadow:
+    0 18px 42px color-mix(in srgb, var(--admin-primary) 16%, transparent),
+    0 0 0 8px color-mix(in srgb, var(--admin-primary) 5%, transparent),
+    0 0 58px color-mix(in srgb, var(--admin-secondary) 12%, transparent) !important;
+  animation: admin-v2-mark-float 3s ease-in-out infinite alternate !important;
+}
+.admin-vault-mark svg { width: 2.45rem !important; height: 2.45rem !important; }
+.admin-vault-mark__ring {
+  inset: .42rem !important;
+  border-radius: 1.4rem !important;
+  border-color: color-mix(in srgb, var(--admin-secondary) 28%, transparent) !important;
+  box-shadow: inset 0 0 24px color-mix(in srgb, var(--admin-primary) 10%, transparent) !important;
+  animation: admin-v2-ring-pulse 1.8s ease-in-out infinite !important;
+}
+
+.admin-vault-eyebrow {
+  color: color-mix(in srgb, var(--admin-secondary) 68%, var(--admin-text)) !important;
+  font-size: .62rem !important;
+  font-weight: 950 !important;
+  letter-spacing: .18em !important;
+}
+.admin-vault-header h1 {
+  max-width: 17rem !important;
+  margin: .45rem 0 .6rem !important;
+  font-size: clamp(2rem, 4vw, 3.15rem) !important;
+  line-height: .98 !important;
+  font-weight: 950 !important;
+  letter-spacing: -.055em !important;
+  color: transparent !important;
+  background: linear-gradient(115deg,
+    var(--admin-primary),
+    color-mix(in srgb, var(--admin-secondary) 82%, var(--admin-text)),
+    var(--admin-accent)) !important;
+  background-size: 180% 100% !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  animation: admin-v2-title-flow 5s ease-in-out infinite alternate !important;
+}
+.admin-vault-header > p {
+  max-width: 20rem !important;
+  margin: 0 !important;
+  font-size: .82rem !important;
+  line-height: 1.65 !important;
+  color: color-mix(in srgb, var(--admin-text) 66%, transparent) !important;
+}
+
+.admin-vault-identity {
+  width: 100% !important;
+  margin-top: 1.55rem !important;
+  padding: .76rem .85rem !important;
+  border-radius: 1.15rem !important;
+  border: 1px solid color-mix(in srgb, var(--admin-secondary) 18%, var(--vault-border)) !important;
+  background: color-mix(in srgb, var(--admin-base) 62%, transparent) !important;
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--admin-text) 7%, transparent) !important;
+  backdrop-filter: blur(14px) !important;
+}
+.admin-vault-identity > span {
+  background: linear-gradient(135deg, var(--admin-primary), var(--admin-secondary)) !important;
+  color: var(--color-primary-content, #fff) !important;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--admin-primary) 25%, transparent) !important;
+}
+.admin-vault-identity > svg { color: var(--admin-success) !important; }
+
+/* Right PIN / OTP panel */
+.admin-vault-panel {
+  position: relative !important;
+  z-index: 3 !important;
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  align-self: center !important;
+  padding: clamp(2rem, 4vw, 3.2rem) clamp(1.6rem, 3.4vw, 3rem) 1.8rem !important;
+  background:
+    radial-gradient(circle at 90% 8%, color-mix(in srgb, var(--admin-secondary) 10%, transparent), transparent 26%),
+    radial-gradient(circle at 10% 92%, color-mix(in srgb, var(--admin-accent) 8%, transparent), transparent 28%) !important;
+}
+
+.admin-vault-panel::before {
+  left: 10% !important;
+  right: 10% !important;
+  top: .7rem !important;
+  height: 2px !important;
+  opacity: .9 !important;
+  background: linear-gradient(90deg, transparent, var(--admin-primary), var(--admin-secondary), var(--admin-accent), transparent) !important;
+  background-size: 200% 100% !important;
+  animation: admin-v2-edge-flow 2.5s linear infinite !important;
+}
+
+.admin-vault-section-label {
+  margin-bottom: 1rem !important;
+  padding: .55rem .7rem !important;
+  border: 1px solid color-mix(in srgb, var(--admin-primary) 17%, transparent) !important;
+  border-radius: 1rem !important;
+  color: color-mix(in srgb, var(--admin-primary) 72%, var(--admin-text)) !important;
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--admin-primary) 8%, var(--admin-base)),
+    color-mix(in srgb, var(--admin-secondary) 6%, var(--admin-base))) !important;
+}
+.admin-vault-section-label svg { color: var(--admin-primary) !important; }
+.admin-vault-section-label i {
+  color: color-mix(in srgb, var(--admin-secondary) 70%, var(--admin-text)) !important;
+  background: color-mix(in srgb, var(--admin-secondary) 9%, transparent) !important;
+  border-radius: 999px !important;
+  padding: .22rem .42rem !important;
+}
+
+.admin-vault-label { color: color-mix(in srgb, var(--admin-text) 68%, transparent) !important; }
+
+.admin-vault-input-wrap {
+  border-radius: 1.35rem !important;
+  margin-bottom: 1rem !important;
+}
+.admin-vault-input-wrap::before {
+  inset: -2px !important;
+  border-radius: 1.45rem !important;
+  background: conic-gradient(from 0deg,
+    var(--admin-primary),
+    var(--admin-secondary),
+    var(--admin-accent),
+    var(--admin-warning),
+    var(--admin-primary)) !important;
+  filter: blur(7px) !important;
+  opacity: .16 !important;
+}
+.admin-vault-input-wrap:focus-within::before { opacity: .52 !important; animation: admin-v2-input-ring 2.8s linear infinite !important; }
+.admin-vault-input-wrap::after {
+  top: auto !important;
+  bottom: -1px !important;
+  left: 7% !important;
+  width: 24% !important;
+  height: 2px !important;
+  border-radius: 999px !important;
+  opacity: .9 !important;
+  transform: none !important;
+  background: linear-gradient(90deg, transparent, var(--admin-primary), var(--admin-secondary), transparent) !important;
+  box-shadow: 0 0 16px color-mix(in srgb, var(--admin-primary) 38%, transparent) !important;
+  animation: admin-v2-input-track 2s ease-in-out infinite !important;
+}
+
+.admin-vault-input {
+  min-height: 4.6rem !important;
+  border-radius: 1.3rem !important;
+  border: 1px solid color-mix(in srgb, var(--admin-primary) 22%, var(--vault-border)) !important;
+  color: var(--admin-text) !important;
+  background: color-mix(in srgb, var(--admin-base) 88%, transparent) !important;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--admin-base) 78%, transparent),
+    0 12px 28px color-mix(in srgb, var(--admin-text) 8%, transparent) !important;
+}
+.admin-vault-input:focus {
+  transform: translateY(-2px) !important;
+  border-color: color-mix(in srgb, var(--admin-primary) 56%, var(--admin-secondary)) !important;
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--admin-primary) 9%, transparent),
+    0 15px 34px color-mix(in srgb, var(--admin-primary) 12%, transparent) !important;
+}
+.admin-vault-input-wrap > svg { color: var(--admin-primary) !important; }
+
+/* Colorful keypad */
+.admin-vault-keypad { gap: .7rem !important; }
+.admin-vault-key {
+  min-height: 3.65rem !important;
+  border-radius: 1.15rem !important;
+  border: 1px solid color-mix(in srgb, var(--admin-primary) 16%, var(--vault-border)) !important;
+  color: var(--admin-text) !important;
+  background: linear-gradient(145deg,
+    color-mix(in srgb, var(--admin-base) 88%, var(--admin-primary) 12%),
+    color-mix(in srgb, var(--admin-base-2) 94%, var(--admin-primary) 6%)) !important;
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--admin-text) 7%, transparent), inset 0 1px 0 color-mix(in srgb, var(--admin-base) 82%, transparent) !important;
+}
+.admin-vault-key:nth-child(3n + 1) {
+  border-color: color-mix(in srgb, var(--admin-primary) 24%, var(--vault-border)) !important;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--admin-base) 84%, var(--admin-primary) 16%), color-mix(in srgb, var(--admin-base-2) 93%, var(--admin-primary) 7%)) !important;
+}
+.admin-vault-key:nth-child(3n + 2) {
+  border-color: color-mix(in srgb, var(--admin-secondary) 25%, var(--vault-border)) !important;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--admin-base) 84%, var(--admin-secondary) 16%), color-mix(in srgb, var(--admin-base-2) 93%, var(--admin-secondary) 7%)) !important;
+}
+.admin-vault-key:nth-child(3n) {
+  border-color: color-mix(in srgb, var(--admin-accent) 23%, var(--vault-border)) !important;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--admin-base) 84%, var(--admin-accent) 16%), color-mix(in srgb, var(--admin-base-2) 93%, var(--admin-accent) 7%)) !important;
+}
+.admin-vault-key:hover:not(:disabled) {
+  transform: translateY(-3px) scale(1.018) !important;
+  border-color: color-mix(in srgb, var(--admin-primary) 48%, var(--admin-secondary)) !important;
+  box-shadow: 0 12px 26px color-mix(in srgb, var(--admin-primary) 12%, transparent), 0 0 22px color-mix(in srgb, var(--admin-secondary) 9%, transparent) !important;
+}
+.admin-vault-key:active:not(:disabled) {
+  transform: translateY(2px) scale(.94) !important;
+}
+.admin-vault-key::after {
+  background: radial-gradient(circle,
+    color-mix(in srgb, var(--admin-primary) 34%, transparent),
+    color-mix(in srgb, var(--admin-secondary) 20%, transparent) 52%,
+    transparent 72%) !important;
+}
+.admin-vault-key--utility {
+  color: color-mix(in srgb, var(--admin-accent) 65%, var(--admin-text)) !important;
+}
+
+.admin-vault-submit {
+  min-height: 4.15rem !important;
+  border-radius: 1.25rem !important;
+  border: 0 !important;
+  color: var(--color-primary-content, #fff) !important;
+  background: linear-gradient(110deg,
+    var(--admin-primary),
+    color-mix(in srgb, var(--admin-secondary) 78%, var(--admin-primary)),
+    var(--admin-accent)) !important;
+  background-size: 180% 100% !important;
+  box-shadow:
+    0 16px 34px color-mix(in srgb, var(--admin-primary) 24%, transparent),
+    0 0 30px color-mix(in srgb, var(--admin-secondary) 12%, transparent) !important;
+  animation: admin-v2-submit-gradient 4s ease-in-out infinite alternate !important;
+}
+.admin-vault-submit:not(:disabled):hover { transform: translateY(-2px) !important; filter: saturate(1.12) brightness(1.04) !important; }
+.admin-vault-submit.is-loading { animation: admin-v2-submit-loading 1s ease-in-out infinite alternate !important; }
+.admin-vault-submit__shimmer { display: none !important; }
+.admin-vault-submit__progress {
+  height: 3px !important;
+  bottom: 0 !important;
+  background: linear-gradient(90deg, var(--admin-warning), var(--admin-secondary), var(--admin-accent)) !important;
+  box-shadow: 0 0 16px color-mix(in srgb, var(--admin-secondary) 42%, transparent) !important;
+}
+
+.admin-vault-trust {
+  border-radius: 1.05rem !important;
+  border-color: color-mix(in srgb, var(--admin-secondary) 18%, var(--vault-border)) !important;
+  background: color-mix(in srgb, var(--admin-secondary) 5%, var(--admin-base)) !important;
+}
+.admin-vault-trust__box { border-color: color-mix(in srgb, var(--admin-secondary) 30%, var(--vault-border)) !important; }
+
+.admin-vault-error {
+  grid-column: 2 !important;
+  grid-row: 2 !important;
+  margin: -1rem clamp(1.6rem, 3.4vw, 3rem) 1rem !important;
+  border-radius: 1rem !important;
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--vault-error) 10%, transparent) !important;
+}
+
+.admin-vault-footer {
+  position: relative !important;
+  z-index: 3 !important;
+  grid-column: 1 / -1 !important;
+  grid-row: 3 !important;
+  padding: .95rem 1.55rem 1.05rem !important;
+  border-top: 1px solid color-mix(in srgb, var(--admin-primary) 12%, var(--vault-border)) !important;
+  background: color-mix(in srgb, var(--admin-base) 64%, transparent) !important;
+  backdrop-filter: blur(16px) !important;
+}
+.admin-vault-footer div { color: color-mix(in srgb, var(--admin-text) 48%, transparent) !important; }
+.admin-vault-footer div svg { color: var(--admin-success) !important; }
+.admin-vault-footer button {
+  color: color-mix(in srgb, var(--admin-primary) 62%, var(--admin-text)) !important;
+  padding: .38rem .55rem !important;
+  border-radius: 999px !important;
+  background: color-mix(in srgb, var(--admin-primary) 6%, transparent) !important;
+}
+.admin-vault-footer button:hover { background: color-mix(in srgb, var(--admin-primary) 12%, transparent) !important; }
+
+/* Success state follows the theme too */
+.admin-vault-success > div {
+  color: var(--admin-success) !important;
+  border-color: color-mix(in srgb, var(--admin-success) 38%, transparent) !important;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--admin-success) 13%, var(--admin-base)), color-mix(in srgb, var(--admin-secondary) 9%, var(--admin-base))) !important;
+  box-shadow: 0 0 42px color-mix(in srgb, var(--admin-success) 18%, transparent), 0 0 0 9px color-mix(in srgb, var(--admin-success) 5%, transparent) !important;
+}
+.admin-vault-success h2 { color: color-mix(in srgb, var(--admin-success) 72%, var(--admin-text)) !important; }
+
+/* Desktop polish */
+@media (min-width: 860px) {
+  .admin-vault-card { animation: admin-v2-card-enter 760ms cubic-bezier(.22,1,.36,1) both !important; }
+  .admin-vault-panel { min-height: 33rem; display: flex; flex-direction: column; justify-content: center; }
+  .admin-vault-form { width: 100%; max-width: 31rem; margin-inline: auto; }
+}
+
+/* Mobile: one rich card, preserve color and motion */
+@media (max-width: 859px) {
+  .admin-vault:not(.admin-vault--loading) { align-items: start !important; overflow-y: auto !important; padding-top: 5.25rem !important; }
+  .admin-vault-card {
+    width: min(100%, 35rem) !important;
+    min-height: auto !important;
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto auto auto auto !important;
+    border-radius: 2rem !important;
+  }
+  .admin-vault-header {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    min-height: 20rem !important;
+    align-items: center !important;
+    text-align: center !important;
+    padding: 4.7rem 1.35rem 1.8rem !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid color-mix(in srgb, var(--admin-primary) 13%, var(--vault-border)) !important;
+  }
+  .admin-vault-mark { margin: 0 auto 1.1rem !important; width: 4.8rem !important; height: 4.8rem !important; border-radius: 1.55rem !important; }
+  .admin-vault-header h1 { max-width: 23rem !important; font-size: clamp(1.9rem, 8vw, 2.55rem) !important; }
+  .admin-vault-header > p { margin-inline: auto !important; max-width: 23rem !important; }
+  .admin-vault-identity { max-width: 25rem !important; margin-inline: auto !important; }
+  .admin-vault-panel {
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+    padding: 1.45rem 1.1rem 1.25rem !important;
+  }
+  .admin-vault-error { grid-column: 1 !important; grid-row: 3 !important; margin: 0 1.1rem .9rem !important; }
+  .admin-vault-footer { grid-column: 1 !important; grid-row: 4 !important; padding: .9rem 1rem 1rem !important; }
+  .admin-vault-badges { left: 1rem !important; right: 1rem !important; top: 1rem !important; }
+  .admin-vault-badges::after { font-size: .42rem; }
+  .admin-vault-key { min-height: 3.2rem !important; }
+}
+
+@media (max-width: 480px) {
+  .admin-vault:not(.admin-vault--loading) { padding-inline: .55rem !important; }
+  .admin-vault-card { border-radius: 1.55rem !important; }
+  .admin-vault-header { min-height: 18.5rem !important; padding-inline: 1rem !important; }
+  .admin-vault-panel { padding-inline: .85rem !important; }
+  .admin-vault-keypad { gap: .55rem !important; }
+  .admin-vault-key { min-height: 3rem !important; border-radius: .95rem !important; }
+  .admin-vault-input { min-height: 4.15rem !important; }
+  .admin-vault-submit { min-height: 3.8rem !important; }
+  .admin-vault-footer { flex-direction: column !important; align-items: stretch !important; text-align: center !important; }
+  .admin-vault-footer div { justify-content: center !important; flex-wrap: wrap !important; }
+  .admin-vault-footer button { justify-content: center !important; }
+}
+
+/* Motion remains visible for Admin, including lite mode. */
+html[data-performance-mode="lite"] .admin-vault-card,
+html[data-animation-enabled="false"] .admin-vault-card {
+  animation: admin-v2-card-enter 760ms cubic-bezier(.22,1,.36,1) both !important;
+}
+
+@property --admin-v2-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes admin-v2-border-spin { to { --admin-v2-angle: 360deg; } }
+@keyframes admin-v2-grid-drift { to { background-position: 48px 48px, -48px 48px, 96px -96px; } }
+@keyframes admin-v2-orb-left { from { transform: translate3d(0,0,0) rotate(0deg) scale(.94); } to { transform: translate3d(7rem,3rem,0) rotate(36deg) scale(1.08); } }
+@keyframes admin-v2-orb-right { from { transform: translate3d(0,0,0) rotate(0deg) scale(1); } to { transform: translate3d(-6rem,-2.5rem,0) rotate(-42deg) scale(1.12); } }
+@keyframes admin-v2-glow-float { from { transform: translate3d(0,0,0) scale(.94); } to { transform: translate3d(2.4rem,-1.2rem,0) scale(1.08); } }
+@keyframes admin-v2-card-enter { from { opacity: 0; transform: translate3d(0,32px,0) scale(.965); filter: blur(10px); } 72% { opacity: 1; transform: translate3d(0,-4px,0) scale(1.004); filter: blur(0); } to { opacity: 1; transform: none; filter: blur(0); } }
+@keyframes admin-v2-card-orb { from { transform: translate3d(0,0,0) scale(.9); opacity: .6; } to { transform: translate3d(-2.5rem,2rem,0) scale(1.12); opacity: 1; } }
+@keyframes admin-v2-edge-flow { from { background-position: 180% 0; } to { background-position: -20% 0; } }
+@keyframes admin-v2-particles { to { background-position: 78px 78px, -104px 104px, 122px -122px, -90px -90px; } }
+@keyframes admin-v2-shape-spin { to { transform: rotate(360deg); } }
+@keyframes admin-v2-mark-float { from { transform: translateY(0) rotate(-1deg); } to { transform: translateY(-7px) rotate(1deg); } }
+@keyframes admin-v2-ring-pulse { 0%,100% { transform: scale(.9); opacity: .42; } 50% { transform: scale(1.08); opacity: 1; } }
+@keyframes admin-v2-title-flow { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
+@keyframes admin-v2-input-ring { to { transform: rotate(360deg); } }
+@keyframes admin-v2-input-track { 0% { left: 5%; opacity: .25; } 50% { left: 70%; opacity: 1; } 100% { left: 5%; opacity: .25; } }
+@keyframes admin-v2-submit-gradient { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
+@keyframes admin-v2-submit-loading { from { transform: scale(.992); filter: saturate(.95) brightness(.96); } to { transform: scale(1.008); filter: saturate(1.18) brightness(1.08); } }
