@@ -145,3 +145,12 @@ html[data-animation-enabled="false"] .history-container > *,
 html[data-animation-enabled="false"] .draft-library-grid > * {
   animation: none !important;
 }
+
+/* Camera ↔ history is now animated frame-by-frame by Framer Motion. Do not let
+ * the historical CSS transition layer interpolate those same transform writes,
+ * otherwise Android/PWA can look stuck or snap at the end of the motion. */
+html[data-animation-enabled] [data-history-motion="framer"] {
+  transition-property: none !important;
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+}

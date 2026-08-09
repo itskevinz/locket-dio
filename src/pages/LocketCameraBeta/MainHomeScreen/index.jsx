@@ -1,6 +1,8 @@
 import React, { lazy, Suspense } from "react";
+import { motion } from "framer-motion";
 import { Home, LayoutGrid, MessageCircle } from "lucide-react";
 import { useAppNavigation } from "@/context/AppContext";
+import { useAnimation } from "@/context/AnimationContext";
 
 import HeaderHome from "./Layout/HeaderHome";
 import BottomMenu from "../BottomHomeScreen/Layout/BottomMenu";
@@ -34,9 +36,19 @@ export default function MainHomeScreen() {
     isFriendHistoryOpen,
     setFriendHistoryOpen,
   } = useAppNavigation();
+  const { isAnimationEnabled } = useAnimation();
   const selectedFile = usePostStore((s) => s.selectedFile);
   const preview = usePostStore((s) => s.preview);
   const hasCaptured = !!(selectedFile || preview);
+
+  // History is a core interaction, so drive it with Framer Motion directly.
+  // This avoids Tailwind/performance/reduced-motion CSS layers collapsing the
+  // slide into an instant jump on some Android/PWA combinations.
+  const historyPanelTransition = {
+    type: "tween",
+    duration: isAnimationEnabled ? 0.5 : 0,
+    ease: [0.22, 1, 0.36, 1],
+  };
 
   // --- Keyboard Shortcuts logic ---
   useKeyboardShortcuts();
@@ -145,16 +157,15 @@ export default function MainHomeScreen() {
           selectedFile={selectedFile}
         />
 
-        {/* Keep both main panels fixed for the whole animation. Toggling
-            position: fixed together with transform made the iOS slide snap. */}
-        <div
+        <motion.div
           data-history-panel="true"
+          data-history-motion="framer"
+          initial={false}
+          animate={{ y: isBottomOpen ? "0%" : "100%" }}
+          transition={historyPanelTransition}
           className={clsx(
-            "fixed inset-0 w-full h-full flex flex-col transition-transform duration-500 ease-out will-change-transform justify-center items-center",
-            {
-              "translate-y-0": isBottomOpen,
-              "translate-y-full pointer-events-none": !isBottomOpen,
-            },
+            "fixed inset-0 w-full h-full flex flex-col will-change-transform justify-center items-center",
+            { "pointer-events-none": !isBottomOpen },
           )}
         >
           <div
@@ -172,17 +183,18 @@ export default function MainHomeScreen() {
             setIsProfileOpen={setIsProfileOpen}
             setIsHomeOpen={setIsHomeOpen}
           />
-        </div>
+        </motion.div>
 
-        <div
+        <motion.div
           data-capture-stack="true"
           data-camera-panel="true"
+          data-history-motion="framer"
+          initial={false}
+          animate={{ y: isBottomOpen ? "-100%" : "0%" }}
+          transition={historyPanelTransition}
           className={clsx(
-            "fixed inset-0 w-full h-full flex flex-col transition-transform duration-500 ease-out will-change-transform justify-evenly items-center",
-            {
-              "translate-y-0": !isBottomOpen,
-              "-translate-y-full pointer-events-none": isBottomOpen,
-            },
+            "fixed inset-0 w-full h-full flex flex-col will-change-transform justify-evenly items-center",
+            { "pointer-events-none": isBottomOpen },
           )}
         >
           <div data-capture-spacer="true" className="h-10" />
@@ -250,7 +262,7 @@ export default function MainHomeScreen() {
               </button>
             </nav>
           )}
-        </div>
+        </motion.div>
       </div>
     </>
   );

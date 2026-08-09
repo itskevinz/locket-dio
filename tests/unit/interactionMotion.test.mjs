@@ -38,6 +38,21 @@ test("the in-app animation switch is the single Framer Motion authority", () => 
   assert.doesNotMatch(scrollReveal, /useReducedMotion|perfMode === ["']lite["']/);
 });
 
+test("camera and history panels use direct Framer Motion instead of CSS transforms", () => {
+  const home = read("src/pages/LocketCameraBeta/MainHomeScreen/index.jsx");
+  const policy = read("src/styles/motion-policy.css");
+
+  assert.match(home, /import \{ motion \} from ["']framer-motion["']/);
+  assert.match(home, /data-history-motion="framer"/);
+  assert.match(home, /duration:\s*isAnimationEnabled \? 0\.5 : 0/);
+  assert.match(home, /animate=\{\{ y: isBottomOpen \? "0%" : "100%" \}\}/);
+  assert.match(home, /animate=\{\{ y: isBottomOpen \? "-100%" : "0%" \}\}/);
+  assert.match(
+    policy,
+    /data-history-motion="framer"[\s\S]*transition-property:\s*none\s*!important/,
+  );
+});
+
 test("core motion stays recognizable in weak-device mode when enabled", () => {
   const policy = read("src/styles/motion-policy.css");
   const interaction = read("src/styles/interaction-motion.css");
