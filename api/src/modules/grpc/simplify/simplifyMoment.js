@@ -31,14 +31,39 @@ function simplifyMoment(data) {
     return true;
   };
 
+  // Older history entries are not fully consistent with newer Locket entries:
+  // some only have image_url (no thumbnail_url), and a few do not expose
+  // canonical_uid. Keep aliases on the response so both old and new clients can
+  // render the same record instead of silently dropping its media.
+  const documentId = document.name?.split("/").pop() || null;
+  const canonicalUid = getString(fields.canonical_uid) || documentId;
+
+  const rawThumbnailUrl = getString(fields.thumbnail_url);
+  const rawImageUrl = getString(fields.image_url);
+  const rawVideoUrl = getString(fields.video_url);
+
+  const resolvedImageUrl = replaceFirebaseWithCDN(
+    rawThumbnailUrl || rawImageUrl,
+  );
+  const resolvedVideoUrl = replaceFirebaseWithCDN(rawVideoUrl);
+
   const moment = {
-    id: getString(fields.canonical_uid),
-    canonical_uid: getString(fields.canonical_uid),
+    id: canonicalUid,
+    canonical_uid: canonicalUid,
     group_id: getString(fields.group_id) || null,
     caption: topLevelCaption || altText || overlayText,
     user: fields.user?.string_value || null,
-    thumbnailUrl: replaceFirebaseWithCDN(getString(fields.thumbnail_url)),
-    videoUrl: replaceFirebaseWithCDN(getString(fields.video_url)),
+
+    // Preserve both camelCase and snake_case names because history/cache code
+    // contains both shapes. Most importantly, fall back to image_url for legacy
+    // moments where thumbnail_url was never written.
+    thumbnailUrl: resolvedImageUrl,
+    thumbnail_url: resolvedImageUrl,
+    imageUrl: resolvedImageUrl,
+    image_url: resolvedImageUrl,
+    videoUrl: resolvedVideoUrl,
+    video_url: resolvedVideoUrl,
+
     md5: getString(fields.md5) || null,
     date: timestampToMillis(fields.date?.timestamp_value) || 0,
     isPublic: getIsPublic(fields),
