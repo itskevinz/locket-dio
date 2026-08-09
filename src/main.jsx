@@ -57,6 +57,7 @@ if (rootEl) {
 // PWA: register SW ASAP so offline shell is ready after first visit.
 // Keep this entrypoint touched by production deploys so Vercel and Railway
 // receive the same frontend revision after motion fixes.
+// Deploy sync marker: 2026-08-10 admin motion production refresh.
 // Update watcher can wait — not needed for offline control.
 try {
   initPWA();
