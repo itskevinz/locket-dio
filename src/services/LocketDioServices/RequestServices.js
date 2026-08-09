@@ -137,7 +137,7 @@ export const getOutgoingRequestFriend = async (
 
 export const SendRequestToFriend = async (uid) => {
   try {
-    const response = await api.post("locket/sendFriendRequestV2", {
+    const response = await api.post("https://api-beta.locket-dio.com/locket/sendFriendRequestV2", {
       data: { friendUid: uid },
     });
 
@@ -153,7 +153,7 @@ export const SendRequestToFriend = async (uid) => {
 
 export const SendRequestToCelebrity = async (uid) => {
   try {
-    const response = await api.post("locket/sendCelebrityRequestV2", {
+    const response = await api.post("https://api-beta.locket-dio.com/locket/sendCelebrityRequestV2", {
       friendUid: uid,
     });
     return response.data;
