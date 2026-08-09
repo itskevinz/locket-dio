@@ -134,15 +134,31 @@ function normalizeMoment(doc) {
       }
     : null;
 
+  const rawThumbnailUrl = f.thumbnail_url?.stringValue || null;
+  const rawImageUrl = f.image_url?.stringValue || null;
+  const rawVideoUrl = f.video_url?.stringValue || null;
+  const resolvedImageUrl = rawThumbnailUrl || rawImageUrl || null;
+  const resolvedVideoUrl = rawVideoUrl || null;
+
   return {
     id: f.canonical_uid?.stringValue || doc.name.split("/").pop(),
     caption: captionText,
     user: f.user?.stringValue || null,
-    thumbnailUrl: replaceFirebaseWithCDN(f.thumbnail_url?.stringValue),
-    videoUrl: replaceFirebaseWithCDN(f.video_url?.stringValue),
-    image_url: replaceFirebaseWithCDN(
-      f.thumbnail_url?.stringValue || f.image_url?.stringValue,
-    ),
+
+    // Signed Firebase URLs must stay primary. Host-only replacement can make a
+    // valid signed URL return 403 on the CDN host.
+    thumbnailUrl: resolvedImageUrl,
+    thumbnail_url: resolvedImageUrl,
+    imageUrl: resolvedImageUrl,
+    image_url: resolvedImageUrl,
+    videoUrl: resolvedVideoUrl,
+    video_url: resolvedVideoUrl,
+
+    // Keep CDN versions only as optional fallbacks.
+    thumbnailCdnUrl: replaceFirebaseWithCDN(resolvedImageUrl),
+    imageCdnUrl: replaceFirebaseWithCDN(resolvedImageUrl),
+    videoCdnUrl: replaceFirebaseWithCDN(resolvedVideoUrl),
+
     md5: f.md5?.stringValue || null,
     date: f.date?.timestampValue || doc.createTime || null,
     isPublic: getIsPublic(f),
