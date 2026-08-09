@@ -1,9 +1,26 @@
 import { CONFIG } from "@/config";
 
-const TRUSTED_DEVICE_STORAGE_KEY = "huy_locket_trust_device";
+// Older builds briefly exposed a trusted-device token to JavaScript.
+// Remove any legacy copy and keep the 30-day token cookie-only.
+try {
+  localStorage.removeItem("huy_locket_trust_device");
+} catch {
+  /* storage may be unavailable */
+}
 
 function endpoint(path) {
   const baseUrl = String(CONFIG.api.baseUrl || "").replace(/\/$/, "");
+
+  // On Vercel, admin API traffic must go through the existing same-origin
+  // /api/admin rewrite. This makes the HttpOnly trusted-device cookie
+  // first-party, so mobile browsers can reliably keep it for 30 days.
+  if (typeof window !== "undefined") {
+    const hostname = String(window.location.hostname || "").toLowerCase();
+    if (hostname.endsWith(".vercel.app")) {
+      return `/api/admin${path}`;
+    }
+  }
+
   return `${baseUrl}/api/admin${path}`;
 }
 
@@ -40,18 +57,11 @@ export function hasShortAdminSession() {
   return Boolean(getShortAdminSessionToken());
 }
 
-export function getTrustedDeviceToken() {
+// Compatibility for existing Admin page imports. Trusted-device JWT stays
+// inside the HttpOnly cookie and is never readable by frontend JavaScript.
+export function setTrustedDeviceToken() {
   try {
-    return localStorage.getItem(TRUSTED_DEVICE_STORAGE_KEY) || "";
-  } catch {
-    return "";
-  }
-}
-
-export function setTrustedDeviceToken(token) {
-  try {
-    if (token) localStorage.setItem(TRUSTED_DEVICE_STORAGE_KEY, token);
-    else localStorage.removeItem(TRUSTED_DEVICE_STORAGE_KEY);
+    localStorage.removeItem("huy_locket_trust_device");
   } catch {
     /* storage may be unavailable */
   }
@@ -77,7 +87,6 @@ export async function adminRequest(path, options = {}) {
   }
 
   const adminSessionToken = getShortAdminSessionToken();
-  const trustedDeviceToken = getTrustedDeviceToken();
   const headers = {
     "Content-Type": "application/json",
     ...(options.headers || {}),
@@ -85,9 +94,6 @@ export async function adminRequest(path, options = {}) {
   };
   if (adminSessionToken) {
     headers["X-Admin-Session"] = adminSessionToken;
-  }
-  if (trustedDeviceToken) {
-    headers["X-Trusted-Device"] = trustedDeviceToken;
   }
 
   const response = await fetch(endpoint(path), {
@@ -124,9 +130,6 @@ export async function startShortAdminSession(pin) {
   if (result.adminSessionToken) {
     setShortAdminSessionToken(result.adminSessionToken);
   }
-  if (result.trustedDeviceToken) {
-    setTrustedDeviceToken(result.trustedDeviceToken);
-  }
   return result;
 }
 
@@ -137,9 +140,6 @@ export async function verifyAdmin2FAOTP(tempToken, otpCode, rememberDevice = tru
   });
   if (result.adminSessionToken) {
     setShortAdminSessionToken(result.adminSessionToken);
-  }
-  if (result.trustedDeviceToken) {
-    setTrustedDeviceToken(result.trustedDeviceToken);
   }
   return result;
 }
