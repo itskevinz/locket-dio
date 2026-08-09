@@ -1,0 +1,147 @@
+/*
+ * Core motion policy for Huy Locket.
+ *
+ * The site has several historical animation layers (Tailwind utilities,
+ * animation.css, interaction-motion.css, performance-lite.css and iOS chrome).
+ * This file is intentionally loaded last and gives the in-app "Hiệu ứng"
+ * switch one predictable meaning:
+ *   - ON  => keep familiar functional motion, including Máy yếu mode.
+ *   - OFF => remove functional motion.
+ *
+ * Máy yếu may still remove expensive decorative GPU work (blur, snow,
+ * particles, shadows). Opacity/transform transitions and loading feedback stay.
+ */
+
+html[data-animation-enabled="true"] #huy-locket-nav-drawer {
+  transition-property: transform, opacity !important;
+  transition-duration: 280ms, 180ms !important;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1), ease !important;
+}
+
+/* Camera ↔ history and other familiar 500 ms panel slides must never collapse
+ * to an almost-instant transition just because performance mode is lite. */
+html[data-animation-enabled="true"] .transition-transform.duration-500 {
+  transition-property: transform !important;
+  transition-duration: 500ms !important;
+  transition-delay: 0ms !important;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+
+html[data-animation-enabled="true"] .transition-all.duration-500 {
+  transition-property: all !important;
+  transition-duration: 500ms !important;
+  transition-delay: 0ms !important;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+
+html[data-animation-enabled="true"] [data-camera-panel="true"],
+html[data-animation-enabled="true"] [data-history-panel="true"] {
+  transition-property: transform !important;
+  transition-duration: 500ms !important;
+  transition-delay: 0ms !important;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+
+/* Keep the original Aug-7 moment animation instead of replacing it with a new
+ * bounce/zoom style. These keyframes are defined by interaction-motion.css. */
+html[data-animation-enabled="true"] .moment-enter {
+  animation: hl-moment-enter 200ms cubic-bezier(0.22, 1, 0.36, 1) both !important;
+}
+
+html[data-animation-enabled="true"] .moment-overlay-enter {
+  animation: hl-overlay-enter 180ms 45ms cubic-bezier(0.22, 1, 0.36, 1) both !important;
+}
+
+html[data-animation-enabled="true"] .moment-media-fade {
+  transition: opacity 220ms ease !important;
+}
+
+html[data-animation-enabled="true"] [data-ios-history-tile="true"] img {
+  transition-property: opacity !important;
+  transition-duration: 300ms !important;
+  transition-delay: 0ms !important;
+  transition-timing-function: ease !important;
+}
+
+/* Loading a post must still visibly scan/shimmer in Máy yếu mode. */
+html[data-animation-enabled="true"] .moment-skeleton {
+  animation: hl-skeleton-shimmer 1.35s linear infinite !important;
+}
+
+/* Existing global page/list/dropdown/toast motion from animation.css. This also
+ * counteracts browser reduced-motion CSS only when the user explicitly keeps
+ * the site's Hiệu ứng switch enabled. */
+html[data-animation-enabled="true"] :where(
+  .history-container,
+  .chat-container,
+  .settings-container,
+  .drawer-side
+) {
+  animation-duration: 200ms !important;
+  animation-iteration-count: 1 !important;
+}
+
+html[data-animation-enabled="true"] .history-container > *,
+html[data-animation-enabled="true"] .draft-library-grid > * {
+  animation-duration: 200ms !important;
+  animation-iteration-count: 1 !important;
+}
+
+html[data-animation-enabled="true"] .dropdown-content,
+html[data-animation-enabled="true"] .toast {
+  animation-duration: 200ms !important;
+  animation-iteration-count: 1 !important;
+}
+
+html[data-animation-enabled="true"] .interaction-modal-backdrop {
+  animation: hl-backdrop-in 160ms ease-out both !important;
+}
+
+html[data-animation-enabled="true"] .interaction-modal-card {
+  animation: hl-modal-in 200ms cubic-bezier(0.22, 1, 0.36, 1) both !important;
+}
+
+html[data-animation-enabled="true"] .interaction-sheet-enter,
+html[data-animation-enabled="true"] .draft-library-root {
+  animation: hl-sheet-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both !important;
+}
+
+/* Restore tactile transitions that animation.css shortens to 0.01 ms when the
+ * OS reports reduced motion. The app switch is the explicit user control. */
+html[data-animation-enabled="true"] :where(button, .btn, a) {
+  transition-duration: 150ms !important;
+}
+
+/* Explicit site-level switch OFF. Keep loading spinners available, but stop the
+ * navigational/post/decorative motion controlled by this system. */
+html[data-animation-enabled="false"] #huy-locket-nav-drawer,
+html[data-animation-enabled="false"] .transition-transform.duration-500,
+html[data-animation-enabled="false"] .transition-all.duration-500,
+html[data-animation-enabled="false"] [data-camera-panel="true"],
+html[data-animation-enabled="false"] [data-history-panel="true"],
+html[data-animation-enabled="false"] .moment-media-fade,
+html[data-animation-enabled="false"] [data-ios-history-tile="true"] img,
+html[data-animation-enabled="false"] :where(button, .btn, a) {
+  transition-duration: 0.01ms !important;
+  transition-delay: 0ms !important;
+}
+
+html[data-animation-enabled="false"] :where(
+  .moment-enter,
+  .moment-overlay-enter,
+  .moment-skeleton,
+  .interaction-modal-backdrop,
+  .interaction-modal-card,
+  .interaction-sheet-enter,
+  .draft-library-root,
+  .history-container,
+  .chat-container,
+  .settings-container,
+  .drawer-side,
+  .dropdown-content,
+  .toast
+),
+html[data-animation-enabled="false"] .history-container > *,
+html[data-animation-enabled="false"] .draft-library-grid > * {
+  animation: none !important;
+}

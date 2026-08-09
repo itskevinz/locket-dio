@@ -1,40 +1,66 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { MotionConfig } from 'framer-motion';
+import React, {
+  createContext,
+  useContext,
+  useLayoutEffect,
+  useState,
+} from "react";
+import { MotionConfig } from "framer-motion";
 
-// Tạo Context
+const STORAGE_KEY = "global_animation_enabled";
+
 const AnimationContext = createContext({
   isAnimationEnabled: true,
   toggleAnimation: () => {},
 });
 
-// Custom Hook để tái sử dụng nhanh
 export const useAnimation = () => useContext(AnimationContext);
 
+function readAnimationEnabled() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved === null) return true;
+    return JSON.parse(saved) !== false;
+  } catch {
+    return true;
+  }
+}
+
+function syncRootAnimationFlag(enabled) {
+  try {
+    document.documentElement.dataset.animationEnabled = enabled ? "true" : "false";
+  } catch {
+    /* browser-only optional flag */
+  }
+}
+
 /**
- * AnimationProvider - Bọc ở cấp cao nhất (App.js hoặc index.js)
+ * Global animation control.
+ *
+ * The in-app "Hiệu ứng" switch is the single source of truth. When it is ON,
+ * functional motion remains visible on normal and Máy yếu modes. When it is
+ * OFF, Framer Motion and the matching CSS policy both stop functional motion.
  */
 export const AnimationProvider = ({ children }) => {
-  // Lấy trạng thái từ localStorage, mặc định là true nếu chưa từng set
   const [isAnimationEnabled, setIsAnimationEnabled] = useState(() => {
-    const saved = localStorage.getItem('global_animation_enabled');
-    return saved !== null ? JSON.parse(saved) : true;
+    const enabled = readAnimationEnabled();
+    syncRootAnimationFlag(enabled);
+    return enabled;
   });
 
-  // Đồng bộ với localStorage mỗi khi state thay đổi
-  useEffect(() => {
-    localStorage.setItem('global_animation_enabled', JSON.stringify(isAnimationEnabled));
+  useLayoutEffect(() => {
+    syncRootAnimationFlag(isAnimationEnabled);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(isAnimationEnabled));
+    } catch {
+      /* ignore storage failures */
+    }
   }, [isAnimationEnabled]);
 
-  const toggleAnimation = () => setIsAnimationEnabled(prev => !prev);
+  const toggleAnimation = () => setIsAnimationEnabled((prev) => !prev);
 
   return (
     <AnimationContext.Provider value={{ isAnimationEnabled, toggleAnimation }}>
-      {/* 
-        ĐÂY LÀ CHÌA KHÓA:
-        - "user": Tôn trọng cài đặt hệ điều hành (Reduce Motion của Windows/MacOS). Nếu OS tắt, nó cũng tắt.
-        - "always": Tắt TOÀN BỘ hiệu ứng Framer Motion ngay lập tức (Duration = 0).
-      */}
-      <MotionConfig reducedMotion={isAnimationEnabled ? "user" : "always"}>
+      <MotionConfig reducedMotion={isAnimationEnabled ? "never" : "always"}>
         {children}
       </MotionConfig>
     </AnimationContext.Provider>
