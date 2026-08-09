@@ -1,5 +1,6 @@
 /*
  * Chế độ "Máy cấu hình yếu".
+ * Mục tiêu: giảm GPU ở blur/shadow/particle, KHÔNG làm web mất animation.
  * Chỉ hoạt động khi <html data-performance-mode="lite">.
  * Không đổi bố cục, dữ liệu, camera hay chất lượng ảnh đăng.
  */
@@ -19,18 +20,25 @@ html[data-performance-mode="lite"] *::after {
   will-change: auto !important;
 }
 
-/* Giữ phản hồi bấm nhưng rút ngắn các transition dài. */
+/*
+ * Lite vẫn phải có chuyển động nhìn thấy được.
+ * 180ms đủ nhẹ cho máy yếu nhưng không còn cảm giác nhảy trang tức thì.
+ * Các slide chính 500ms được essential-motion.css nâng riêng lên 360ms.
+ */
 html[data-performance-mode="lite"] .transition,
 html[data-performance-mode="lite"] .transition-all,
 html[data-performance-mode="lite"] .transition-colors,
 html[data-performance-mode="lite"] .transition-opacity,
 html[data-performance-mode="lite"] .transition-transform {
-  transition-duration: 80ms !important;
+  transition-duration: 180ms !important;
   transition-delay: 0ms !important;
 }
 
-/* Dừng utility animation lặp vô hạn; spinner tải vẫn được giữ. */
-html[data-performance-mode="lite"] .animate-pulse,
+/*
+ * Chỉ dừng animation trang trí/lặp vô hạn không cần thiết.
+ * KHÔNG tắt animate-pulse vì skeleton/loading cần còn chuyển động.
+ * Spinner tải vẫn được giữ.
+ */
 html[data-performance-mode="lite"] .animate-ping,
 html[data-performance-mode="lite"] .animate-bounce,
 html[data-performance-mode="lite"] .animate-marquee,
@@ -56,11 +64,13 @@ html[data-performance-mode="lite"] [class*="backdrop-blur"] {
   background-image: none !important;
 }
 
-/* Skeleton tĩnh nhẹ hơn pulse liên tục. */
+/*
+ * Không tắt skeleton/loading animation nữa.
+ * essential-motion.css sẽ dùng shimmer nhẹ cho moment/history;
+ * skeleton khác vẫn giữ pulse mặc định để người dùng biết đang tải.
+ */
 html[data-performance-mode="lite"] .skeleton {
-  animation: none !important;
-  background-image: none !important;
-  opacity: 0.72;
+  opacity: 0.78;
 }
 
 /* Ảnh/video thật không bị filter hoặc giảm chất lượng. */
