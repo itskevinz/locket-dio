@@ -2,9 +2,11 @@ import { createRoot } from "react-dom/client";
 import "./i18n";
 import "../tailwind.css";
 import "./index.css";
+import "./styles/animation.css";
 import "./styles/interaction-motion.css";
 import "./styles/performance-lite.css";
 import "./styles/essential-motion.css";
+import "./styles/motion-policy.css";
 import App from "./App.jsx";
 
 import ErrorBoundary from "./components/pages/ErrorBoundary";
