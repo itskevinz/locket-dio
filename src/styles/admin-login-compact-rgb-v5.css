@@ -1,0 +1,351 @@
+/* Admin Login V5 — compact desktop layout + unmistakable visible RGB.
+   Loaded last. Keeps auth logic untouched and lets success/error selectors win by specificity. */
+
+.admin-vault:not(.admin-vault--loading) {
+  --rgb-red: #ff3158;
+  --rgb-orange: #ff8a00;
+  --rgb-yellow: #ffd60a;
+  --rgb-green: #22c55e;
+  --rgb-cyan: #00d9ff;
+  --rgb-blue: #367cff;
+  --rgb-purple: #8b5cf6;
+  --rgb-pink: #ff3cac;
+}
+
+/* ---------- COMPACT DESKTOP CARD ---------- */
+@media (min-width: 761px) {
+  .admin-vault:not(.admin-vault--loading) {
+    padding: 5.1rem 1.25rem 1.25rem !important;
+  }
+
+  .admin-vault-card {
+    width: min(92vw, 56rem) !important;
+    min-height: 34.5rem !important;
+    grid-template-columns: minmax(15.5rem, .86fr) minmax(21rem, 1.14fr) !important;
+    border-radius: 2rem !important;
+  }
+
+  .admin-vault-header {
+    padding: 2rem 2rem 1.7rem !important;
+  }
+
+  .admin-vault-mark {
+    width: 4.7rem !important;
+    height: 4.7rem !important;
+    margin-bottom: 1rem !important;
+    border-radius: 1.45rem !important;
+  }
+
+  .admin-vault-mark svg {
+    width: 2rem !important;
+    height: 2rem !important;
+  }
+
+  .admin-vault-header h1 {
+    font-size: clamp(2rem, 3.2vw, 2.8rem) !important;
+    line-height: .98 !important;
+    margin-bottom: .55rem !important;
+  }
+
+  .admin-vault-header > p {
+    font-size: .72rem !important;
+    line-height: 1.45 !important;
+  }
+
+  .admin-vault-identity {
+    margin-top: 1.25rem !important;
+    padding: .62rem .7rem !important;
+  }
+
+  .admin-vault-panel {
+    padding: 1.35rem 1.6rem 1.15rem !important;
+  }
+
+  .admin-vault-section-label {
+    margin-bottom: .85rem !important;
+    padding: .55rem .65rem !important;
+  }
+
+  .admin-vault-label {
+    margin-bottom: .38rem !important;
+    font-size: .66rem !important;
+  }
+
+  .admin-vault-input {
+    min-height: 3.6rem !important;
+    height: 3.6rem !important;
+    font-size: 1.1rem !important;
+  }
+
+  .admin-vault-keypad {
+    gap: .58rem !important;
+    margin-top: .78rem !important;
+  }
+
+  .admin-vault-key {
+    min-height: 3.25rem !important;
+    height: 3.25rem !important;
+    border-radius: 1rem !important;
+    font-size: .98rem !important;
+  }
+
+  .admin-vault-submit {
+    min-height: 3.45rem !important;
+    height: 3.45rem !important;
+    margin-top: .8rem !important;
+    border-radius: 1rem !important;
+  }
+
+  .admin-vault-footer {
+    padding: .72rem 1.35rem .82rem !important;
+  }
+}
+
+/* ---------- TRUE VISIBLE RGB BORDER ---------- */
+.admin-vault-card {
+  border: 3px solid transparent !important;
+  background:
+    linear-gradient(color-mix(in srgb, var(--rgb-surface, var(--color-base-100, #fff)) 88%, transparent),
+                    color-mix(in srgb, var(--rgb-surface, var(--color-base-100, #fff)) 84%, transparent)) padding-box,
+    linear-gradient(115deg,
+      var(--rgb-red) 0%,
+      var(--rgb-orange) 13%,
+      var(--rgb-yellow) 26%,
+      var(--rgb-green) 39%,
+      var(--rgb-cyan) 52%,
+      var(--rgb-blue) 65%,
+      var(--rgb-purple) 78%,
+      var(--rgb-pink) 91%,
+      var(--rgb-red) 100%) border-box !important;
+  background-size: 100% 100%, 240% 100% !important;
+  animation: admin-v5-card-enter 560ms cubic-bezier(.22,1,.36,1) both,
+             admin-v5-border-flow 3.8s linear 560ms infinite !important;
+  box-shadow:
+    -18px 0 44px rgba(255,49,88,.14),
+    18px 0 46px rgba(0,217,255,.16),
+    0 28px 70px color-mix(in srgb, var(--color-base-content, #111) 18%, transparent) !important;
+}
+
+.admin-vault-card::before {
+  opacity: 0 !important;
+}
+
+.admin-vault-card__edge {
+  display: block !important;
+  height: 4px !important;
+  left: 3% !important;
+  right: 3% !important;
+  top: 0 !important;
+  border-radius: 999px !important;
+  background: linear-gradient(90deg,
+    var(--rgb-red), var(--rgb-orange), var(--rgb-yellow), var(--rgb-green),
+    var(--rgb-cyan), var(--rgb-blue), var(--rgb-purple), var(--rgb-pink), var(--rgb-red)) !important;
+  background-size: 220% 100% !important;
+  box-shadow:
+    0 0 14px var(--rgb-cyan),
+    0 0 24px rgba(255,60,172,.55) !important;
+  animation: admin-v5-rgb-run 2.1s linear infinite !important;
+}
+
+/* ---------- COLORFUL IDENTITY SIDE ---------- */
+.admin-vault-header {
+  background:
+    radial-gradient(circle at 12% 13%, rgba(255,49,88,.34) 0 7%, transparent 28%),
+    radial-gradient(circle at 88% 16%, rgba(0,217,255,.34) 0 8%, transparent 29%),
+    radial-gradient(circle at 78% 82%, rgba(139,92,246,.34) 0 8%, transparent 30%),
+    radial-gradient(circle at 14% 86%, rgba(34,197,94,.27) 0 7%, transparent 28%),
+    radial-gradient(circle at 52% 48%, rgba(255,138,0,.18) 0 8%, transparent 31%),
+    color-mix(in srgb, var(--color-base-100, #fff) 78%, transparent) !important;
+}
+
+.admin-vault-header::before {
+  opacity: 1 !important;
+  background:
+    radial-gradient(circle, var(--rgb-red) 0 2px, transparent 2.6px) 0 0 / 67px 67px,
+    radial-gradient(circle, var(--rgb-cyan) 0 2px, transparent 2.6px) 17px 19px / 83px 83px,
+    radial-gradient(circle, var(--rgb-purple) 0 2px, transparent 2.6px) 31px 7px / 101px 101px,
+    radial-gradient(circle, var(--rgb-yellow) 0 1.8px, transparent 2.4px) 8px 31px / 92px 92px !important;
+  animation: admin-v5-particles 12s linear infinite !important;
+}
+
+.admin-vault-header h1 {
+  color: transparent !important;
+  background: linear-gradient(90deg,
+    var(--rgb-red), var(--rgb-orange), var(--rgb-green), var(--rgb-cyan),
+    var(--rgb-blue), var(--rgb-purple), var(--rgb-pink), var(--rgb-red)) !important;
+  background-size: 260% 100% !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  animation: admin-v5-title-rgb 3.6s linear infinite !important;
+}
+
+.admin-vault-mark {
+  border: 2px solid var(--rgb-purple) !important;
+  color: var(--rgb-blue) !important;
+  background: linear-gradient(145deg,
+    color-mix(in srgb, var(--rgb-pink) 28%, var(--color-base-100, #fff)),
+    color-mix(in srgb, var(--rgb-cyan) 28%, var(--color-base-100, #fff))) !important;
+  box-shadow:
+    -10px -7px 26px rgba(255,60,172,.24),
+    10px 9px 30px rgba(0,217,255,.26),
+    0 0 0 7px rgba(139,92,246,.08) !important;
+}
+
+.admin-vault-mark__ring {
+  border-color: var(--rgb-cyan) !important;
+  box-shadow: inset 0 0 20px rgba(139,92,246,.28), 0 0 18px rgba(255,60,172,.3) !important;
+}
+
+/* ---------- PIN FIELD: RGB MUST BE OBVIOUS ---------- */
+.admin-vault-input-wrap {
+  padding: 3px !important;
+  border-radius: 1.08rem !important;
+  background: linear-gradient(90deg,
+    var(--rgb-red), var(--rgb-orange), var(--rgb-yellow), var(--rgb-green),
+    var(--rgb-cyan), var(--rgb-blue), var(--rgb-purple), var(--rgb-pink), var(--rgb-red)) !important;
+  background-size: 260% 100% !important;
+  box-shadow:
+    -7px 0 18px rgba(255,49,88,.18),
+    7px 0 20px rgba(54,124,255,.2) !important;
+  animation: admin-v5-rgb-run 2.4s linear infinite !important;
+}
+
+.admin-vault-input {
+  border: 0 !important;
+  background: color-mix(in srgb, var(--color-base-100, #fff) 92%, transparent) !important;
+}
+
+/* ---------- KEYPAD: EACH KEY VISIBLY DIFFERENT ---------- */
+.admin-vault-key {
+  border-width: 2px !important;
+  border-style: solid !important;
+  box-shadow: 0 7px 16px rgba(0,0,0,.07) !important;
+}
+
+.admin-vault-key:nth-child(1), .admin-vault-key:nth-child(9) {
+  border-color: var(--rgb-red) !important;
+  background: color-mix(in srgb, var(--rgb-red) 34%, var(--color-base-100, #fff)) !important;
+  color: color-mix(in srgb, var(--rgb-red) 68%, var(--color-base-content, #111)) !important;
+}
+.admin-vault-key:nth-child(2), .admin-vault-key:nth-child(10) {
+  border-color: var(--rgb-orange) !important;
+  background: color-mix(in srgb, var(--rgb-orange) 35%, var(--color-base-100, #fff)) !important;
+  color: color-mix(in srgb, var(--rgb-orange) 68%, var(--color-base-content, #111)) !important;
+}
+.admin-vault-key:nth-child(3), .admin-vault-key:nth-child(11) {
+  border-color: #e7b900 !important;
+  background: color-mix(in srgb, var(--rgb-yellow) 38%, var(--color-base-100, #fff)) !important;
+  color: color-mix(in srgb, #b68d00 74%, var(--color-base-content, #111)) !important;
+}
+.admin-vault-key:nth-child(4), .admin-vault-key:nth-child(12) {
+  border-color: var(--rgb-green) !important;
+  background: color-mix(in srgb, var(--rgb-green) 33%, var(--color-base-100, #fff)) !important;
+  color: color-mix(in srgb, var(--rgb-green) 68%, var(--color-base-content, #111)) !important;
+}
+.admin-vault-key:nth-child(5) {
+  border-color: var(--rgb-cyan) !important;
+  background: color-mix(in srgb, var(--rgb-cyan) 34%, var(--color-base-100, #fff)) !important;
+  color: color-mix(in srgb, #0098b8 70%, var(--color-base-content, #111)) !important;
+}
+.admin-vault-key:nth-child(6) {
+  border-color: var(--rgb-blue) !important;
+  background: color-mix(in srgb, var(--rgb-blue) 32%, var(--color-base-100, #fff)) !important;
+  color: color-mix(in srgb, var(--rgb-blue) 70%, var(--color-base-content, #111)) !important;
+}
+.admin-vault-key:nth-child(7) {
+  border-color: var(--rgb-purple) !important;
+  background: color-mix(in srgb, var(--rgb-purple) 34%, var(--color-base-100, #fff)) !important;
+  color: color-mix(in srgb, var(--rgb-purple) 70%, var(--color-base-content, #111)) !important;
+}
+.admin-vault-key:nth-child(8) {
+  border-color: var(--rgb-pink) !important;
+  background: color-mix(in srgb, var(--rgb-pink) 33%, var(--color-base-100, #fff)) !important;
+  color: color-mix(in srgb, var(--rgb-pink) 70%, var(--color-base-content, #111)) !important;
+}
+
+.admin-vault-key:hover:not(:disabled) {
+  filter: saturate(1.25) brightness(1.04) !important;
+  transform: translateY(-2px) scale(1.025) !important;
+}
+
+/* ---------- UNLOCK BUTTON ---------- */
+.admin-vault-submit,
+.admin-vault-submit:disabled:not(.is-loading):not(.is-verified) {
+  color: #fff !important;
+  background: linear-gradient(90deg,
+    var(--rgb-red), var(--rgb-orange), var(--rgb-green), var(--rgb-cyan),
+    var(--rgb-blue), var(--rgb-purple), var(--rgb-pink), var(--rgb-red)) !important;
+  background-size: 280% 100% !important;
+  border: 0 !important;
+  animation: admin-v5-submit-rgb 3.4s linear infinite !important;
+}
+
+.admin-vault-submit:disabled:not(.is-loading):not(.is-verified) {
+  opacity: .72 !important;
+  filter: saturate(.88) brightness(.92) !important;
+}
+
+/* Keep success/denied V4 readable; those states have higher selector specificity. */
+
+@keyframes admin-v5-card-enter {
+  from { opacity: 0; transform: translate3d(0,18px,0) scale(.965); filter: blur(8px); }
+  to { opacity: 1; transform: translate3d(0,0,0) scale(1); filter: blur(0); }
+}
+
+@keyframes admin-v5-border-flow {
+  to { background-position: 0 0, 240% 0; }
+}
+
+@keyframes admin-v5-rgb-run {
+  from { background-position: 0% 50%; }
+  to { background-position: 260% 50%; }
+}
+
+@keyframes admin-v5-title-rgb {
+  from { background-position: 0% 50%; }
+  to { background-position: 260% 50%; }
+}
+
+@keyframes admin-v5-submit-rgb {
+  from { background-position: 0% 50%; }
+  to { background-position: 280% 50%; }
+}
+
+@keyframes admin-v5-particles {
+  from { background-position: 0 0, 17px 19px, 31px 7px, 8px 31px; }
+  to { background-position: 67px 67px, -66px 102px, 132px -94px, -84px -61px; }
+}
+
+/* Tablet: still compact, but avoid squeezing the two columns too hard. */
+@media (min-width: 761px) and (max-width: 980px) {
+  .admin-vault-card {
+    width: min(95vw, 52rem) !important;
+    grid-template-columns: minmax(14rem, .82fr) minmax(20rem, 1.18fr) !important;
+  }
+}
+
+/* Mobile remains a one-column card and gets slightly smaller controls. */
+@media (max-width: 760px) {
+  .admin-vault-card {
+    width: min(94vw, 28rem) !important;
+    min-height: auto !important;
+    border-width: 2px !important;
+    border-radius: 1.55rem !important;
+  }
+
+  .admin-vault-header {
+    padding: 1.2rem 1.15rem .8rem !important;
+  }
+
+  .admin-vault-panel {
+    padding: .6rem 1.05rem .9rem !important;
+  }
+
+  .admin-vault-key {
+    min-height: 2.8rem !important;
+  }
+
+  .admin-vault-submit {
+    min-height: 3.1rem !important;
+  }
+}
