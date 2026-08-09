@@ -1,20 +1,20 @@
 /* Admin-only page slide motion.
-   Keeps auth logic untouched and scopes motion to Admin UI only. */
+   Auth logic stays untouched. Motion is intentionally visible on desktop,
+   mobile and perf-lite devices instead of being reduced on weaker hardware. */
 
-/* Legacy gate fallback: keep older Admin gate builds smooth if cached briefly. */
+/* Legacy gate fallback for briefly cached older Admin UI. */
 [class*="via-blue-50/60"][class*="to-indigo-50/80"].animate-fade-in {
-  animation: admin-gate-screen-fade 180ms ease-out both !important;
+  animation: admin-gate-screen-fade 240ms ease-out both !important;
 }
 
 [class*="via-blue-50/60"][class*="to-indigo-50/80"] > .max-w-md.w-full {
-  animation: admin-legacy-gate-slide-in 300ms cubic-bezier(.22, 1, .36, 1) 10ms both !important;
+  animation: admin-legacy-gate-slide-in 420ms cubic-bezier(.22, 1, .36, 1) 10ms both !important;
   will-change: opacity, transform;
 }
 
-/* Current secure-vault gate: make the whole card feel like a page sliding in,
-   while Framer Motion continues to handle PIN -> OTP micro transitions. */
+/* Current secure-vault gate: pronounced full-page slide. */
 .admin-vault:not(.admin-vault--loading) .admin-vault-card {
-  animation: admin-vault-page-slide-in 360ms cubic-bezier(.22, 1, .36, 1) 20ms both;
+  animation: admin-vault-page-slide-in 460ms cubic-bezier(.22, 1, .36, 1) 20ms both;
   will-change: opacity, transform;
   backface-visibility: hidden;
   transform-style: preserve-3d;
@@ -22,38 +22,53 @@
 
 .admin-vault:not(.admin-vault--loading) .admin-vault-grid,
 .admin-vault:not(.admin-vault--loading) .admin-vault-glow {
-  animation: admin-vault-background-fade 420ms ease-out both;
+  animation: admin-vault-background-fade 520ms ease-out both;
 }
 
-/* Unlock -> dashboard: reveal the Admin page from the right underneath the
-   security handoff so the transition reads as a true page slide, not a jump. */
+/* PIN -> OTP / OTP -> success gets an extra visible content slide on top of
+   Framer Motion's panel transition, without touching authentication state. */
+.admin-vault-panel:has(.admin-vault-input--otp) > .admin-vault-form {
+  animation: admin-vault-inner-slide-forward 380ms cubic-bezier(.22, 1, .36, 1) both;
+  will-change: opacity, transform;
+}
+
+.admin-vault-panel:has(.admin-vault-input--pin) > .admin-vault-form {
+  animation: admin-vault-inner-slide-back 380ms cubic-bezier(.22, 1, .36, 1) both;
+  will-change: opacity, transform;
+}
+
+.admin-vault-panel > .admin-vault-success {
+  animation: admin-vault-inner-slide-forward 400ms cubic-bezier(.22, 1, .36, 1) both;
+  will-change: opacity, transform;
+}
+
+/* Unlock -> dashboard: strong page reveal from the right. */
 .admin-dashboard-enter {
-  animation: admin-dashboard-page-slide-in 380ms cubic-bezier(.22, 1, .36, 1) both !important;
+  animation: admin-dashboard-page-slide-in 480ms cubic-bezier(.22, 1, .36, 1) both !important;
   will-change: opacity, transform;
   backface-visibility: hidden;
 }
 
-/* Admin tab pages that already use animate-fade-in now slide like native pages.
-   Only direct dashboard children are targeted so cards/lists do not all move. */
-.admin-dashboard-enter > .animate-fade-in {
-  animation: admin-tab-page-slide-in 300ms cubic-bezier(.22, 1, .36, 1) both !important;
+/* Admin tab content also slides clearly instead of only fading. */
+.admin-dashboard-enter > .animate-fade-in,
+.admin-dashboard-enter > [class*="animate-fade-in"] {
+  animation: admin-tab-page-slide-in 400ms cubic-bezier(.22, 1, .36, 1) both !important;
   will-change: opacity, transform;
 }
 
-/* Some tab roots combine animate-fade-in with layout utility classes. */
-.admin-dashboard-enter > [class*="animate-fade-in"] {
-  animation: admin-tab-page-slide-in 300ms cubic-bezier(.22, 1, .36, 1) both !important;
-}
-
 @keyframes admin-gate-screen-fade {
-  from { opacity: .94; }
+  from { opacity: .86; }
   to { opacity: 1; }
 }
 
 @keyframes admin-legacy-gate-slide-in {
   from {
     opacity: 0;
-    transform: translate3d(26px, 0, 0);
+    transform: translate3d(76px, 0, 0);
+  }
+  82% {
+    opacity: 1;
+    transform: translate3d(-5px, 0, 0);
   }
   to {
     opacity: 1;
@@ -64,10 +79,11 @@
 @keyframes admin-vault-page-slide-in {
   from {
     opacity: 0;
-    transform: translate3d(36px, 0, 0);
+    transform: translate3d(96px, 0, 0);
   }
-  72% {
+  78% {
     opacity: 1;
+    transform: translate3d(-7px, 0, 0);
   }
   to {
     opacity: 1;
@@ -80,13 +96,44 @@
   to { opacity: 1; }
 }
 
+@keyframes admin-vault-inner-slide-forward {
+  from {
+    opacity: 0;
+    transform: translate3d(58px, 0, 0);
+  }
+  82% {
+    opacity: 1;
+    transform: translate3d(-4px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes admin-vault-inner-slide-back {
+  from {
+    opacity: 0;
+    transform: translate3d(-58px, 0, 0);
+  }
+  82% {
+    opacity: 1;
+    transform: translate3d(4px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
 @keyframes admin-dashboard-page-slide-in {
   from {
     opacity: 0;
-    transform: translate3d(42px, 0, 0);
+    transform: translate3d(118px, 0, 0);
   }
-  74% {
+  78% {
     opacity: 1;
+    transform: translate3d(-8px, 0, 0);
   }
   to {
     opacity: 1;
@@ -97,7 +144,11 @@
 @keyframes admin-tab-page-slide-in {
   from {
     opacity: 0;
-    transform: translate3d(20px, 0, 0);
+    transform: translate3d(72px, 0, 0);
+  }
+  82% {
+    opacity: 1;
+    transform: translate3d(-4px, 0, 0);
   }
   to {
     opacity: 1;
@@ -105,76 +156,49 @@
   }
 }
 
-/* Weak-device mode keeps the slide visible but reduces travel/paint cost. */
+/* Do NOT reduce Admin motion in weak-device mode. Keep exactly the same
+   visible travel/duration; transforms remain GPU-friendly. */
 .perf-lite .admin-vault:not(.admin-vault--loading) .admin-vault-card {
-  animation-duration: 280ms;
+  animation-duration: 460ms;
 }
 
 .perf-lite .admin-dashboard-enter {
-  animation-duration: 300ms !important;
+  animation-duration: 480ms !important;
 }
 
 .perf-lite .admin-dashboard-enter > [class*="animate-fade-in"] {
-  animation-duration: 240ms !important;
+  animation-duration: 400ms !important;
 }
 
+/* Mobile keeps the full-strength animation instead of shortening travel. */
 @media (max-width: 640px) {
   .admin-vault:not(.admin-vault--loading) .admin-vault-card {
-    animation-name: admin-vault-page-slide-in-mobile;
-    animation-duration: 300ms;
+    animation-name: admin-vault-page-slide-in;
+    animation-duration: 460ms;
     animation-delay: 0ms;
   }
 
   .admin-dashboard-enter {
-    animation-name: admin-dashboard-page-slide-in-mobile !important;
-    animation-duration: 320ms !important;
+    animation-name: admin-dashboard-page-slide-in !important;
+    animation-duration: 480ms !important;
   }
 
   .admin-dashboard-enter > [class*="animate-fade-in"] {
-    animation-name: admin-tab-page-slide-in-mobile !important;
-    animation-duration: 260ms !important;
+    animation-name: admin-tab-page-slide-in !important;
+    animation-duration: 400ms !important;
   }
 }
 
-@keyframes admin-vault-page-slide-in-mobile {
-  from {
-    opacity: 0;
-    transform: translate3d(24px, 0, 0);
-  }
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
-  }
-}
-
-@keyframes admin-dashboard-page-slide-in-mobile {
-  from {
-    opacity: 0;
-    transform: translate3d(28px, 0, 0);
-  }
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
-  }
-}
-
-@keyframes admin-tab-page-slide-in-mobile {
-  from {
-    opacity: 0;
-    transform: translate3d(16px, 0, 0);
-  }
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
-  }
-}
-
+/* Accessibility preference remains respected when the operating system itself
+   explicitly requests reduced motion. */
 @media (prefers-reduced-motion: reduce) {
   [class*="via-blue-50/60"][class*="to-indigo-50/80"].animate-fade-in,
   [class*="via-blue-50/60"][class*="to-indigo-50/80"] > .max-w-md.w-full,
   .admin-vault:not(.admin-vault--loading) .admin-vault-card,
   .admin-vault:not(.admin-vault--loading) .admin-vault-grid,
   .admin-vault:not(.admin-vault--loading) .admin-vault-glow,
+  .admin-vault-panel > .admin-vault-form,
+  .admin-vault-panel > .admin-vault-success,
   .admin-dashboard-enter,
   .admin-dashboard-enter > [class*="animate-fade-in"] {
     animation-duration: 1ms !important;
