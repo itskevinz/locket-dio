@@ -16,6 +16,89 @@ import { useAutoDriveBackup } from "@/hooks/useAutoDriveBackup";
 import AppUpdateButton from "@/components/AppUpdateButton";
 import { SonnerInfo, SonnerWarning } from "@/components/uikit/SonnerToast";
 
+/**
+ * The capture preview is a square with object-cover/object-center. Export images
+ * with the same centre crop so Download matches exactly what the user sees.
+ * Keep the largest possible square (min source dimension) to avoid upscaling.
+ */
+async function cropImageToPreviewSquare(blob) {
+  if (!blob || typeof document === "undefined") return blob;
+
+  let image = null;
+  let objectUrl = "";
+
+  try {
+    if (typeof createImageBitmap === "function") {
+      try {
+        image = await createImageBitmap(blob);
+      } catch {
+        // Safari/older browsers: fall back to HTMLImageElement below.
+      }
+    }
+
+    if (!image) {
+      objectUrl = URL.createObjectURL(blob);
+      image = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("image load failed"));
+        img.src = objectUrl;
+      });
+    }
+
+    const width = image.naturalWidth || image.width;
+    const height = image.naturalHeight || image.height;
+    if (!width || !height) return blob;
+
+    const side = Math.min(width, height);
+    const sourceX = (width - side) / 2;
+    const sourceY = (height - side) / 2;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = side;
+    canvas.height = side;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return blob;
+
+    ctx.drawImage(
+      image,
+      sourceX,
+      sourceY,
+      side,
+      side,
+      0,
+      0,
+      side,
+      side,
+    );
+
+    const square = await new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (out) =>
+          out ? resolve(out) : reject(new Error("square crop toBlob failed")),
+        "image/jpeg",
+        0.96,
+      );
+    });
+    return square || blob;
+  } catch (error) {
+    console.warn(
+      "[download] square preview crop failed, using original:",
+      error?.message || error,
+    );
+    return blob;
+  } finally {
+    if (typeof image?.close === "function") {
+      try {
+        image.close();
+      } catch {
+        /* ignore */
+      }
+    }
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+  }
+}
+
 const HeaderHome = ({
   setIsHomeOpen,
   setIsProfileOpen,
@@ -67,15 +150,18 @@ const HeaderHome = ({
       let file = selectedFile;
       let fileName = `huylocket-${timestamp}.jpg`;
 
-      // Ảnh: watermark ♥ Locket nếu bật trong Cài đặt (menu)
+      // Ảnh tải về phải khớp khung preview vuông 1:1 (object-cover/object-center).
+      // Crop trước, sau đó mới thêm watermark để watermark cũng nằm trong ảnh vuông.
       if (String(selectedFile.type || "").startsWith("image/")) {
         const {
           applyLocketStyleWatermark,
           ensureJpegFileName,
           isSaveWatermarkEnabled,
         } = await import("@/utils/imageUtils/applyWatermark");
+
+        file = await cropImageToPreviewSquare(selectedFile);
         if (isSaveWatermarkEnabled()) {
-          file = await applyLocketStyleWatermark(selectedFile, {
+          file = await applyLocketStyleWatermark(file, {
             forceImage: true,
           });
         }
