@@ -1,0 +1,52 @@
+.page-transition--admin {
+  position: relative;
+  isolation: isolate;
+}
+
+.page-transition--admin__content {
+  min-height: 100%;
+  transform-origin: 50% 18%;
+}
+
+.admin-route-transition__veil,
+.admin-route-transition__scan {
+  position: fixed;
+  z-index: 80;
+  display: block;
+  pointer-events: none;
+}
+
+.admin-route-transition__veil {
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 34%, color-mix(in srgb, var(--color-primary, #c2185b) 16%, transparent), transparent 52%),
+    color-mix(in srgb, var(--color-base-100, #fff7fb) 34%, transparent);
+}
+
+.admin-route-transition__scan {
+  top: 0;
+  bottom: 0;
+  left: 42%;
+  width: min(18rem, 30vw);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--color-primary, #c2185b) 13%, transparent) 42%,
+    color-mix(in srgb, var(--color-primary-content, #fff) 24%, transparent) 50%,
+    color-mix(in srgb, var(--color-primary, #c2185b) 10%, transparent) 58%,
+    transparent
+  );
+  filter: blur(8px);
+  transform: skewX(-10deg);
+}
+
+html[data-performance-mode="lite"] .admin-route-transition__scan {
+  filter: blur(4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-route-transition__veil,
+  .admin-route-transition__scan {
+    display: none;
+  }
+}

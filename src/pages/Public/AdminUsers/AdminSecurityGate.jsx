@@ -158,13 +158,21 @@ export default function AdminSecurityGate({
           <SecurityMark />
           <span className="admin-vault-eyebrow">HUY LOCKET · SECURITY CONSOLE</span>
           <h1 id="admin-vault-title">Xác minh quản trị</h1>
-          <p>
-            {isOtp
-              ? "Hoàn tất lớp xác thực thứ hai để mở khóa trung tâm quản trị."
-              : hasPin
-                ? "Nhập mã PIN bảo mật để khởi tạo phiên quản trị riêng tư."
-                : "Tạo mã PIN quản trị gồm 4–8 chữ số để bảo vệ khu vực nhạy cảm."}
-          </p>
+          <AnimatePresence mode="wait" initial={false}>
+            <Motion.p
+              key={isOtp ? "otp-description" : "pin-description"}
+              initial={reduceMotion ? false : { opacity: 0, y: 4, filter: "blur(2px)" }}
+              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              exit={reduceMotion ? undefined : { opacity: 0, y: -3, filter: "blur(2px)" }}
+              transition={{ duration: reduceMotion ? 0 : 0.18, ease: easeOut }}
+            >
+              {isOtp
+                ? "Hoàn tất lớp xác thực thứ hai để mở khóa trung tâm quản trị."
+                : hasPin
+                  ? "Nhập mã PIN bảo mật để khởi tạo phiên quản trị riêng tư."
+                  : "Tạo mã PIN quản trị gồm 4–8 chữ số để bảo vệ khu vực nhạy cảm."}
+            </Motion.p>
+          </AnimatePresence>
           <div className="admin-vault-identity">
             <span>{(currentEmail || "HL").slice(0, 2).toUpperCase()}</span>
             <div><strong>{currentEmail || "Huy Locket"}</strong><small>{String(currentRole || "admin").replaceAll("_", " ")}</small></div>
@@ -176,10 +184,10 @@ export default function AdminSecurityGate({
           <Motion.div
             key={panelKey}
             className="admin-vault-panel"
-            initial={reduceMotion ? { opacity: 1 } : { opacity: 0, x: isOtp ? 12 : -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: isOtp ? -8 : 8 }}
-            transition={{ duration: reduceMotion ? 0 : 0.22, ease: easeOut }}
+            initial={reduceMotion ? { opacity: 1 } : { opacity: 0, x: isOtp ? 14 : -12, scale: 0.992, filter: "blur(3px)" }}
+            animate={{ opacity: 1, x: 0, scale: 1, filter: "blur(0px)" }}
+            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: isOtp ? -10 : 10, scale: 0.995, filter: "blur(2px)" }}
+            transition={{ duration: reduceMotion ? 0 : 0.26, ease: easeOut }}
           >
             {verified ? (
               <div className="admin-vault-success" role="status" aria-live="polite">
