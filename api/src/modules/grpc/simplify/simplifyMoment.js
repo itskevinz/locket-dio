@@ -42,10 +42,15 @@ function simplifyMoment(data) {
   const rawImageUrl = getString(fields.image_url);
   const rawVideoUrl = getString(fields.video_url);
 
-  const resolvedImageUrl = replaceFirebaseWithCDN(
-    rawThumbnailUrl || rawImageUrl,
-  );
-  const resolvedVideoUrl = replaceFirebaseWithCDN(rawVideoUrl);
+  // IMPORTANT: keep the original Firebase signed URL as the primary URL.
+  // Replacing only the hostname with cdn.locketcamera.com can invalidate signed
+  // Firebase URLs and causes intermittent 403/broken thumbnails in old history.
+  // CDN aliases remain available as fallbacks for clients that explicitly need
+  // them, but the normal feed always receives the original signed URL first.
+  const resolvedImageUrl = rawThumbnailUrl || rawImageUrl || null;
+  const resolvedVideoUrl = rawVideoUrl || null;
+  const cdnImageUrl = replaceFirebaseWithCDN(resolvedImageUrl);
+  const cdnVideoUrl = replaceFirebaseWithCDN(resolvedVideoUrl);
 
   const moment = {
     id: canonicalUid,
@@ -55,14 +60,19 @@ function simplifyMoment(data) {
     user: fields.user?.string_value || null,
 
     // Preserve both camelCase and snake_case names because history/cache code
-    // contains both shapes. Most importantly, fall back to image_url for legacy
-    // moments where thumbnail_url was never written.
+    // contains both shapes. Fall back to image_url for legacy moments where
+    // thumbnail_url was never written.
     thumbnailUrl: resolvedImageUrl,
     thumbnail_url: resolvedImageUrl,
     imageUrl: resolvedImageUrl,
     image_url: resolvedImageUrl,
     videoUrl: resolvedVideoUrl,
     video_url: resolvedVideoUrl,
+
+    // Explicit fallbacks; do not make these the primary source.
+    thumbnailCdnUrl: cdnImageUrl,
+    imageCdnUrl: cdnImageUrl,
+    videoCdnUrl: cdnVideoUrl,
 
     md5: getString(fields.md5) || null,
     date: timestampToMillis(fields.date?.timestamp_value) || 0,
