@@ -27,6 +27,53 @@ const tabId =
     : `tab-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 let lastSharedToken = null;
 
+// Conflict copies use a local id such as <draftId>__cloud_<revision>. The API
+// only owns the canonical draft id. GET requests are safe to canonicalize and
+// doing it here also fixes every old fallback path without touching edit/delete.
+const CLOUD_FORK_SUFFIX_RE = /(__cloud_\d+)(?=\/|$)/i;
+const missingDraftThumbnailReads = new Set();
+const MAX_MISSING_THUMB_CACHE = 300;
+
+function normalizeDraftReadUrl(rawUrl, method = "get") {
+  if (String(method || "get").toLowerCase() !== "get") return rawUrl;
+  if (typeof rawUrl !== "string" || !rawUrl.includes("/api/drafts/")) return rawUrl;
+  return rawUrl.replace(CLOUD_FORK_SUFFIX_RE, "");
+}
+
+function draftThumbnailReadKey(rawUrl) {
+  if (typeof rawUrl !== "string") return "";
+  const normalized = normalizeDraftReadUrl(rawUrl, "get");
+  if (!/\/api\/drafts\/[^/?]+\/media\/thumbnail(?:[/?#]|$)/i.test(normalized)) {
+    return "";
+  }
+  try {
+    const parsed = new URL(normalized, "https://huy-locket.local");
+    return parsed.pathname;
+  } catch {
+    return normalized.split(/[?#]/, 1)[0];
+  }
+}
+
+function rememberMissingDraftThumbnail(url) {
+  const key = draftThumbnailReadKey(url);
+  if (!key) return;
+  if (missingDraftThumbnailReads.size >= MAX_MISSING_THUMB_CACHE) {
+    const first = missingDraftThumbnailReads.values().next().value;
+    if (first) missingDraftThumbnailReads.delete(first);
+  }
+  missingDraftThumbnailReads.add(key);
+}
+
+function makeCachedThumbnail404(config) {
+  const error = new Error("DRAFT_THUMBNAIL_NOT_FOUND_CACHED");
+  error.code = "DRAFT_THUMBNAIL_NOT_FOUND_CACHED";
+  error.config = config;
+  // Give retry wrappers a real 404 status so they do not treat this local skip
+  // as a network failure and start exponential retries.
+  error.response = { status: 404, data: null, config };
+  return error;
+}
+
 const authRefreshChannel =
   typeof BroadcastChannel !== "undefined"
     ? new BroadcastChannel(AUTH_REFRESH_CHANNEL_NAME)
@@ -165,6 +212,13 @@ export const instanceMain = axios.create({
 // Luôn lấy token mới nhất trước mỗi request.
 instanceMain.interceptors.request.use(
   (config) => {
+    config.url = normalizeDraftReadUrl(config.url, config.method);
+
+    const thumbKey = draftThumbnailReadKey(config.url);
+    if (thumbKey && missingDraftThumbnailReads.has(thumbKey)) {
+      return Promise.reject(makeCachedThumbnail404(config));
+    }
+
     const { idToken } = getToken();
     if (idToken) {
       config.headers["Authorization"] = `Bearer ${idToken}`;
@@ -182,6 +236,13 @@ instanceMain.interceptors.response.use(
   async (error) => {
     const originalRequest = error?.config;
     const status = error?.response?.status;
+
+    // A missing legacy thumbnail is expected data absence, not a transient
+    // network error. Cache it for this tab so repeated renders do not hammer
+    // Railway with the same 404; the draft layer can immediately try active media.
+    if (status === 404 && originalRequest) {
+      rememberMissingDraftThumbnail(originalRequest.url);
+    }
 
     // Signed media URLs authenticate with their short-lived query signature.
     // A 401 there is not proof that the user's Firebase session expired, so it
