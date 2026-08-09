@@ -4,6 +4,38 @@ import { MdSlowMotionVideo } from "react-icons/md";
 import ScrollReveal from "@/components/Effects/ScrollReveal";
 import { useSelectedStore } from "@/stores";
 
+function getAlternateStorageHostUrl(value) {
+  if (typeof value !== "string" || !value.trim()) return null;
+
+  if (value.includes("https://cdn.locketcamera.com")) {
+    return value.replace(
+      "https://cdn.locketcamera.com",
+      "https://firebasestorage.googleapis.com",
+    );
+  }
+
+  if (value.includes("https://firebasestorage.googleapis.com")) {
+    return value.replace(
+      "https://firebasestorage.googleapis.com",
+      "https://cdn.locketcamera.com",
+    );
+  }
+
+  return null;
+}
+
+function resolvePrimaryImageUrl(item) {
+  return (
+    item?.thumbnail_url ||
+    item?.image_url ||
+    item?.thumbnailUrl ||
+    item?.imageUrl ||
+    item?.thumbnailCdnUrl ||
+    item?.imageCdnUrl ||
+    null
+  );
+}
+
 /**
  * Lưới khoảnh khắc — KHÔNG nút Làm mới.
  * Tự cập nhật qua socket + poll (BottomHomeScreen).
@@ -23,6 +55,7 @@ const MomentsGallery = ({
 
   const [loadedItems, setLoadedItems] = useState([]);
   const [failedItems, setFailedItems] = useState([]);
+  const [fallbackUrls, setFallbackUrls] = useState({});
   const lastElementRef = useRef(null);
   const observerRef = useRef(null);
 
@@ -69,11 +102,36 @@ const MomentsGallery = ({
 
   const handleLoaded = (id) => {
     setLoadedItems((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    setFailedItems((prev) => prev.filter((itemId) => itemId !== id));
   };
 
   const handleFailed = (id) => {
     setFailedItems((prev) => (prev.includes(id) ? prev : [...prev, id]));
-    handleLoaded(id);
+    setLoadedItems((prev) => (prev.includes(id) ? prev : [...prev, id]));
+  };
+
+  const handleImageError = (id, currentUrl, primaryUrl) => {
+    const alternateUrl = getAlternateStorageHostUrl(currentUrl);
+
+    // Old cached entries can still contain the CDN-rewritten version. Retry the
+    // exact same path/query on Firebase first; for fresh signed Firebase URLs,
+    // CDN remains only a last fallback. Never show the broken icon until both
+    // hosts have failed.
+    if (
+      alternateUrl &&
+      alternateUrl !== currentUrl &&
+      currentUrl === primaryUrl
+    ) {
+      setLoadedItems((prev) => prev.filter((itemId) => itemId !== id));
+      setFailedItems((prev) => prev.filter((itemId) => itemId !== id));
+      setFallbackUrls((prev) => ({
+        ...prev,
+        [id]: { source: primaryUrl, fallback: alternateUrl },
+      }));
+      return;
+    }
+
+    handleFailed(id);
   };
 
   if (moments.length === 0) {
@@ -109,8 +167,14 @@ const MomentsGallery = ({
       className="grid gap-1 grid-cols-3 md:grid-cols-6 md:gap-2"
     >
       {visibleMoments.map((item, index) => {
+        const primaryImageUrl = resolvePrimaryImageUrl(item);
+        const fallbackEntry = fallbackUrls[item.id];
+        const imageSrc =
+          fallbackEntry?.source === primaryImageUrl
+            ? fallbackEntry.fallback
+            : primaryImageUrl;
         const isLoaded = loadedItems.includes(item.id);
-        const isFailed = failedItems.includes(item.id);
+        const isFailed = failedItems.includes(item.id) || !imageSrc;
         const isLastItem = index === visibleMoments.length - 1;
         // Ba hàng đầu đang nằm ngay trong viewport điện thoại: tải ưu tiên,
         // tránh Chrome Android trì hoãn ảnh do toàn bộ lưới đều `lazy`.
@@ -131,7 +195,7 @@ const MomentsGallery = ({
               }}
               className="aspect-square overflow-hidden cursor-pointer rounded-2xl relative group w-full h-full bg-base-300/30"
             >
-              {!isLoaded && (
+              {!isLoaded && !isFailed && (
                 <div className="absolute inset-0 skeleton w-full h-full rounded-2xl z-10" />
               )}
 
@@ -144,18 +208,24 @@ const MomentsGallery = ({
                 </div>
               )}
 
-              <img
-                src={item.thumbnail_url || item.image_url || item.thumbnailUrl}
-                alt=""
-                className={`object-cover w-full h-full rounded-2xl transition-opacity duration-300 ${
-                  isLoaded && !isFailed ? "opacity-100" : "opacity-0"
-                }`}
-                onLoad={() => handleLoaded(item.id)}
-                onError={() => handleFailed(item.id)}
-                loading={shouldPrioritize ? "eager" : "lazy"}
-                fetchPriority={shouldPrioritize ? "high" : "auto"}
-                decoding="async"
-              />
+              {imageSrc && (
+                <img
+                  key={`${item.id}:${imageSrc}`}
+                  src={imageSrc}
+                  alt=""
+                  className={`object-cover w-full h-full rounded-2xl transition-opacity duration-300 ${
+                    isLoaded && !isFailed ? "opacity-100" : "opacity-0"
+                  }`}
+                  onLoad={() => handleLoaded(item.id)}
+                  onError={() =>
+                    handleImageError(item.id, imageSrc, primaryImageUrl)
+                  }
+                  loading={shouldPrioritize ? "eager" : "lazy"}
+                  fetchPriority={shouldPrioritize ? "high" : "auto"}
+                  decoding="async"
+                  referrerPolicy="no-referrer"
+                />
+              )}
 
               {(item.video_url || item.videoUrl) && (
                 <div className="absolute top-2 right-2 bg-primary/30 rounded-full z-20 p-0.5">
