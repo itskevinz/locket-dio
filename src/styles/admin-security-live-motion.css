@@ -1,0 +1,317 @@
+/* Admin security motion layer.
+   Intentionally loaded last so Admin authentication keeps visible motion even
+   when legacy performance/reduced-motion layers try to collapse animations. */
+
+.admin-vault {
+  --admin-motion-ease: cubic-bezier(.22, 1, .36, 1);
+  overflow: hidden;
+}
+
+/* Full secure page arrival: obvious page slide, not a tiny fade. */
+.admin-vault:not(.admin-vault--loading) {
+  animation: admin-secure-page-in 560ms var(--admin-motion-ease) both !important;
+}
+
+.admin-vault:not(.admin-vault--loading) .admin-vault-card {
+  animation: admin-secure-card-in 680ms var(--admin-motion-ease) 40ms both !important;
+  will-change: transform, opacity;
+}
+
+/* Security scanner running through the card so the gate always feels alive. */
+.admin-vault-card::before {
+  content: "";
+  position: absolute;
+  z-index: 20;
+  top: -20%;
+  bottom: -20%;
+  left: -38%;
+  width: 22%;
+  pointer-events: none;
+  opacity: 0;
+  transform: skewX(-14deg);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--vault-primary) 11%, transparent), color-mix(in srgb, white 34%, transparent), color-mix(in srgb, var(--vault-primary) 10%, transparent), transparent);
+  filter: blur(3px);
+  animation: admin-secure-card-scan 3.2s ease-in-out 900ms infinite !important;
+}
+
+.admin-vault-mark {
+  animation: admin-secure-shield-float 2.1s ease-in-out infinite alternate !important;
+}
+
+.admin-vault-mark__ring {
+  animation: admin-secure-ring-pulse 1.45s ease-in-out infinite !important;
+}
+
+/* PIN / OTP panel transition is intentionally large so PIN -> OTP is visible. */
+.admin-vault-panel {
+  animation: admin-secure-panel-in 500ms var(--admin-motion-ease) both !important;
+  will-change: transform, opacity;
+}
+
+/* Input shell: animated border glow + scanner while focused. */
+.admin-vault-input-wrap {
+  position: relative;
+  isolation: isolate;
+  border-radius: 1rem;
+}
+
+.admin-vault-input-wrap::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -3px;
+  border-radius: 1.12rem;
+  pointer-events: none;
+  opacity: 0;
+  background: conic-gradient(from 0deg, transparent 0 22%, color-mix(in srgb, var(--vault-primary) 82%, transparent) 32%, transparent 43% 72%, color-mix(in srgb, var(--vault-primary) 54%, white 18%) 82%, transparent 92% 100%);
+  filter: blur(6px);
+  transition: opacity 180ms ease;
+}
+
+.admin-vault-input-wrap:focus-within::before {
+  opacity: .72;
+  animation: admin-secure-input-orbit 1.8s linear infinite !important;
+}
+
+.admin-vault-input-wrap::after {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  top: 5px;
+  bottom: 5px;
+  left: 7px;
+  width: 18%;
+  border-radius: .72rem;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(-130%) skewX(-12deg);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--vault-primary) 20%, transparent), color-mix(in srgb, white 34%, transparent), transparent);
+}
+
+.admin-vault-input-wrap:focus-within::after {
+  animation: admin-secure-input-scan 1.35s ease-in-out infinite !important;
+}
+
+.admin-vault-input {
+  transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease, transform 180ms var(--admin-motion-ease) !important;
+}
+
+.admin-vault-input:focus {
+  transform: translateY(-2px) scale(1.012) !important;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--vault-primary) 16%, transparent),
+    0 0 34px color-mix(in srgb, var(--vault-primary) 19%, transparent),
+    0 10px 28px color-mix(in srgb, var(--vault-text) 10%, transparent) !important;
+}
+
+/* Once a PIN exists, keep a subtle live pulse instead of becoming static. */
+.admin-vault-input--pin:not(:placeholder-shown),
+.admin-vault-input--otp:not(:placeholder-shown) {
+  animation: admin-secure-pin-live 850ms ease-in-out infinite alternate !important;
+}
+
+/* Keypad entrance + strong physical press/ripple. */
+.admin-vault-key {
+  position: relative;
+  overflow: hidden;
+  transform-origin: center;
+  animation: admin-secure-key-in 440ms var(--admin-motion-ease) both !important;
+  transition: transform 120ms var(--admin-motion-ease), border-color 150ms ease, box-shadow 150ms ease, color 150ms ease !important;
+}
+
+.admin-vault-key:nth-child(1) { animation-delay: 110ms !important; }
+.admin-vault-key:nth-child(2) { animation-delay: 140ms !important; }
+.admin-vault-key:nth-child(3) { animation-delay: 170ms !important; }
+.admin-vault-key:nth-child(4) { animation-delay: 200ms !important; }
+.admin-vault-key:nth-child(5) { animation-delay: 230ms !important; }
+.admin-vault-key:nth-child(6) { animation-delay: 260ms !important; }
+.admin-vault-key:nth-child(7) { animation-delay: 290ms !important; }
+.admin-vault-key:nth-child(8) { animation-delay: 320ms !important; }
+.admin-vault-key:nth-child(9) { animation-delay: 350ms !important; }
+.admin-vault-key:nth-child(10) { animation-delay: 380ms !important; }
+.admin-vault-key:nth-child(11) { animation-delay: 410ms !important; }
+.admin-vault-key:nth-child(12) { animation-delay: 440ms !important; }
+
+.admin-vault-key::after {
+  content: "";
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(.2);
+  background: color-mix(in srgb, var(--vault-primary) 30%, transparent);
+}
+
+.admin-vault-key:active:not(:disabled) {
+  transform: translateY(3px) scale(.90) !important;
+  box-shadow: 0 2px 5px color-mix(in srgb, var(--vault-text) 11%, transparent), 0 0 24px color-mix(in srgb, var(--vault-primary) 20%, transparent) !important;
+}
+
+.admin-vault-key:active:not(:disabled)::after {
+  animation: admin-secure-key-ripple 420ms ease-out both !important;
+}
+
+/* Verification button: obvious secure-processing state, no generic spinner. */
+.admin-vault-submit:not(:disabled):not(.is-loading) {
+  animation: admin-secure-submit-breathe 1.8s ease-in-out infinite alternate !important;
+}
+
+.admin-vault-submit.is-loading {
+  opacity: 1 !important;
+  animation: admin-secure-submit-loading 620ms ease-in-out infinite alternate !important;
+}
+
+.admin-vault-submit.is-loading .admin-vault-submit__content svg {
+  animation: admin-secure-shield-charge 760ms ease-in-out infinite !important;
+}
+
+.admin-vault-submit.is-loading .admin-vault-submit__progress {
+  animation: admin-secure-progress 900ms var(--admin-motion-ease) infinite !important;
+}
+
+.admin-vault-submit.is-loading .admin-vault-submit__shimmer {
+  animation: admin-secure-submit-scan 1.05s ease-in-out infinite !important;
+}
+
+/* Error feedback must visibly shake the auth panel. */
+.admin-vault-error {
+  animation: admin-secure-error-in 360ms var(--admin-motion-ease) both, admin-secure-error-shake 420ms ease-in-out 80ms both !important;
+}
+
+/* Keep Admin motion visible in lite mode and when the site motion switch is off. */
+html[data-performance-mode="lite"] .admin-vault:not(.admin-vault--loading),
+html[data-animation-enabled="false"] .admin-vault:not(.admin-vault--loading) {
+  animation: admin-secure-page-in 560ms var(--admin-motion-ease) both !important;
+}
+
+html[data-performance-mode="lite"] .admin-vault-card,
+html[data-animation-enabled="false"] .admin-vault-card {
+  animation: admin-secure-card-in 680ms var(--admin-motion-ease) 40ms both !important;
+}
+
+html[data-performance-mode="lite"] .admin-vault-panel,
+html[data-animation-enabled="false"] .admin-vault-panel {
+  animation: admin-secure-panel-in 500ms var(--admin-motion-ease) both !important;
+}
+
+html[data-animation-enabled="false"] .admin-vault-key,
+html[data-animation-enabled="false"] .admin-vault-input,
+html[data-animation-enabled="false"] .admin-vault-submit {
+  transition-duration: 120ms !important;
+}
+
+@keyframes admin-secure-page-in {
+  from { opacity: 0; transform: translate3d(110px, 0, 0); }
+  72% { opacity: 1; transform: translate3d(-7px, 0, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes admin-secure-card-in {
+  from { opacity: 0; transform: translate3d(74px, 0, 0) scale(.965); filter: blur(8px); }
+  70% { opacity: 1; transform: translate3d(-8px, 0, 0) scale(1.006); filter: blur(0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); filter: blur(0); }
+}
+
+@keyframes admin-secure-panel-in {
+  from { opacity: 0; transform: translate3d(68px, 0, 0); filter: blur(5px); }
+  74% { opacity: 1; transform: translate3d(-6px, 0, 0); filter: blur(0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); filter: blur(0); }
+}
+
+@keyframes admin-secure-card-scan {
+  0%, 14% { left: -38%; opacity: 0; }
+  28% { opacity: .62; }
+  58% { left: 116%; opacity: .3; }
+  66%, 100% { left: 116%; opacity: 0; }
+}
+
+@keyframes admin-secure-shield-float {
+  from { transform: translateY(0) scale(1); box-shadow: 0 0 28px color-mix(in srgb, var(--vault-primary) 13%, transparent), 0 0 0 7px color-mix(in srgb, var(--vault-primary) 4%, transparent); }
+  to { transform: translateY(-5px) scale(1.035); box-shadow: 0 0 44px color-mix(in srgb, var(--vault-primary) 24%, transparent), 0 0 0 10px color-mix(in srgb, var(--vault-primary) 7%, transparent); }
+}
+
+@keyframes admin-secure-ring-pulse {
+  0%, 100% { transform: scale(.93); opacity: .45; }
+  50% { transform: scale(1.08); opacity: 1; }
+}
+
+@keyframes admin-secure-input-orbit { to { transform: rotate(360deg); } }
+
+@keyframes admin-secure-input-scan {
+  0% { left: 7px; opacity: 0; transform: translateX(-130%) skewX(-12deg); }
+  22% { opacity: .9; }
+  72% { opacity: .48; }
+  100% { left: 82%; opacity: 0; transform: translateX(100%) skewX(-12deg); }
+}
+
+@keyframes admin-secure-pin-live {
+  from { border-color: color-mix(in srgb, var(--vault-primary) 34%, var(--vault-border)); }
+  to { border-color: color-mix(in srgb, var(--vault-primary) 78%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--vault-primary) 12%, transparent), 0 0 30px color-mix(in srgb, var(--vault-primary) 17%, transparent); }
+}
+
+@keyframes admin-secure-key-in {
+  from { opacity: 0; transform: translate3d(0, 24px, 0) scale(.88); }
+  72% { opacity: 1; transform: translate3d(0, -3px, 0) scale(1.02); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes admin-secure-key-ripple {
+  0% { opacity: .85; transform: translate(-50%, -50%) scale(.2); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(8); }
+}
+
+@keyframes admin-secure-submit-breathe {
+  from { transform: translateY(0); box-shadow: 0 12px 28px color-mix(in srgb, var(--vault-primary) 27%, transparent); }
+  to { transform: translateY(-2px); box-shadow: 0 16px 40px color-mix(in srgb, var(--vault-primary) 40%, transparent), 0 0 22px color-mix(in srgb, var(--vault-primary) 13%, transparent); }
+}
+
+@keyframes admin-secure-submit-loading {
+  from { transform: scale(.992); filter: brightness(.98); }
+  to { transform: scale(1.012); filter: brightness(1.10); }
+}
+
+@keyframes admin-secure-shield-charge {
+  0%, 100% { transform: scale(.86); opacity: .65; }
+  50% { transform: scale(1.22); opacity: 1; filter: drop-shadow(0 0 8px currentColor); }
+}
+
+@keyframes admin-secure-progress {
+  0% { width: 0%; left: 0; }
+  55% { width: 72%; left: 14%; }
+  100% { width: 16%; left: 84%; }
+}
+
+@keyframes admin-secure-submit-scan {
+  from { transform: skewX(-18deg) translateX(-150%); }
+  to { transform: skewX(-18deg) translateX(320%); }
+}
+
+@keyframes admin-secure-error-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes admin-secure-error-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-9px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(3px); }
+}
+
+/* The user explicitly requested Admin security motion to remain visible.
+   Override the older Admin-only reduced-motion collapse without touching the
+   rest of the app. */
+@media (prefers-reduced-motion: reduce) {
+  .admin-vault:not(.admin-vault--loading) { animation: admin-secure-page-in 560ms var(--admin-motion-ease) both !important; }
+  .admin-vault:not(.admin-vault--loading) .admin-vault-card { animation: admin-secure-card-in 680ms var(--admin-motion-ease) 40ms both !important; }
+  .admin-vault-panel { animation: admin-secure-panel-in 500ms var(--admin-motion-ease) both !important; }
+  .admin-vault-key { animation: admin-secure-key-in 440ms var(--admin-motion-ease) both !important; }
+  .admin-vault-input-wrap:focus-within::before { animation: admin-secure-input-orbit 1.8s linear infinite !important; }
+  .admin-vault-input-wrap:focus-within::after { animation: admin-secure-input-scan 1.35s ease-in-out infinite !important; }
+  .admin-vault-input--pin:not(:placeholder-shown), .admin-vault-input--otp:not(:placeholder-shown) { animation: admin-secure-pin-live 850ms ease-in-out infinite alternate !important; }
+  .admin-vault-submit.is-loading { animation: admin-secure-submit-loading 620ms ease-in-out infinite alternate !important; }
+}
