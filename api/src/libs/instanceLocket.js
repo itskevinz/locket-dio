@@ -53,12 +53,10 @@ instanceLocketV2.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
 
-    // ✅ AppCheck (request meta > env; omit if unset)
+    // ✅ App Check token only. A DeviceCheck token is an attestation input that
+    // must first be exchanged with Firebase; it is not a valid X-Firebase-AppCheck value.
     const appCheckToken =
-      config?.meta?.appCheckToken ||
-      process.env.LOCKET_APP_CHECK_TOKEN ||
-      process.env.LOCKET_APP_CHECK_DEVICE_TOKEN ||
-      "";
+      config?.meta?.appCheckToken || process.env.LOCKET_APP_CHECK_TOKEN || "";
     if (appCheckToken) {
       config.headers["X-Firebase-AppCheck"] = appCheckToken;
     }

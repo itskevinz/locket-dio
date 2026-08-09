@@ -21,7 +21,11 @@ function mockModule(modulePath, exports) {
   };
 }
 
-function loadService({ deviceToken = null } = {}) {
+function loadService({
+  deviceToken = null,
+  cachedToken = null,
+  onPost = null,
+} = {}) {
   delete require.cache[require.resolve(servicePath)];
 
   mockModule(configPath, {
@@ -30,14 +34,17 @@ function loadService({ deviceToken = null } = {}) {
   mockModule(redisIndexPath, {
     redisStore: {
       getDeviceToken: async () => deviceToken,
-      getAppCheckToken: async () => null,
+      getAppCheckToken: async () => cachedToken,
       saveAppCheckToken: async () => {},
       saveDeviceToken: async () => {},
     },
   });
   mockModule(libsPath, {
     instanceAppcheck: {
-      post: async () => ({ data: { token: "generated", ttl: "3600s" } }),
+      post: async (url, body) => {
+        if (onPost) onPost(url, body);
+        return { data: { token: "generated", ttl: "3600s" } };
+      },
     },
   });
   mockModule(logPath, {
@@ -48,46 +55,105 @@ function loadService({ deviceToken = null } = {}) {
   return require(servicePath);
 }
 
-test("prefers configured legacy App Check token", async () => {
-  const previous = process.env.LOCKET_APP_CHECK_TOKEN;
-  process.env.LOCKET_APP_CHECK_TOKEN = "configured-app-check";
+function withEnv(name, value, fn) {
+  const previous = process.env[name];
+  if (value === undefined) delete process.env[name];
+  else process.env[name] = value;
 
-  try {
+  return Promise.resolve()
+    .then(fn)
+    .finally(() => {
+      if (previous === undefined) delete process.env[name];
+      else process.env[name] = previous;
+    });
+}
+
+test("prefers configured legacy App Check token", async () => {
+  await withEnv("LOCKET_APP_CHECK_TOKEN", "configured-app-check", async () => {
     const service = loadService();
     assert.equal(
       await service.getOrCreateAppCheckToken(),
       "configured-app-check",
     );
-  } finally {
-    if (previous === undefined) delete process.env.LOCKET_APP_CHECK_TOKEN;
-    else process.env.LOCKET_APP_CHECK_TOKEN = previous;
-  }
+  });
 });
 
-test("returns null when no configured token or DeviceCheck token exists", async () => {
-  const previous = process.env.LOCKET_APP_CHECK_TOKEN;
-  delete process.env.LOCKET_APP_CHECK_TOKEN;
-
-  try {
-    const service = loadService({ deviceToken: null });
-    assert.equal(await service.getOrCreateAppCheckToken(), null);
-  } finally {
-    if (previous === undefined) delete process.env.LOCKET_APP_CHECK_TOKEN;
-    else process.env.LOCKET_APP_CHECK_TOKEN = previous;
-  }
-});
-
-test("still exchanges a stored DeviceCheck token", async () => {
-  const previous = process.env.LOCKET_APP_CHECK_TOKEN;
-  delete process.env.LOCKET_APP_CHECK_TOKEN;
-
-  try {
-    const service = loadService({
-      deviceToken: { device_token: "device-check", limited_use: false },
+test("reuses cached App Check token even when DeviceCheck source is unavailable", async () => {
+  await withEnv("LOCKET_APP_CHECK_TOKEN", undefined, async () => {
+    await withEnv("LOCKET_APP_CHECK_DEVICE_TOKEN", undefined, async () => {
+      const service = loadService({ cachedToken: "cached-app-check" });
+      assert.equal(await service.getOrCreateAppCheckToken(), "cached-app-check");
     });
-    assert.equal(await service.getOrCreateAppCheckToken(), "generated");
-  } finally {
-    if (previous === undefined) delete process.env.LOCKET_APP_CHECK_TOKEN;
-    else process.env.LOCKET_APP_CHECK_TOKEN = previous;
-  }
+  });
+});
+
+test("returns null when no App Check or DeviceCheck source exists", async () => {
+  await withEnv("LOCKET_APP_CHECK_TOKEN", undefined, async () => {
+    await withEnv("LOCKET_APP_CHECK_DEVICE_TOKEN", undefined, async () => {
+      const service = loadService({ deviceToken: null });
+      assert.equal(await service.getOrCreateAppCheckToken(), null);
+    });
+  });
+});
+
+test("exchanges stored DeviceCheck token using Firebase REST camelCase fields", async () => {
+  await withEnv("LOCKET_APP_CHECK_TOKEN", undefined, async () => {
+    await withEnv("LOCKET_APP_CHECK_DEVICE_TOKEN", undefined, async () => {
+      let request = null;
+      const service = loadService({
+        deviceToken: { device_token: "device-check", limited_use: true },
+        onPost: (url, body) => {
+          request = { url, body };
+        },
+      });
+
+      assert.equal(await service.getOrCreateAppCheckToken(), "generated");
+      assert.match(request.url, /exchangeDeviceCheckToken$/);
+      assert.deepEqual(request.body, {
+        deviceToken: "device-check",
+        limitedUse: true,
+      });
+      assert.equal("device_token" in request.body, false);
+    });
+  });
+});
+
+test("uses LOCKET_APP_CHECK_DEVICE_TOKEN as an exchange source, not an App Check token", async () => {
+  await withEnv("LOCKET_APP_CHECK_TOKEN", undefined, async () => {
+    await withEnv("LOCKET_APP_CHECK_DEVICE_TOKEN", "env-device-check", async () => {
+      let requestBody = null;
+      const service = loadService({
+        deviceToken: null,
+        onPost: (_url, body) => {
+          requestBody = body;
+        },
+      });
+
+      assert.equal(await service.getOrCreateAppCheckToken(), "generated");
+      assert.deepEqual(requestBody, {
+        deviceToken: "env-device-check",
+        limitedUse: false,
+      });
+    });
+  });
+});
+
+test("normalizes legacy and Firebase DeviceCheck token shapes", () => {
+  const service = loadService();
+
+  assert.deepEqual(service.normalizeDeviceCheckToken({
+    device_token: "legacy",
+    limited_use: true,
+  }), {
+    deviceToken: "legacy",
+    limitedUse: true,
+  });
+
+  assert.deepEqual(service.normalizeDeviceCheckToken(JSON.stringify({
+    deviceToken: "modern",
+    limitedUse: false,
+  })), {
+    deviceToken: "modern",
+    limitedUse: false,
+  });
 });
