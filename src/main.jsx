@@ -4,6 +4,7 @@ import "../tailwind.css";
 import "./index.css";
 import "./styles/interaction-motion.css";
 import "./styles/performance-lite.css";
+import "./styles/essential-motion.css";
 import App from "./App.jsx";
 
 import ErrorBoundary from "./components/pages/ErrorBoundary";

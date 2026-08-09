@@ -1,0 +1,85 @@
+/*
+ * Essential interaction motion.
+ *
+ * Performance-lite may remove expensive decorative effects, but the two
+ * interactions users rely on to understand state changes must stay visible:
+ * 1) screen/panel sliding; 2) post-media loading/reveal feedback.
+ *
+ * Keep this file imported AFTER performance-lite.css so these narrow rules
+ * override the broad lite-mode reductions without re-enabling heavy blur,
+ * shadows, particles, or decorative animation.
+ */
+
+:root {
+  --hl-essential-slide-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --hl-essential-media-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/*
+ * Screen transitions intentionally authored as 500ms must remain a real slide
+ * in lite mode. 360ms is still cheap (transform-only in the important camera /
+ * history panels) but no longer looks like an instant jump caused by the
+ * generic 80ms lite-mode cap.
+ */
+html[data-performance-mode="lite"] .transition-transform.duration-500,
+html[data-performance-mode="lite"] .transition-all.duration-500 {
+  transition-duration: 360ms !important;
+  transition-delay: 0ms !important;
+  transition-timing-function: var(--hl-essential-slide-ease) !important;
+}
+
+html[data-performance-mode="lite"] [data-camera-panel="true"],
+html[data-performance-mode="lite"] [data-history-panel="true"] {
+  transition-property: transform !important;
+}
+
+/*
+ * Post/media loading feedback must remain visible on weak devices. Only active
+ * skeletons animate, so the animation disappears as soon as the image/video is
+ * ready instead of running permanently in the background.
+ */
+@keyframes hl-essential-media-shimmer {
+  from {
+    background-position: 180% 0;
+  }
+  to {
+    background-position: -80% 0;
+  }
+}
+
+html[data-performance-mode="lite"] [data-ios-history-grid="true"] .skeleton,
+html[data-performance-mode="lite"] .moment-skeleton {
+  opacity: 1 !important;
+  background-image: linear-gradient(
+    100deg,
+    transparent 18%,
+    color-mix(in srgb, var(--color-base-content) 10%, transparent) 44%,
+    transparent 72%
+  ) !important;
+  background-size: 220% 100% !important;
+  animation: hl-essential-media-shimmer 1.55s linear infinite !important;
+}
+
+/* Keep the actual media reveal noticeable after the skeleton disappears. */
+html[data-performance-mode="lite"] [data-ios-history-tile="true"] img,
+html[data-performance-mode="lite"] .moment-media-fade {
+  transition-property: opacity, transform !important;
+  transition-duration: 220ms !important;
+  transition-delay: 0ms !important;
+  transition-timing-function: var(--hl-essential-media-ease) !important;
+}
+
+/* Accessibility preference still wins over both normal and lite performance. */
+@media (prefers-reduced-motion: reduce) {
+  html[data-performance-mode="lite"] .transition-transform.duration-500,
+  html[data-performance-mode="lite"] .transition-all.duration-500,
+  html[data-performance-mode="lite"] [data-ios-history-tile="true"] img,
+  html[data-performance-mode="lite"] .moment-media-fade {
+    transition: none !important;
+  }
+
+  html[data-performance-mode="lite"] [data-ios-history-grid="true"] .skeleton,
+  html[data-performance-mode="lite"] .moment-skeleton {
+    animation: none !important;
+  }
+}
