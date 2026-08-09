@@ -1,6 +1,7 @@
 import { ImageOff, RefreshCw, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OverlayRenderer } from "@/components/Overlay";
+import { GetAllMoments } from "@/services";
 import { applyLocalOverlayToMoment } from "@/utils/overlay/reconcilePostedOverlay";
 import {
   useAuthStore,
@@ -37,6 +38,7 @@ const NON_TEXT_OVERLAY_TYPES = new Set([
 
 const IMAGE_URL_RE = /\.(?:avif|bmp|gif|heic|heif|jpe?g|png|webp)(?:[?#]|$)/i;
 const VIDEO_URL_RE = /\.(?:m4v|mov|mp4|webm)(?:[?#]|$)/i;
+const TARGETED_MEDIA_REFRESH_LIMIT = 60;
 
 function isUsableMediaUrl(value) {
   if (typeof value !== "string" || !value.trim()) return false;
@@ -55,6 +57,52 @@ function looksLikeImageUrl(value) {
 function looksLikeVideoUrl(value) {
   if (typeof value !== "string") return false;
   return VIDEO_URL_RE.test(value) || /\/moments\/videos\//i.test(value);
+}
+
+function toTimestampSeconds(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.floor(value > 1e12 ? value / 1000 : value);
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? 0 : Math.floor(parsed / 1000);
+  }
+
+  if (value && typeof value === "object") {
+    if (typeof value._seconds === "number") return Math.floor(value._seconds);
+    if (typeof value.seconds === "number") return Math.floor(value.seconds);
+  }
+
+  return 0;
+}
+
+function getMomentTimestampSeconds(moment) {
+  return (
+    toTimestampSeconds(moment?.date) ||
+    toTimestampSeconds(moment?.createTime) ||
+    0
+  );
+}
+
+function getAlternateStorageHostUrl(value) {
+  if (!isUsableMediaUrl(value)) return null;
+
+  if (value.includes("https://cdn.locketcamera.com")) {
+    return value.replace(
+      "https://cdn.locketcamera.com",
+      "https://firebasestorage.googleapis.com",
+    );
+  }
+
+  if (value.includes("https://firebasestorage.googleapis.com")) {
+    return value.replace(
+      "https://firebasestorage.googleapis.com",
+      "https://cdn.locketcamera.com",
+    );
+  }
+
+  return null;
 }
 
 function hasObjectContent(value) {
@@ -151,8 +199,12 @@ const MomentViewer = ({ moment, handleClose }) => {
   const [videoFailed, setVideoFailed] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [imageSrcOverride, setImageSrcOverride] = useState(null);
+  const [videoSrcOverride, setVideoSrcOverride] = useState(null);
   const stableOverlayRef = useRef({ momentId: null, data: null });
   const repairedGhostRef = useRef(null);
+  const attemptedImageUrlsRef = useRef(new Set());
+  const attemptedVideoUrlsRef = useRef(new Set());
 
   const { user } = useAuthStore();
   const myUid = resolveMyUid(user);
@@ -160,6 +212,7 @@ const MomentViewer = ({ moment, handleClose }) => {
   const isOwnMoment = Boolean(myUid && ownerUid && myUid === ownerUid);
 
   const pullLatestMoments = useMomentsStoreV2((s) => s.pullLatestMoments);
+  const addNewMoment = useMomentsStoreV2((s) => s.addNewMoment);
   const removeMoment = useMomentsStoreV2((s) => s.removeMoment);
 
   const pollCounts = useMomentActivityStore((s) =>
@@ -198,6 +251,9 @@ const MomentViewer = ({ moment, handleClose }) => {
     return rawVideoUrl;
   }, [rawVideoUrl]);
 
+  const imageSrc = imageSrcOverride || thumbnailUrl;
+  const videoSrc = videoSrcOverride || videoUrl;
+
   const resolvedMoment = useMemo(() => {
     const savedLocalOverlay = resolveMomentOverlay(postedMomentFallback);
     return savedLocalOverlay
@@ -227,6 +283,12 @@ const MomentViewer = ({ moment, handleClose }) => {
     setVideoFailed(false);
     setImageFailed(false);
     setIsRefreshing(false);
+    setImageSrcOverride(null);
+    setVideoSrcOverride(null);
+    attemptedImageUrlsRef.current = new Set(
+      thumbnailUrl ? [thumbnailUrl] : [],
+    );
+    attemptedVideoUrlsRef.current = new Set(videoUrl ? [videoUrl] : []);
   }, [momentId, thumbnailUrl, videoUrl]);
 
   const hasMediaUrl = Boolean(thumbnailUrl || videoUrl);
@@ -263,6 +325,79 @@ const MomentViewer = ({ moment, handleClose }) => {
     };
   }, [handleClose, hasMediaUrl, momentId, pullLatestMoments, removeMoment]);
 
+  const handleImageError = () => {
+    if (!imageSrc) {
+      setImageFailed(true);
+      return;
+    }
+
+    attemptedImageUrlsRef.current.add(imageSrc);
+    const fallbackUrl = getAlternateStorageHostUrl(imageSrc);
+
+    if (fallbackUrl && !attemptedImageUrlsRef.current.has(fallbackUrl)) {
+      attemptedImageUrlsRef.current.add(fallbackUrl);
+      setIsImageReady(false);
+      setImageSrcOverride(fallbackUrl);
+      return;
+    }
+
+    setImageFailed(true);
+  };
+
+  const handleVideoError = () => {
+    if (!videoSrc) {
+      setVideoFailed(true);
+      return;
+    }
+
+    attemptedVideoUrlsRef.current.add(videoSrc);
+    const fallbackUrl = getAlternateStorageHostUrl(videoSrc);
+
+    if (fallbackUrl && !attemptedVideoUrlsRef.current.has(fallbackUrl)) {
+      attemptedVideoUrlsRef.current.add(fallbackUrl);
+      setIsVideoReady(false);
+      setVideoSrcOverride(fallbackUrl);
+      return;
+    }
+
+    setVideoFailed(true);
+  };
+
+  const refetchCurrentMoment = async () => {
+    if (!momentId) return false;
+
+    const targetTimestamp = getMomentTimestampSeconds(moment);
+    if (!targetTimestamp) return false;
+
+    const scopes = ownerUid ? [ownerUid, null] : [null];
+
+    for (const friendId of scopes) {
+      try {
+        // Start just after the post time so Firestore's descending cursor includes
+        // the target even when multiple moments share the same second.
+        const apiData = await GetAllMoments({
+          timestamp: targetTimestamp + 2,
+          friendId,
+          limit: TARGETED_MEDIA_REFRESH_LIMIT,
+        });
+
+        const freshMoment = apiData?.find(
+          (item) =>
+            item?.id === momentId || item?.canonical_uid === momentId,
+        );
+
+        if (freshMoment) {
+          await addNewMoment(freshMoment);
+          return true;
+        }
+      } catch (error) {
+        console.warn("targeted moment media refresh failed:", error);
+      }
+    }
+
+    return false;
+  };
+
   const handleRefreshMedia = async () => {
     if (isRefreshing) return;
     setIsRefreshing(true);
@@ -270,9 +405,19 @@ const MomentViewer = ({ moment, handleClose }) => {
     setVideoFailed(false);
     setIsImageReady(false);
     setIsVideoReady(false);
+    setImageSrcOverride(null);
+    setVideoSrcOverride(null);
+    attemptedImageUrlsRef.current = new Set(
+      thumbnailUrl ? [thumbnailUrl] : [],
+    );
+    attemptedVideoUrlsRef.current = new Set(videoUrl ? [videoUrl] : []);
 
     try {
-      await pullLatestMoments(null);
+      const refreshed = await refetchCurrentMoment();
+      if (!refreshed) {
+        // Keep the old behavior only as a last fallback for very recent posts.
+        await pullLatestMoments(ownerUid || null);
+      }
     } finally {
       setIsRefreshing(false);
     }
@@ -298,22 +443,22 @@ const MomentViewer = ({ moment, handleClose }) => {
             <div className="moment-skeleton absolute inset-0 w-full h-full skeleton rounded-[64px] z-0" />
           )}
 
-          {thumbnailUrl && !imageFailed && (
+          {imageSrc && !imageFailed && (
             <img
-              src={thumbnailUrl}
+              src={imageSrc}
               alt={resolvedMoment?.caption || "Moment"}
               className={`moment-media-fade absolute inset-0 w-full h-full object-cover rounded-[64px] transition-opacity duration-300 z-10 ${
                 isVideoReady ? "opacity-0" : "opacity-100"
               }`}
               onLoad={() => setIsImageReady(true)}
-              onError={() => setImageFailed(true)}
+              onError={handleImageError}
               referrerPolicy="no-referrer"
             />
           )}
 
-          {videoUrl && !videoFailed && (
+          {videoSrc && !videoFailed && (
             <video
-              src={videoUrl}
+              src={videoSrc}
               className={`moment-media-fade absolute inset-0 w-full h-full object-cover rounded-[64px] transition-opacity duration-300 z-20 ${
                 isVideoReady ? "opacity-100" : "opacity-0"
               }`}
@@ -322,10 +467,10 @@ const MomentViewer = ({ moment, handleClose }) => {
               loop
               playsInline
               preload="metadata"
-              poster={thumbnailUrl || undefined}
+              poster={imageSrc || undefined}
               onLoadedData={() => setIsVideoReady(true)}
               onCanPlay={() => setIsVideoReady(true)}
-              onError={() => setVideoFailed(true)}
+              onError={handleVideoError}
             />
           )}
 
