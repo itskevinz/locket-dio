@@ -279,7 +279,10 @@ const MomentViewer = ({ moment, handleClose }) => {
   };
 
   return (
-    <div className="moment-enter flex w-full flex-col justify-center items-center">
+    <div
+      key={momentId || "moment"}
+      className="moment-enter flex w-full flex-col justify-center items-center"
+    >
       <div
         className="relative flex flex-col items-center w-full gap-3"
         onClick={(e) => e.stopPropagation()}
@@ -293,7 +296,7 @@ const MomentViewer = ({ moment, handleClose }) => {
           <X className="w-6 h-6 text-white" />
         </button>
 
-        <div className="h-full w-full border-t border-b border-base-300 sm:max-w-sm max-w-md aspect-square flex items-center justify-center relative bg-base-300 rounded-[64px] overflow-hidden">
+        <div className="moment-card-enter h-full w-full border-t border-b border-base-300 sm:max-w-sm max-w-md aspect-square flex items-center justify-center relative bg-base-300 rounded-[64px] overflow-hidden">
           {hasMediaUrl && !isImageReady && !isVideoReady && !mediaUnavailable && (
             <div className="moment-skeleton absolute inset-0 w-full h-full skeleton rounded-[64px] z-0" />
           )}
