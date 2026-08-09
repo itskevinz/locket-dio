@@ -1,0 +1,146 @@
+/* Admin Verify Input Border V7
+   Adds a dedicated verification perimeter to PIN/OTP without changing auth logic. */
+
+@property --admin-verify-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+/* Base input perimeter follows the active theme. */
+.admin-vault .admin-vault-input-wrap {
+  position: relative !important;
+  isolation: isolate !important;
+  overflow: visible !important;
+}
+
+.admin-vault .admin-vault-input-wrap::before {
+  content: "" !important;
+  display: block !important;
+  position: absolute !important;
+  z-index: 3 !important;
+  inset: -2px !important;
+  border-radius: calc(1.12rem + 2px) !important;
+  padding: 2px !important;
+  pointer-events: none !important;
+  opacity: .72 !important;
+  background: conic-gradient(
+    from var(--admin-verify-angle),
+    color-mix(in srgb, var(--gate-primary, var(--color-primary)) 86%, transparent),
+    color-mix(in srgb, var(--gate-secondary, var(--color-secondary)) 74%, transparent),
+    color-mix(in srgb, var(--gate-accent, var(--color-accent)) 68%, transparent),
+    color-mix(in srgb, var(--gate-primary, var(--color-primary)) 86%, transparent)
+  ) !important;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0) !important;
+  -webkit-mask-composite: xor !important;
+  mask-composite: exclude !important;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--gate-primary, var(--color-primary)) 34%, transparent)) !important;
+  animation: admin-v7-verify-idle 5.2s linear infinite !important;
+}
+
+/* While server verification is in progress, make the perimeter clearly active. */
+.admin-vault-card:has(.admin-vault-submit.is-loading) .admin-vault-input-wrap::before {
+  inset: -3px !important;
+  padding: 3px !important;
+  opacity: 1 !important;
+  background: conic-gradient(
+    from var(--admin-verify-angle),
+    transparent 0deg 182deg,
+    var(--gate-primary, var(--color-primary)) 205deg,
+    var(--gate-secondary, var(--color-secondary)) 244deg,
+    var(--gate-accent, var(--color-accent)) 282deg,
+    var(--gate-primary, var(--color-primary)) 320deg,
+    transparent 346deg 360deg
+  ) !important;
+  filter:
+    drop-shadow(0 0 7px color-mix(in srgb, var(--gate-primary, var(--color-primary)) 58%, transparent))
+    drop-shadow(0 0 12px color-mix(in srgb, var(--gate-secondary, var(--color-secondary)) 36%, transparent)) !important;
+  animation: admin-v7-verify-scan 1.05s linear infinite !important;
+}
+
+.admin-vault-card:has(.admin-vault-submit.is-loading) .admin-vault-input-wrap {
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--gate-primary, var(--color-primary)) 9%, transparent),
+    0 0 28px color-mix(in srgb, var(--gate-primary, var(--color-primary)) 20%, transparent) !important;
+  animation: admin-v7-input-breathe 880ms ease-in-out infinite alternate !important;
+}
+
+/* Wrong PIN / OTP: red perimeter scans around the exact input field. */
+.admin-vault-card:has(.admin-vault-error) .admin-vault-input-wrap::before {
+  display: block !important;
+  inset: -3px !important;
+  padding: 3px !important;
+  opacity: 1 !important;
+  background: conic-gradient(
+    from var(--admin-verify-angle),
+    transparent 0deg 188deg,
+    #ff3158 212deg,
+    #ff6b7f 252deg,
+    #ff3158 292deg,
+    #b91c1c 328deg,
+    transparent 350deg 360deg
+  ) !important;
+  filter: drop-shadow(0 0 8px rgba(255,49,88,.62)) !important;
+  animation: admin-v7-denied-runner .72s linear 2 !important;
+}
+
+/* Correct credentials: success panel gets its own green verification perimeter. */
+.admin-vault-card:has(.admin-vault-success) .admin-vault-success {
+  position: relative !important;
+  border-radius: 1.35rem !important;
+  padding: 1.15rem !important;
+}
+
+.admin-vault-card:has(.admin-vault-success) .admin-vault-success::before {
+  content: "" !important;
+  display: block !important;
+  position: absolute !important;
+  z-index: 0 !important;
+  inset: -.45rem !important;
+  width: auto !important;
+  height: auto !important;
+  left: -.45rem !important;
+  top: -.45rem !important;
+  border-radius: 1.6rem !important;
+  padding: 3px !important;
+  pointer-events: none !important;
+  opacity: 1 !important;
+  background: conic-gradient(
+    from var(--admin-verify-angle),
+    transparent 0deg 170deg,
+    #16a34a 198deg,
+    #22c55e 236deg,
+    #86efac 276deg,
+    #22c55e 316deg,
+    transparent 346deg 360deg
+  ) !important;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0) !important;
+  -webkit-mask-composite: xor !important;
+  mask-composite: exclude !important;
+  filter:
+    drop-shadow(0 0 7px rgba(34,197,94,.58))
+    drop-shadow(0 0 14px rgba(74,222,128,.34)) !important;
+  transform: none !important;
+  animation: admin-v7-success-runner .95s linear 2 !important;
+}
+
+@keyframes admin-v7-verify-idle {
+  to { --admin-verify-angle: 360deg; }
+}
+
+@keyframes admin-v7-verify-scan {
+  to { --admin-verify-angle: 360deg; }
+}
+
+@keyframes admin-v7-denied-runner {
+  to { --admin-verify-angle: 360deg; }
+}
+
+@keyframes admin-v7-success-runner {
+  to { --admin-verify-angle: 360deg; }
+}
+
+@keyframes admin-v7-input-breathe {
+  from { transform: translateZ(0) scale(1); }
+  to { transform: translateZ(0) scale(1.008); }
+}
