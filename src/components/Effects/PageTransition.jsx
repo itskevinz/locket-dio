@@ -1,6 +1,6 @@
 import React from "react";
-import { motion, useReducedMotion } from "framer-motion";
-import { useTheme } from "@/hooks/useTheme";
+import { motion } from "framer-motion";
+import { useAnimation } from "@/context/AnimationContext";
 
 const pageVariants = {
   initial: {
@@ -17,51 +17,26 @@ const pageVariants = {
   },
 };
 
-const litePageVariants = {
-  initial: {
-    opacity: 0.78,
-    y: 3,
-  },
-  in: {
-    opacity: 1,
-    y: 0,
-  },
-  out: {
-    opacity: 0.86,
-    y: -2,
-  },
-};
-
 const pageTransition = {
   type: "tween",
   ease: [0.22, 1, 0.36, 1],
   duration: 0.2,
 };
 
-const litePageTransition = {
-  type: "tween",
-  ease: [0.22, 1, 0.36, 1],
-  duration: 0.12,
-};
-
 export const PageTransition = ({ children, className = "w-full h-full" }) => {
-  const { perfMode } = useTheme();
-  const reduceMotion = useReducedMotion();
+  const { isAnimationEnabled } = useAnimation();
 
-  // Accessibility preference still wins: no motion when explicitly requested.
-  if (reduceMotion) {
+  if (!isAnimationEnabled) {
     return <div className={className}>{children}</div>;
   }
-
-  const isLite = perfMode === "lite";
 
   return (
     <motion.div
       initial="initial"
       animate="in"
       exit="out"
-      variants={isLite ? litePageVariants : pageVariants}
-      transition={isLite ? litePageTransition : pageTransition}
+      variants={pageVariants}
+      transition={pageTransition}
       className={className}
     >
       {children}
