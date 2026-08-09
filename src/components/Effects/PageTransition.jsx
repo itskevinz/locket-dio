@@ -89,7 +89,11 @@ export const PageTransition = ({ children, className = "w-full h-full", preset =
   const systemReducedMotion = useSystemReducedMotion();
   const isAdmin = preset === "admin";
 
-  if (!isAnimationEnabled || (isAdmin && systemReducedMotion)) {
+  if (!isAnimationEnabled) {
+    return <div className={className}>{children}</div>;
+  }
+
+  if (isAdmin && systemReducedMotion) {
     return <div className={className}>{children}</div>;
   }
 
