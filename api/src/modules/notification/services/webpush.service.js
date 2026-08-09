@@ -2,18 +2,27 @@ const webPush = require("web-push");
 const { supabase, isSupabaseConfigured } = require("../../../config/supabase");
 const { logInfo, logError } = require("../../../utils/logEventUtils");
 
-// Thiết lập VAPID Keys cho web-push (optional — không có key thì push tắt, server vẫn boot)
+// Legacy Supabase-backed Web Push. Canh Slot 24/7 quản lý VAPID riêng và lưu bền trong DB.
+// Chỉ yêu cầu VAPID ở đây khi legacy Supabase push thực sự được cấu hình.
 const vapidPublic = process.env.VAPID_PUBLIC_KEY || "";
 const vapidPrivate = process.env.VAPID_PRIVATE_KEY || "";
-if (vapidPublic && vapidPrivate) {
+const isLegacyPushConfigured = Boolean(
+  isSupabaseConfigured && vapidPublic && vapidPrivate,
+);
+
+if (!isSupabaseConfigured) {
+  console.log(
+    "[web-push] legacy Supabase push disabled; slot-monitor Web Push uses its own persistent VAPID config.",
+  );
+} else if (isLegacyPushConfigured) {
   webPush.setVapidDetails(
     "mailto:buiduchuy2010qn@gmail.com",
     vapidPublic,
-    vapidPrivate
+    vapidPrivate,
   );
 } else {
   console.warn(
-    "[web-push] VAPID keys chưa set — push notification tắt, API vẫn chạy."
+    "[web-push] Legacy Supabase push is configured but VAPID keys are missing; legacy push send is disabled.",
   );
 }
 
@@ -72,6 +81,12 @@ const sendPushNotification = async ({ title, body, url }) => {
   if (!isSupabaseConfigured) {
     logInfo("pushSend", "Supabase off — skip sendPushNotification");
     return { total: 0, sent: 0, failed: 0, failedDetails: [] };
+  }
+
+  if (!isLegacyPushConfigured) {
+    const error = new Error("Legacy Web Push chưa cấu hình VAPID keys");
+    error.code = "WEB_PUSH_NOT_CONFIGURED";
+    throw error;
   }
 
   const payload = JSON.stringify({
@@ -195,6 +210,12 @@ const sendPushNotification = async ({ title, body, url }) => {
 const testPushNotification = async ({ endpoint, title, body, url }) => {
   if (!isSupabaseConfigured) {
     return { success: false, endpoint, skipped: true };
+  }
+
+  if (!isLegacyPushConfigured) {
+    const error = new Error("Legacy Web Push chưa cấu hình VAPID keys");
+    error.code = "WEB_PUSH_NOT_CONFIGURED";
+    throw error;
   }
 
   const payload = JSON.stringify({ title, body, url });
