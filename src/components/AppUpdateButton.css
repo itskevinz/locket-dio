@@ -1,0 +1,268 @@
+.app-update-button {
+  --update-primary: var(--color-primary, #2563eb);
+  --update-secondary: var(--color-secondary, var(--update-primary));
+  --update-base: var(--color-base-100, #ffffff);
+  --update-content: var(--color-base-content, #0f172a);
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
+  transform: translateZ(0);
+  transition:
+    transform 220ms cubic-bezier(.2,.8,.2,1),
+    background-color 220ms ease,
+    color 220ms ease,
+    box-shadow 220ms ease;
+}
+
+.app-update-button::before,
+.app-update-button::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  border-radius: 999px;
+}
+
+/* Thin energy ring around the round button. */
+.app-update-button::before {
+  inset: -4px;
+  z-index: -1;
+  padding: 2px;
+  opacity: 0;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0 12%,
+    var(--update-primary) 20% 34%,
+    transparent 42% 57%,
+    var(--update-secondary) 66% 80%,
+    transparent 88% 100%
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  transition: opacity 180ms ease;
+}
+
+/* Expanding radar pulse, intentionally visible on mobile/perf-lite too. */
+.app-update-button::after {
+  inset: -2px;
+  z-index: -2;
+  opacity: 0;
+  border: 2px solid color-mix(in srgb, var(--update-primary) 70%, transparent);
+}
+
+.app-update-button__icon {
+  position: relative;
+  z-index: 2;
+  transform-origin: 50% 50%;
+  transition: transform 220ms cubic-bezier(.2,.8,.2,1), color 180ms ease;
+}
+
+.app-update-button__dot {
+  position: absolute;
+  right: -1px;
+  top: -1px;
+  z-index: 4;
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  background: var(--update-primary);
+  border: 2px solid var(--update-base);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--update-primary) 55%, transparent);
+  animation: app-update-dot-pulse 1.15s ease-out infinite;
+}
+
+.app-update-button__status {
+  position: absolute;
+  right: calc(100% + 9px);
+  top: 50%;
+  z-index: 6;
+  transform: translateY(-50%);
+  width: max-content;
+  max-width: min(220px, 68vw);
+  padding: 6px 9px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--update-primary) 30%, transparent);
+  background: color-mix(in srgb, var(--update-base) 92%, transparent);
+  color: var(--update-content);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--update-content) 16%, transparent);
+  backdrop-filter: blur(12px);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: .02em;
+  white-space: nowrap;
+  animation: app-update-status-in 240ms cubic-bezier(.2,.9,.25,1.2) both;
+}
+
+.app-update-button[data-update-phase="checking"] {
+  transform: scale(1.10);
+  color: var(--update-primary);
+  background: color-mix(in srgb, var(--update-primary) 18%, var(--update-base));
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--update-primary) 15%, transparent),
+    0 10px 28px color-mix(in srgb, var(--update-primary) 28%, transparent);
+}
+
+.app-update-button[data-update-phase="checking"]::before {
+  opacity: 1;
+  animation: app-update-ring-spin .72s linear infinite;
+}
+
+.app-update-button[data-update-phase="checking"]::after {
+  animation: app-update-radar .9s ease-out infinite;
+}
+
+.app-update-button[data-update-phase="checking"] .app-update-button__icon {
+  animation: app-update-icon-scan .72s linear infinite;
+}
+
+.app-update-button[data-update-phase="update-ready"] {
+  transform: scale(1.08);
+  color: var(--update-primary);
+  background: color-mix(in srgb, var(--update-primary) 23%, var(--update-base));
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--update-primary) 18%, transparent),
+    0 0 26px color-mix(in srgb, var(--update-primary) 40%, transparent);
+  animation: app-update-ready-breathe 1.1s ease-in-out infinite;
+}
+
+.app-update-button[data-update-phase="update-ready"]::before {
+  opacity: 1;
+  animation: app-update-ring-spin 1.35s linear infinite;
+}
+
+.app-update-button[data-update-phase="applying"],
+.app-update-button[data-update-phase="reloading"] {
+  transform: scale(1.13);
+  color: var(--color-primary-content, #fff);
+  background: var(--update-primary);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--update-primary) 22%, transparent),
+    0 0 34px color-mix(in srgb, var(--update-primary) 55%, transparent);
+}
+
+.app-update-button[data-update-phase="applying"]::before,
+.app-update-button[data-update-phase="reloading"]::before {
+  inset: -6px;
+  opacity: 1;
+  padding: 3px;
+  animation: app-update-ring-spin .48s linear infinite;
+}
+
+.app-update-button[data-update-phase="applying"]::after,
+.app-update-button[data-update-phase="reloading"]::after {
+  animation: app-update-radar .62s ease-out infinite;
+}
+
+.app-update-button[data-update-phase="applying"] .app-update-button__icon,
+.app-update-button[data-update-phase="reloading"] .app-update-button__icon {
+  animation: app-update-icon-apply .52s cubic-bezier(.4,0,.2,1) infinite;
+}
+
+.app-update-button[data-feedback="latest"] {
+  color: var(--color-success, #16a34a);
+  background: color-mix(in srgb, var(--color-success, #16a34a) 18%, var(--update-base));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success, #16a34a) 16%, transparent);
+  animation: app-update-success-pop .6s cubic-bezier(.2,.9,.25,1.25) both;
+}
+
+.app-update-button[data-feedback="latest"]::after {
+  border-color: color-mix(in srgb, var(--color-success, #16a34a) 72%, transparent);
+  animation: app-update-one-pulse .72s ease-out both;
+}
+
+.app-update-button[data-feedback="error"],
+.app-update-button[data-feedback="offline"] {
+  color: var(--color-error, #dc2626);
+  background: color-mix(in srgb, var(--color-error, #dc2626) 16%, var(--update-base));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-error, #dc2626) 18%, transparent);
+  animation: app-update-error-shake .55s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+.app-update-button[data-feedback="busy"] {
+  color: var(--color-warning, #d97706);
+  background: color-mix(in srgb, var(--color-warning, #d97706) 16%, var(--update-base));
+  animation: app-update-ready-breathe 1s ease-in-out 2;
+}
+
+@keyframes app-update-ring-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes app-update-icon-scan {
+  0% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(1.12); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+
+@keyframes app-update-icon-apply {
+  0% { transform: rotate(0deg) scale(.90); }
+  50% { transform: rotate(210deg) scale(1.16); }
+  100% { transform: rotate(360deg) scale(.90); }
+}
+
+@keyframes app-update-radar {
+  0% { opacity: .72; transform: scale(.88); }
+  80% { opacity: 0; transform: scale(1.48); }
+  100% { opacity: 0; transform: scale(1.48); }
+}
+
+@keyframes app-update-one-pulse {
+  0% { opacity: .8; transform: scale(.82); }
+  100% { opacity: 0; transform: scale(1.55); }
+}
+
+@keyframes app-update-dot-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--update-primary) 56%, transparent); }
+  75%, 100% { box-shadow: 0 0 0 7px transparent; }
+}
+
+@keyframes app-update-ready-breathe {
+  0%, 100% { transform: scale(1.05); }
+  50% { transform: scale(1.13); }
+}
+
+@keyframes app-update-success-pop {
+  0% { transform: scale(.74) rotate(-16deg); }
+  55% { transform: scale(1.18) rotate(4deg); }
+  100% { transform: scale(1.06) rotate(0deg); }
+}
+
+@keyframes app-update-error-shake {
+  0%, 100% { transform: translateX(0) scale(1.03); }
+  18% { transform: translateX(-5px) rotate(-4deg) scale(1.05); }
+  36% { transform: translateX(5px) rotate(4deg) scale(1.05); }
+  54% { transform: translateX(-4px) rotate(-3deg) scale(1.05); }
+  72% { transform: translateX(3px) rotate(2deg) scale(1.04); }
+}
+
+@keyframes app-update-status-in {
+  from { opacity: 0; transform: translate(8px, -50%) scale(.88); }
+  to { opacity: 1; transform: translate(0, -50%) scale(1); }
+}
+
+/* Keep this control visibly animated even when the global lite mode trims decoration. */
+html[data-performance-mode="lite"] .app-update-button[data-update-phase="checking"]::before,
+html[data-performance-mode="lite"] .app-update-button[data-update-phase="applying"]::before,
+html[data-performance-mode="lite"] .app-update-button[data-update-phase="reloading"]::before,
+html[data-animation-enabled="false"] .app-update-button[data-update-phase="checking"]::before,
+html[data-animation-enabled="false"] .app-update-button[data-update-phase="applying"]::before,
+html[data-animation-enabled="false"] .app-update-button[data-update-phase="reloading"]::before {
+  animation-play-state: running !important;
+}
+
+@media (max-width: 520px) {
+  .app-update-button__status {
+    right: auto;
+    left: 50%;
+    top: calc(100% + 8px);
+    transform: translateX(-50%);
+    font-size: 10px;
+    animation-name: app-update-status-in-mobile;
+  }
+}
+
+@keyframes app-update-status-in-mobile {
+  from { opacity: 0; transform: translate(-50%, -5px) scale(.9); }
+  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
