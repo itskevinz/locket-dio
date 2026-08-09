@@ -1,0 +1,310 @@
+/* Admin Login V6 — theme-synced interior + one real RGB runner around the card.
+   Loaded last. Authentication and result-state logic stay untouched. */
+
+@property --admin-border-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.admin-vault:not(.admin-vault--loading) {
+  --gate-primary: var(--color-primary, #0ea5e9);
+  --gate-secondary: var(--color-secondary, var(--gate-primary));
+  --gate-accent: var(--color-accent, var(--gate-primary));
+  --gate-base: var(--color-base-100, #ffffff);
+  --gate-base-2: var(--color-base-200, #f4f4f5);
+  --gate-base-3: var(--color-base-300, #e4e4e7);
+  --gate-text: var(--color-base-content, #18181b);
+  --gate-muted: color-mix(in srgb, var(--gate-text) 62%, transparent);
+  --gate-border: color-mix(in srgb, var(--gate-primary) 22%, var(--gate-base-3));
+
+  background:
+    radial-gradient(circle at 10% 18%, color-mix(in srgb, var(--gate-primary) 18%, transparent), transparent 30%),
+    radial-gradient(circle at 88% 18%, color-mix(in srgb, var(--gate-secondary) 16%, transparent), transparent 31%),
+    radial-gradient(circle at 78% 84%, color-mix(in srgb, var(--gate-accent) 13%, transparent), transparent 30%),
+    linear-gradient(145deg,
+      color-mix(in srgb, var(--gate-base-2) 94%, var(--gate-primary) 6%),
+      color-mix(in srgb, var(--gate-base) 96%, var(--gate-secondary) 4%) 52%,
+      color-mix(in srgb, var(--gate-base-2) 94%, var(--gate-accent) 6%)) !important;
+}
+
+/* Previous rainbow atmosphere is replaced with theme-only atmosphere. */
+.admin-vault:not(.admin-vault--loading)::before {
+  width: min(30rem, 72vw) !important;
+  height: min(30rem, 72vw) !important;
+  left: -10rem !important;
+  top: 8% !important;
+  opacity: .24 !important;
+  filter: blur(44px) !important;
+  background: radial-gradient(circle,
+    color-mix(in srgb, var(--gate-primary) 58%, transparent),
+    color-mix(in srgb, var(--gate-secondary) 24%, transparent) 46%,
+    transparent 72%) !important;
+  animation: admin-v6-theme-orb-a 8s ease-in-out infinite alternate !important;
+}
+
+.admin-vault:not(.admin-vault--loading)::after {
+  width: min(27rem, 66vw) !important;
+  height: min(27rem, 66vw) !important;
+  right: -9rem !important;
+  bottom: -7rem !important;
+  opacity: .20 !important;
+  filter: blur(48px) !important;
+  background: radial-gradient(circle,
+    color-mix(in srgb, var(--gate-accent) 48%, transparent),
+    color-mix(in srgb, var(--gate-secondary) 20%, transparent) 48%,
+    transparent 72%) !important;
+  animation: admin-v6-theme-orb-b 10s ease-in-out infinite alternate !important;
+}
+
+.admin-vault-grid {
+  opacity: .25 !important;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--gate-primary) 11%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--gate-primary) 11%, transparent) 1px, transparent 1px),
+    radial-gradient(circle, color-mix(in srgb, var(--gate-accent) 18%, transparent) 1px, transparent 1.4px) !important;
+  background-size: 46px 46px, 46px 46px, 92px 92px !important;
+}
+
+.admin-vault-glow--one { background: var(--gate-primary) !important; }
+.admin-vault-glow--two { background: var(--gate-accent) !important; }
+
+/* Compact size from V5 stays, but surfaces are now theme-driven. */
+.admin-vault-card {
+  border: 1px solid var(--gate-border) !important;
+  background: color-mix(in srgb, var(--gate-base) 86%, transparent) !important;
+  box-shadow:
+    0 28px 76px color-mix(in srgb, var(--gate-text) 17%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--gate-base) 70%, transparent) inset,
+    0 0 54px color-mix(in srgb, var(--gate-primary) 10%, transparent) !important;
+}
+
+/* REAL runner: a narrow full-spectrum beam rotates around the whole perimeter. */
+.admin-vault-card:not(:has(.admin-vault-success)):not(:has(.admin-vault-error))::before {
+  content: "" !important;
+  position: absolute !important;
+  z-index: 60 !important;
+  inset: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  left: 0 !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  border-radius: inherit !important;
+  padding: 3px !important;
+  pointer-events: none !important;
+  opacity: 1 !important;
+  background: conic-gradient(from var(--admin-border-angle),
+    transparent 0deg 205deg,
+    #ff3158 222deg,
+    #ff8a00 238deg,
+    #ffd60a 254deg,
+    #22c55e 270deg,
+    #00d9ff 286deg,
+    #367cff 302deg,
+    #8b5cf6 318deg,
+    #ff3cac 334deg,
+    transparent 352deg 360deg) !important;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0) !important;
+  -webkit-mask-composite: xor !important;
+  mask-composite: exclude !important;
+  filter:
+    drop-shadow(0 0 5px rgba(0, 217, 255, .58))
+    drop-shadow(0 0 7px rgba(255, 60, 172, .42)) !important;
+  transform: none !important;
+  animation: admin-v6-rgb-perimeter 2.6s linear infinite !important;
+}
+
+/* Remove the old fake RGB stripe across only the top edge. */
+.admin-vault-card__edge {
+  display: none !important;
+}
+
+/* Left pane — theme only. */
+.admin-vault-header {
+  border-right-color: color-mix(in srgb, var(--gate-primary) 18%, var(--gate-base-3)) !important;
+  background:
+    radial-gradient(circle at 15% 20%, color-mix(in srgb, var(--gate-primary) 24%, transparent), transparent 34%),
+    radial-gradient(circle at 88% 76%, color-mix(in srgb, var(--gate-secondary) 18%, transparent), transparent 36%),
+    radial-gradient(circle at 55% 8%, color-mix(in srgb, var(--gate-accent) 12%, transparent), transparent 30%),
+    linear-gradient(155deg,
+      color-mix(in srgb, var(--gate-base) 86%, var(--gate-primary) 14%),
+      color-mix(in srgb, var(--gate-base-2) 88%, var(--gate-secondary) 12%)) !important;
+}
+
+.admin-vault-header::before {
+  opacity: .72 !important;
+  background:
+    radial-gradient(circle at 20% 25%, color-mix(in srgb, var(--gate-primary) 56%, transparent) 0 2px, transparent 3px),
+    radial-gradient(circle at 76% 18%, color-mix(in srgb, var(--gate-secondary) 50%, transparent) 0 2px, transparent 3px),
+    radial-gradient(circle at 68% 70%, color-mix(in srgb, var(--gate-accent) 48%, transparent) 0 2px, transparent 3px),
+    radial-gradient(circle at 30% 82%, color-mix(in srgb, var(--gate-primary) 36%, transparent) 0 2px, transparent 3px) !important;
+  background-size: 78px 78px, 104px 104px, 122px 122px, 90px 90px !important;
+}
+
+.admin-vault-header h1 {
+  color: var(--gate-text) !important;
+  background: linear-gradient(100deg,
+    color-mix(in srgb, var(--gate-primary) 88%, var(--gate-text)),
+    color-mix(in srgb, var(--gate-secondary) 80%, var(--gate-text)),
+    color-mix(in srgb, var(--gate-accent) 74%, var(--gate-text))) !important;
+  background-size: 200% 100% !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  filter: drop-shadow(0 7px 18px color-mix(in srgb, var(--gate-primary) 16%, transparent)) !important;
+  animation: admin-v6-theme-title 5s ease-in-out infinite alternate !important;
+}
+
+.admin-vault-eyebrow,
+.admin-vault-badges span {
+  color: color-mix(in srgb, var(--gate-primary) 82%, var(--gate-text)) !important;
+}
+
+.admin-vault-badges span,
+.admin-vault-badges::after {
+  border-color: color-mix(in srgb, var(--gate-primary) 24%, transparent) !important;
+  background: color-mix(in srgb, var(--gate-base) 74%, transparent) !important;
+}
+
+.admin-vault-badges::after {
+  color: color-mix(in srgb, var(--gate-secondary) 75%, var(--gate-text)) !important;
+}
+
+.admin-vault-mark {
+  color: var(--gate-primary) !important;
+  border-color: color-mix(in srgb, var(--gate-primary) 34%, transparent) !important;
+  background: linear-gradient(145deg,
+    color-mix(in srgb, var(--gate-primary) 16%, var(--gate-base)),
+    color-mix(in srgb, var(--gate-secondary) 11%, var(--gate-base-2))) !important;
+  box-shadow:
+    0 0 0 8px color-mix(in srgb, var(--gate-primary) 5%, transparent),
+    0 16px 38px color-mix(in srgb, var(--gate-primary) 18%, transparent),
+    0 0 38px color-mix(in srgb, var(--gate-secondary) 12%, transparent) !important;
+}
+
+.admin-vault-mark__ring {
+  border-color: color-mix(in srgb, var(--gate-secondary) 42%, transparent) !important;
+  box-shadow: inset 0 0 18px color-mix(in srgb, var(--gate-primary) 18%, transparent) !important;
+}
+
+.admin-vault-identity {
+  border-color: color-mix(in srgb, var(--gate-primary) 24%, transparent) !important;
+  background: linear-gradient(120deg,
+    color-mix(in srgb, var(--gate-primary) 8%, var(--gate-base)),
+    color-mix(in srgb, var(--gate-secondary) 7%, var(--gate-base))) !important;
+}
+
+.admin-vault-identity > span {
+  color: var(--color-primary-content, #fff) !important;
+  background: linear-gradient(145deg, var(--gate-primary), var(--gate-secondary)) !important;
+}
+
+/* PIN / OTP — theme only. Error state is deliberately excluded so V4 red feedback stays visible. */
+.admin-vault-card:not(:has(.admin-vault-error)) .admin-vault-input-wrap {
+  padding: 1px !important;
+  background: linear-gradient(100deg,
+    color-mix(in srgb, var(--gate-primary) 72%, transparent),
+    color-mix(in srgb, var(--gate-secondary) 62%, transparent),
+    color-mix(in srgb, var(--gate-accent) 56%, transparent)) !important;
+  box-shadow: 0 0 22px color-mix(in srgb, var(--gate-primary) 14%, transparent) !important;
+  animation: admin-v6-theme-input 3.8s ease-in-out infinite alternate !important;
+}
+
+.admin-vault-card:not(:has(.admin-vault-error)) .admin-vault-input {
+  color: var(--gate-text) !important;
+  background: color-mix(in srgb, var(--gate-base) 92%, transparent) !important;
+}
+
+/* Keypad uses only theme colors, with subtle primary/secondary/accent alternation. */
+.admin-vault-card:not(:has(.admin-vault-error)) .admin-vault-key {
+  color: var(--gate-text) !important;
+  border-color: color-mix(in srgb, var(--gate-primary) 22%, var(--gate-base-3)) !important;
+  background: color-mix(in srgb, var(--gate-primary) 7%, var(--gate-base)) !important;
+  box-shadow: 0 7px 16px color-mix(in srgb, var(--gate-text) 7%, transparent) !important;
+}
+
+.admin-vault-card:not(:has(.admin-vault-error)) .admin-vault-key:nth-child(3n + 2) {
+  border-color: color-mix(in srgb, var(--gate-secondary) 24%, var(--gate-base-3)) !important;
+  background: color-mix(in srgb, var(--gate-secondary) 8%, var(--gate-base)) !important;
+}
+
+.admin-vault-card:not(:has(.admin-vault-error)) .admin-vault-key:nth-child(3n) {
+  border-color: color-mix(in srgb, var(--gate-accent) 22%, var(--gate-base-3)) !important;
+  background: color-mix(in srgb, var(--gate-accent) 7%, var(--gate-base)) !important;
+}
+
+.admin-vault-card:not(:has(.admin-vault-error)) .admin-vault-key:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.018) !important;
+  color: color-mix(in srgb, var(--gate-primary) 82%, var(--gate-text)) !important;
+  border-color: color-mix(in srgb, var(--gate-primary) 52%, transparent) !important;
+  background: color-mix(in srgb, var(--gate-primary) 13%, var(--gate-base)) !important;
+  box-shadow: 0 11px 24px color-mix(in srgb, var(--gate-primary) 17%, transparent) !important;
+}
+
+/* Unlock button follows the theme instead of hard-coded rainbow. */
+.admin-vault-card:not(:has(.admin-vault-success)):not(:has(.admin-vault-error)) .admin-vault-submit {
+  color: var(--color-primary-content, #fff) !important;
+  background: linear-gradient(100deg,
+    var(--gate-primary),
+    var(--gate-secondary),
+    var(--gate-accent),
+    var(--gate-primary)) !important;
+  background-size: 260% 100% !important;
+  box-shadow:
+    0 12px 28px color-mix(in srgb, var(--gate-primary) 22%, transparent),
+    0 0 24px color-mix(in srgb, var(--gate-secondary) 13%, transparent) !important;
+  animation: admin-v6-theme-submit 4s linear infinite !important;
+}
+
+.admin-vault-section-label {
+  border-color: color-mix(in srgb, var(--gate-primary) 18%, var(--gate-base-3)) !important;
+  background: color-mix(in srgb, var(--gate-primary) 5%, var(--gate-base)) !important;
+}
+
+.admin-vault-section-label svg,
+.admin-vault-section-label > span {
+  color: color-mix(in srgb, var(--gate-primary) 82%, var(--gate-text)) !important;
+}
+
+.admin-vault-footer {
+  border-top-color: color-mix(in srgb, var(--gate-primary) 13%, var(--gate-base-3)) !important;
+  background: color-mix(in srgb, var(--gate-base) 82%, transparent) !important;
+}
+
+@keyframes admin-v6-rgb-perimeter {
+  from { --admin-border-angle: 0deg; }
+  to { --admin-border-angle: 360deg; }
+}
+
+@keyframes admin-v6-theme-orb-a {
+  from { transform: translate3d(-2%, -1%, 0) scale(.96); }
+  to { transform: translate3d(8%, 5%, 0) scale(1.08); }
+}
+
+@keyframes admin-v6-theme-orb-b {
+  from { transform: translate3d(2%, 3%, 0) scale(.96); }
+  to { transform: translate3d(-8%, -5%, 0) scale(1.07); }
+}
+
+@keyframes admin-v6-theme-title {
+  from { background-position: 0% 50%; }
+  to { background-position: 100% 50%; }
+}
+
+@keyframes admin-v6-theme-input {
+  from { filter: brightness(.98); }
+  to { filter: brightness(1.08); }
+}
+
+@keyframes admin-v6-theme-submit {
+  from { background-position: 0% 50%; }
+  to { background-position: 260% 50%; }
+}
+
+/* Keep the runner visible in the Admin gate even when the app uses lite mode. */
+html[data-performance-mode="lite"] .admin-vault-card:not(:has(.admin-vault-success)):not(:has(.admin-vault-error))::before {
+  animation: admin-v6-rgb-perimeter 2.6s linear infinite !important;
+  filter: drop-shadow(0 0 4px rgba(0, 217, 255, .5)) !important;
+}
