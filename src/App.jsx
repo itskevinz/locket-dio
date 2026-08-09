@@ -341,7 +341,7 @@ function AppContent() {
                     path={path}
                     element={
                       <LayoutWithSidebar Layout={Layout}>
-                        <PageTransition>
+                        <PageTransition preset={path === "/admin/users" ? "admin" : "default"}>
                           <Component />
                         </PageTransition>
                       </LayoutWithSidebar>
@@ -364,7 +364,7 @@ function AppContent() {
                       path={path}
                       element={
                         <LayoutWithSidebar Layout={Layout}>
-                          <PageTransition>
+                          <PageTransition preset={path === "/admin/users" ? "admin" : "default"}>
                             <Component />
                           </PageTransition>
                         </LayoutWithSidebar>

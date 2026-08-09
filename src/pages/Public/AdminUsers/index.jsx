@@ -16,7 +16,6 @@ import {
   Trash2,
   Unlock,
   Users,
-  ArrowLeft,
   CheckCircle,
   Zap,
   Volume2,
@@ -27,6 +26,7 @@ import { SonnerInfo, SonnerSuccess, SonnerWarning } from "@/components/uikit/Son
 import ScrollReveal from "@/components/Effects/ScrollReveal";
 import { updateAndSyncGpsLocation } from "@/services/UserActivityService";
 import AdminSystemHealth from "../AdminSystemHealth";
+import AdminSecurityGate, { AdminRouteLoading } from "./AdminSecurityGate";
 import { CONFIG } from "@/config";
 import {
   adminRequest,
@@ -151,40 +151,6 @@ function renderUserLocation(user, latestLogin) {
   );
 }
 
-function VirtualNumPad({ value, onChange, disabled, maxLength = 8 }) {
-  const handlePress = (digit) => {
-    if (disabled || value.length >= maxLength) return;
-    onChange(value + digit);
-  };
-  const handleClear = () => {
-    if (disabled || !value) return;
-    onChange(value.slice(0, -1));
-  };
-
-  const buttons = [
-    { label: "1", val: "1" }, { label: "2", val: "2" }, { label: "3", val: "3" },
-    { label: "4", val: "4" }, { label: "5", val: "5" }, { label: "6", val: "6" },
-    { label: "7", val: "7" }, { label: "8", val: "8" }, { label: "9", val: "9" },
-    { label: "⌫", action: handleClear, bg: "btn-error btn-outline" }, { label: "0", val: "0" }, { label: "C", action: () => !disabled && onChange(""), bg: "btn-warning btn-outline" }
-  ];
-
-  return (
-    <div className="grid grid-cols-3 gap-2.5 max-w-[260px] mx-auto mt-4 mb-2">
-      {buttons.map((btn, idx) => (
-        <button
-          key={idx}
-          type="button"
-          disabled={disabled || (!btn.action && value.length >= maxLength)}
-          onClick={btn.action ? btn.action : () => handlePress(btn.val)}
-          className={`btn ${btn.bg || "btn-base-200 hover:bg-primary hover:text-primary-content border border-base-300"} h-12 rounded-2xl font-black text-lg shadow-sm transition-all active:scale-95 flex items-center justify-center cursor-pointer`}
-        >
-          {btn.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export default function AdminUsers() {
   const navigate = useNavigate();
   const [isAdmin, setIsAdmin] = useState(false);
@@ -200,6 +166,8 @@ export default function AdminUsers() {
   const [gatePassword, setGatePassword] = useState("");
   const [gateLoading, setGateLoading] = useState(false);
   const [gateError, setGateError] = useState(null);
+  const [gateVerified, setGateVerified] = useState(false);
+  const gateUnlockTimerRef = useRef(null);
 
   // 2FA Security states
   const [is2FAEnabled, setIs2FAEnabled] = useState(false);
@@ -828,6 +796,21 @@ export default function AdminUsers() {
     }
   };
 
+  const completeGateUnlock = useCallback(() => {
+    setGateVerified(true);
+    if (gateUnlockTimerRef.current) window.clearTimeout(gateUnlockTimerRef.current);
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    gateUnlockTimerRef.current = window.setTimeout(() => {
+      setIsGateUnlocked(true);
+      setGateVerified(false);
+      gateUnlockTimerRef.current = null;
+    }, reduceMotion ? 160 : 660);
+  }, []);
+
+  useEffect(() => () => {
+    if (gateUnlockTimerRef.current) window.clearTimeout(gateUnlockTimerRef.current);
+  }, []);
+
   const handleGateSubmit = async (e) => {
     e.preventDefault();
     if (!gatePassword.trim() || !/^\d{4,8}$/.test(gatePassword.trim())) {
@@ -835,6 +818,7 @@ export default function AdminUsers() {
       return;
     }
     setGateLoading(true);
+    setGateVerified(false);
     setGateError(null);
     try {
       const res = await startShortAdminSession(gatePassword.trim());
@@ -852,7 +836,7 @@ export default function AdminUsers() {
       } else {
         SonnerInfo("Xác minh mã PIN thành công! Cổng bảo mật Admin đã mở cho 30 phút tới.");
       }
-      setIsGateUnlocked(true);
+      completeGateUnlock();
       fetchUsers();
       fetchAdvancedData();
     } catch (err) {
@@ -870,6 +854,7 @@ export default function AdminUsers() {
       return;
     }
     setGateLoading(true);
+    setGateVerified(false);
     setGateError(null);
     try {
       await verifyAdmin2FAOTP(gate2FATempToken, gate2FAOtp.trim(), gate2FARememberDevice);
@@ -877,7 +862,7 @@ export default function AdminUsers() {
         ? "🎉 Xác nhận 2FA thành công! Thiết bị này đã được ghi nhớ 30 ngày."
         : "🎉 Xác nhận 2FA thành công! Cổng bảo mật Admin đã mở cho 30 phút tới."
       );
-      setIsGateUnlocked(true);
+      completeGateUnlock();
       setGate2FATempToken(null);
       setGate2FAOtp("");
       fetchUsers();
@@ -1110,186 +1095,40 @@ export default function AdminUsers() {
   };
 
   if (checkingAdmin || !isAdmin) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <span className="loading loading-spinner loading-lg text-primary" />
-      </div>
-    );
+    return <AdminRouteLoading />;
   }
 
-  // CỔNG BẢO MẬT: YÊU CẦU XÁC MINH MẬT KHẨU KHI BƯỚC VÀO TRANG ADMIN
   if (!isGateUnlocked) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4 py-24 animate-fade-in bg-gradient-to-br from-slate-50 via-blue-50/60 to-indigo-50/80 relative overflow-hidden">
-        {/* Ambient Pastel Glows */}
-        <div className="absolute top-1/3 left-1/4 w-[500px] h-[500px] bg-blue-400/15 rounded-full blur-[140px] pointer-events-none -translate-x-1/2 -translate-y-1/2" />
-        <div className="absolute bottom-1/3 right-1/4 w-[500px] h-[500px] bg-indigo-400/15 rounded-full blur-[140px] pointer-events-none translate-x-1/2 translate-y-1/2" />
-        
-        <div className="max-w-md w-full bg-white/95 border border-slate-200/80 hover:border-indigo-300 rounded-[2.5rem] p-8 sm:p-10 shadow-[0_25px_70px_-15px_rgba(79,46,229,0.15)] relative z-10 backdrop-blur-2xl transition-all duration-500">
-          <div className="absolute top-0 right-0 transform translate-x-10 -translate-y-10 w-40 h-40 bg-indigo-500/10 rounded-full blur-2xl -z-0 pointer-events-none" />
-          
-          <div className="relative z-10 flex flex-col items-center text-center">
-            <div className="w-24 h-24 rounded-3xl bg-gradient-to-tr from-blue-500/10 via-indigo-500/15 to-purple-500/10 border border-indigo-200/80 flex items-center justify-center text-indigo-600 mb-6 shadow-sm group">
-              <Lock className="w-12 h-12 text-indigo-600 drop-shadow-sm transition-transform group-hover:scale-110 duration-300" />
-            </div>
-
-            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-indigo-50 border border-indigo-200/80 text-indigo-700 text-[11px] font-black tracking-widest uppercase mb-3 shadow-inner">
-              <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping" />
-              <span>SECURITY GATE · AIR-LOCK v3.0</span>
-            </div>
-
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-950 via-slate-900 to-blue-950 mb-2 flex items-center justify-center gap-2">
-              Cổng Bảo Mật Quản Trị
-            </h1>
-            <p className="text-xs text-slate-500 mb-3 leading-relaxed font-semibold">
-              Chào Quản trị viên <strong className="text-slate-900 font-black">{currentEmail || "Huy Locket"}</strong> ({roleBadge(currentRole)}).
-            </p>
-
-            {!hasPin ? (
-              <div className="text-xs text-indigo-900 bg-indigo-50/90 p-4 rounded-2xl border border-indigo-200 mb-6 leading-relaxed text-left shadow-inner flex items-start gap-3">
-                <span className="text-xl shrink-0">✨</span>
-                <div>
-                  <strong className="text-indigo-950 font-extrabold uppercase block mb-0.5">Thiết Lập Mã PIN Lần Đầu:</strong> 
-                  Bạn chưa có Mã PIN số bảo mật riêng cho khu vực Quản Trị. Vui lòng nhập dãy số (4 - 8 chữ số) để làm Mã PIN mở khóa nhanh và an toàn. Về sau bạn có thể tự động thay đổi trong hệ thống!
-                </div>
-              </div>
-            ) : (
-              <div className="text-xs text-slate-600 leading-relaxed mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-left shadow-inner flex items-start gap-3">
-                <span className="text-xl shrink-0">🛡️</span>
-                <div>
-                  <strong className="text-slate-900 font-extrabold uppercase block mb-0.5">Xác Minh Danh Tính:</strong>
-                  Để bảo vệ quyền lực tối thượng và tài nguyên người dùng, bạn cần xác minh bằng <strong className="text-indigo-700">Mã PIN số bảo mật Quản trị</strong> riêng biệt. Phiên làm việc sẽ mở khóa an toàn trong <strong className="text-emerald-600 font-bold">30 phút</strong>.
-                </div>
-              </div>
-            )}
-
-            {gateError && (
-              <div className="alert bg-rose-50 border border-rose-200 text-rose-800 text-xs py-3 px-4 mb-6 rounded-2xl text-left shadow-md flex items-center gap-2.5 animate-bounce">
-                <AlertTriangle size={18} className="shrink-0 text-rose-600" />
-                <span className="font-bold">{gateError}</span>
-              </div>
-            )}
-
-            {gate2FATempToken ? (
-              <div className="w-full text-center">
-                <div className="text-xs text-indigo-900 bg-indigo-50/90 p-4 rounded-2xl border border-indigo-200 mb-6 leading-relaxed text-left shadow-inner flex items-start gap-3">
-                  <span className="text-xl shrink-0">🛡️</span>
-                  <div>
-                    <strong className="text-indigo-950 font-extrabold uppercase block mb-0.5">Xác Minh 2FA Google Authenticator:</strong> 
-                    Mã PIN hợp lệ! Tài khoản Quản trị của bạn được bảo vệ bởi lớp giáp 2FA. Vui lòng mở ứng dụng <strong>Google Authenticator</strong> hoặc <strong>Authy</strong> và nhập mã OTP 6 số để mở khóa.
-                  </div>
-                </div>
-
-                <form onSubmit={handleGate2FASubmit} className="w-full space-y-5">
-                  <div className="form-control w-full text-left">
-                    <label className="label text-[11px] font-black tracking-wider text-indigo-900 uppercase pb-2">
-                      MÃ OTP 6 CHỮ SỐ (GOOGLE AUTHENTICATOR)
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        maxLength={6}
-                        required
-                        placeholder="000000"
-                        className="input input-bordered w-full rounded-2xl pr-12 text-2xl h-16 bg-slate-50 text-indigo-950 border-slate-300 focus:border-indigo-600 focus:bg-white font-mono font-black tracking-[0.6em] text-center shadow-inner transition-all"
-                        value={gate2FAOtp}
-                        onChange={(e) => setGate2FAOtp(e.target.value.replace(/[^0-9]/g, ""))}
-                        disabled={gateLoading}
-                        autoFocus
-                      />
-                      <Shield className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500 w-6 h-6 pointer-events-none animate-pulse" />
-                    </div>
-                  </div>
-
-                  <label className="flex items-center gap-3 px-1 py-3 cursor-pointer select-none group">
-                    <input
-                      type="checkbox"
-                      checked={gate2FARememberDevice}
-                      onChange={(e) => setGate2FARememberDevice(e.target.checked)}
-                      className="checkbox checkbox-sm checkbox-success rounded-lg border-2 border-emerald-400 bg-white shadow-sm transition-all group-hover:border-emerald-500"
-                      disabled={gateLoading}
-                    />
-                    <span className="text-xs font-bold text-slate-700 leading-tight group-hover:text-emerald-800 transition-colors">
-                      🛡️ Ghi nhớ thiết bị này trong <strong className="text-emerald-700">30 ngày</strong> <span className="text-slate-400 font-medium">(không cần nhập OTP lần sau)</span>
-                    </span>
-                  </label>
-
-                  <nav className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => { setGate2FATempToken(null); setGatePassword(""); setGate2FAOtp(""); }}
-                      className="btn btn-ghost rounded-2xl flex-1 font-bold h-13 border border-slate-300 text-slate-700"
-                      disabled={gateLoading}
-                    >
-                      Quay lại nhập PIN
-                    </button>
-                    <button
-                      type="submit"
-                      className={`btn bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white flex-1 rounded-2xl font-black h-13 shadow-[0_10px_25px_-5px_rgba(16,185,129,0.4)] text-sm gap-2 border-0 transition-all active:scale-95 ${gateLoading ? "loading" : ""}`}
-                      disabled={gateLoading || gate2FAOtp.length !== 6}
-                    >
-                      {!gateLoading && <CheckCircle size={18} className="text-emerald-200" />}
-                      {gateLoading ? "Đang kiểm duyệt..." : "🚀 Mở Khóa Ngay"}
-                    </button>
-                  </nav>
-                </form>
-              </div>
-            ) : (
-            <form onSubmit={handleGateSubmit} className="w-full space-y-5">
-              <div className="form-control w-full text-left">
-                <label className="label text-[11px] font-black tracking-wider text-indigo-900 uppercase pb-2">
-                  {hasPin ? "MÃ PIN SỐ BẢO MẬT QUẢN TRỊ" : "THIẾT LẬP MÃ PIN SỐ QUẢN TRỊ (4 - 8 SỐ)"}
-                </label>
-                <div className="relative">
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={8}
-                    required
-                    placeholder={hasPin ? "••••••••" : "Tạo mã PIN (ví dụ: 201068)..."}
-                    className="input input-bordered w-full rounded-2xl pr-12 text-lg h-14 bg-slate-50 text-indigo-950 border-slate-300 focus:border-indigo-600 focus:bg-white font-mono font-black tracking-[0.4em] text-center shadow-inner transition-all"
-                    value={gatePassword}
-                    onChange={(e) => setGatePassword(e.target.value.replace(/[^0-9]/g, ""))}
-                    disabled={gateLoading}
-                    autoFocus
-                  />
-                  <Key className="absolute right-4 top-1/2 -translate-y-1/2 text-indigo-500 w-5 h-5 pointer-events-none animate-pulse" />
-                </div>
-                <div className="mt-4">
-                  <VirtualNumPad value={gatePassword} onChange={(val) => setGatePassword(val)} disabled={gateLoading} maxLength={8} />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className={`btn bg-gradient-to-r from-indigo-600 via-blue-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white w-full rounded-2xl font-black h-13 shadow-[0_10px_25px_-5px_rgba(79,46,229,0.4)] text-sm gap-2 border-0 transition-all active:scale-95 ${gateLoading ? "loading" : ""}`}
-                disabled={gateLoading || !gatePassword.trim()}
-              >
-                {!gateLoading && <CheckCircle size={18} className="text-indigo-200" />}
-                {gateLoading ? "Đang giải mã thẻ xác minh..." : (hasPin ? "🚀 Mở Khóa Trung Tâm Quản Trị" : "✨ Xác Nhận & Tạo Mã PIN Bảo Mật")}
-              </button>
-            </form>
-            )}
-
-            <button
-              type="button"
-              onClick={() => navigate("/locket", { replace: true })}
-              className="btn btn-ghost btn-xs text-slate-500 gap-1.5 mt-6 rounded-xl hover:text-slate-900 hover:bg-slate-100"
-              disabled={gateLoading}
-            >
-              <ArrowLeft size={14} /> Quay lại màn hình chính Locket
-            </button>
-          </div>
-        </div>
-      </div>
+      <AdminSecurityGate
+        currentEmail={currentEmail}
+        currentRole={currentRole}
+        hasPin={hasPin}
+        error={gateError}
+        loading={gateLoading}
+        verified={gateVerified}
+        pin={gatePassword}
+        onPinChange={setGatePassword}
+        onPinSubmit={handleGateSubmit}
+        otpToken={gate2FATempToken}
+        otp={gate2FAOtp}
+        onOtpChange={setGate2FAOtp}
+        rememberDevice={gate2FARememberDevice}
+        onRememberDeviceChange={setGate2FARememberDevice}
+        onOtpSubmit={handleGate2FASubmit}
+        onOtpBack={() => {
+          setGate2FATempToken(null);
+          setGatePassword("");
+          setGate2FAOtp("");
+          setGateError(null);
+        }}
+        onLeave={() => navigate("/locket", { replace: true })}
+      />
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/40 to-indigo-50/60 text-slate-800 p-3 sm:p-6 pt-24 max-w-7xl mx-auto animate-fade-in pb-20 selection:bg-indigo-600 selection:text-white">
+    <div className="admin-dashboard-enter min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/40 to-indigo-50/60 text-slate-800 p-3 sm:p-6 pt-24 max-w-7xl mx-auto pb-20 selection:bg-indigo-600 selection:text-white">
       {/* SUPREME COMMAND CENTER HERO HEADER */}
       <div className="bg-gradient-to-r from-white via-slate-50 to-indigo-50/80 text-slate-800 rounded-[2.5rem] p-6 sm:p-8 shadow-[0_15px_50px_-10px_rgba(30,41,59,0.08)] border border-slate-200/80 mb-8 relative overflow-hidden backdrop-blur-2xl">
         <div className="absolute top-0 right-0 w-96 h-96 bg-blue-400/10 rounded-full blur-[100px] pointer-events-none -mt-20 -mr-20" />
