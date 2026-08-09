@@ -5,7 +5,7 @@ import { useTheme } from "@/hooks/useTheme";
 const pageVariants = {
   initial: {
     opacity: 0,
-    y: 10,
+    y: 8,
   },
   in: {
     opacity: 1,
@@ -13,42 +13,42 @@ const pageVariants = {
   },
   out: {
     opacity: 0,
-    y: -8,
+    y: -6,
   },
 };
 
 const litePageVariants = {
   initial: {
-    opacity: 0.68,
-    y: 7,
+    opacity: 0.78,
+    y: 3,
   },
   in: {
     opacity: 1,
     y: 0,
   },
   out: {
-    opacity: 0.8,
-    y: -5,
+    opacity: 0.86,
+    y: -2,
   },
 };
 
 const pageTransition = {
   type: "tween",
   ease: [0.22, 1, 0.36, 1],
-  duration: 0.28,
+  duration: 0.2,
 };
 
 const litePageTransition = {
   type: "tween",
   ease: [0.22, 1, 0.36, 1],
-  duration: 0.24,
+  duration: 0.12,
 };
 
 export const PageTransition = ({ children, className = "w-full h-full" }) => {
   const { perfMode } = useTheme();
   const reduceMotion = useReducedMotion();
 
-  // Tôn trọng cài đặt trợ năng của hệ điều hành.
+  // Accessibility preference still wins: no motion when explicitly requested.
   if (reduceMotion) {
     return <div className={className}>{children}</div>;
   }
