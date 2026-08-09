@@ -121,9 +121,31 @@ const verifyIdTokenAsync = async (req) => {
   );
   return {
     uid: decodedPayload.user_id || decodedPayload.uid,
+    localId: decodedPayload.user_id || decodedPayload.uid,
+    idToken,
     email: decodedPayload.email,
     name: decodedPayload.name,
   };
 };
 
-module.exports = { verifyIdToken, verifyplanAuth, verifyPlanAuthOrGuest };
+/**
+ * Parse a bearer token when present, but keep signed-public routes usable when
+ * the token is missing or stale. The route handler must still validate its own
+ * short-lived signature before returning private data.
+ */
+const verifyIdTokenOptional = async (req, _res, next) => {
+  try {
+    const user = await verifyIdTokenAsync(req);
+    if (user) req.user = user;
+  } catch {
+    req.user = null;
+  }
+  next();
+};
+
+module.exports = {
+  verifyIdToken,
+  verifyIdTokenOptional,
+  verifyplanAuth,
+  verifyPlanAuthOrGuest,
+};

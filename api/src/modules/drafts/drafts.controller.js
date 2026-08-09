@@ -280,53 +280,29 @@ async function downloadMedia(req, res) {
   const draftId = req.params.id;
   const role = req.params.role;
   const { exp, sig } = req.query;
-
-  // Prefer authenticated owner
-  let ownerUid = uidOf(req);
-  if (!ownerUid) {
-    // Allow signed access without bearer (short TTL)
-    // Need owner from draft — cannot trust client. Require both auth OR
-    // we embed owner in signature payload already (uid in sign).
-    // For signed-only: client must pass ownerUid query matching signature.
-    ownerUid = String(req.query.ownerUid || "");
-  }
-
-  if (!ownerUid) {
-    return res.status(401).send("Unauthorized");
-  }
-
-  if (
-    !fileStore.verifyAccess({
-      ownerUid,
-      draftId,
-      role,
-      exp: Number(exp),
-      sig: String(sig || ""),
-    })
-  ) {
-    // Also try with authenticated uid if query owner mismatched
-    const authUid = uidOf(req);
-    if (
-      !authUid ||
-      !fileStore.verifyAccess({
-        ownerUid: authUid,
+  const authUid = uidOf(req);
+  const signedOwnerUid = String(req.query.ownerUid || "");
+  const hasValidSignature = Boolean(
+    signedOwnerUid &&
+      fileStore.verifyAccess({
+        ownerUid: signedOwnerUid,
         draftId,
         role,
         exp: Number(exp),
         sig: String(sig || ""),
-      })
-    ) {
-      // Authenticated owner can always read own files without sig
-      if (authUid) {
-        const draft = await metaStore.getDraft(authUid, draftId);
-        if (!draft) return res.status(404).send("not found");
-        ownerUid = authUid;
-      } else {
-        return res.status(403).send("Invalid or expired signature");
-      }
-    } else {
-      ownerUid = authUid;
-    }
+      }),
+  );
+
+  if (!authUid && !signedOwnerUid) {
+    return res.status(401).send("Unauthorized");
+  }
+
+  // A valid signed URL remains usable even if the browser happens to attach a
+  // stale Authorization header. Otherwise, a valid bearer grants owner access
+  // without requiring a signature.
+  const ownerUid = hasValidSignature ? signedOwnerUid : authUid;
+  if (!ownerUid) {
+    return res.status(403).send("Invalid or expired signature");
   }
 
   // Ownership: draft must belong to ownerUid

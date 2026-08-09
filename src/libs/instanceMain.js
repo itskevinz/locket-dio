@@ -183,7 +183,15 @@ instanceMain.interceptors.response.use(
     const originalRequest = error?.config;
     const status = error?.response?.status;
 
-    if (status !== 401 || !originalRequest || originalRequest._mainAuthRetry) {
+    // Signed media URLs authenticate with their short-lived query signature.
+    // A 401 there is not proof that the user's Firebase session expired, so it
+    // must not start a refresh-token storm.
+    if (
+      status !== 401 ||
+      !originalRequest ||
+      originalRequest.skipAuthRefresh ||
+      originalRequest._mainAuthRetry
+    ) {
       return Promise.reject(error);
     }
 

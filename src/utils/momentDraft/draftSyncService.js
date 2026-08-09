@@ -13,8 +13,7 @@ import {
   getDeviceId,
   updateDraftMeta,
 } from "./draftLibrary";
-import { refreshIdToken } from "@/services/LocketDioServices/AuthServices";
-import { getToken } from "@/utils/storage";
+import { getDraftMediaRequests } from "./draftMediaUrl";
 
 const MAX_RETRIES = 4;
 const BASE_BACKOFF_MS = 1500;
@@ -40,25 +39,6 @@ async function apiDraftCall(config, attempts = 0) {
     const status = error?.response?.status;
     const isNetworkError = !error.response;
     
-    // Auth 401 handling - only try once
-    if (status === 401 && attempts === 0) {
-      try {
-        const { refreshToken } = getToken();
-        if (refreshToken) {
-          const newToken = await refreshIdToken(refreshToken);
-          if (newToken) {
-            localStorage.setItem("idToken", newToken);
-            config.headers = config.headers || {};
-            config.headers["Authorization"] = `Bearer ${newToken}`;
-            return await apiDraftCall(config, attempts + 1);
-          }
-        }
-      } catch {
-        // Stop retry on auth failure
-        throw error;
-      }
-    }
-
     // Rate limits, server errors or network drops
     const retryableStatus = [408, 425, 429, 500, 502, 503, 504].includes(status) || isNetworkError;
     
@@ -315,6 +295,27 @@ function isUsableMediaBlob(blob) {
 
 async function downloadDraftRoleBlob(draftId, role, mediaUrls) {
   const path = `/api/drafts/${encodeURIComponent(draftId)}/media/${encodeURIComponent(role)}`;
+  // Prefer short-lived signed URLs. They do not need a bearer token, so an old
+  // login token cannot trigger one refresh request per thumbnail.
+  const entry = mediaUrls?.[role];
+  for (const request of getDraftMediaRequests(entry)) {
+    try {
+      const res = await instanceMain.get(request.url, {
+        responseType: "blob",
+        timeout: 180000,
+        ...(request.baseURL !== undefined
+          ? { baseURL: request.baseURL }
+          : {}),
+        skipAuthRefresh: request.skipAuthRefresh,
+      });
+      if (isUsableMediaBlob(res?.data)) return res.data;
+    } catch {
+      /* try next */
+    }
+  }
+
+  // Last fallback: authenticated owner access. instanceMain already performs a
+  // coordinated single refresh, so apiDraftCall must not run another refresh.
   try {
     const res = await apiDraftCall({
       method: "get",
@@ -324,23 +325,9 @@ async function downloadDraftRoleBlob(draftId, role, mediaUrls) {
     });
     if (isUsableMediaBlob(res?.data)) return res.data;
   } catch {
-    /* try signed URLs */
+    /* caller may refresh signed URLs and retry */
   }
 
-  const entry = mediaUrls?.[role];
-  const candidates = [entry?.proxyUrl, entry?.url].filter(Boolean);
-  for (const url of candidates) {
-    try {
-      const res = await instanceMain.get(url, {
-        responseType: "blob",
-        timeout: 180000,
-        baseURL: String(url).startsWith("http") ? "" : undefined,
-      });
-      if (isUsableMediaBlob(res?.data)) return res.data;
-    } catch {
-      /* try next */
-    }
-  }
   return null;
 }
 
@@ -364,7 +351,14 @@ async function refreshDraftMediaUrls(draftId) {
 
 // Background Thumbnail Downloader
 const backgroundThumbnailsQueue = [];
+const queuedBackgroundThumbnailIds = new Set();
 let isBackgroundThumbProcessing = false;
+
+function queueBackgroundThumbnail(cloud) {
+  if (!cloud?.id || queuedBackgroundThumbnailIds.has(cloud.id)) return;
+  queuedBackgroundThumbnailIds.add(cloud.id);
+  backgroundThumbnailsQueue.push(cloud);
+}
 
 async function processThumbnailsBackground() {
   if (isBackgroundThumbProcessing) return;
@@ -391,6 +385,8 @@ async function processThumbnailsBackground() {
       }
     } catch {
       // Ignore background thumb errors
+    } finally {
+      if (cloud?.id) queuedBackgroundThumbnailIds.delete(cloud.id);
     }
   }
   isBackgroundThumbProcessing = false;
@@ -446,7 +442,7 @@ async function internalPullCloudDrafts({ onProgress } = {}) {
         });
         
         // Queue thumbnail background fetch instead of blocking
-        backgroundThumbnailsQueue.push(cloud);
+        queueBackgroundThumbnail(cloud);
         continue;
       }
 
@@ -522,7 +518,7 @@ async function internalPullCloudDrafts({ onProgress } = {}) {
         // Ensure thumbnail async
         const blobs = await momentDraftDB.draftBlobs.get(local.id);
         if (!(blobs?.thumbnailBlob instanceof Blob) || !blobs.thumbnailBlob.size) {
-          backgroundThumbnailsQueue.push(cloud);
+          queueBackgroundThumbnail(cloud);
         }
       }
     }

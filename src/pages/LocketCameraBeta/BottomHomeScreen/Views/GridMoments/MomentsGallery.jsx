@@ -3,38 +3,7 @@ import { ImageOff } from "lucide-react";
 import { MdSlowMotionVideo } from "react-icons/md";
 import ScrollReveal from "@/components/Effects/ScrollReveal";
 import { useSelectedStore } from "@/stores";
-
-function getAlternateStorageHostUrl(value) {
-  if (typeof value !== "string" || !value.trim()) return null;
-
-  if (value.includes("https://cdn.locketcamera.com")) {
-    return value.replace(
-      "https://cdn.locketcamera.com",
-      "https://firebasestorage.googleapis.com",
-    );
-  }
-
-  if (value.includes("https://firebasestorage.googleapis.com")) {
-    return value.replace(
-      "https://firebasestorage.googleapis.com",
-      "https://cdn.locketcamera.com",
-    );
-  }
-
-  return null;
-}
-
-function resolvePrimaryImageUrl(item) {
-  return (
-    item?.thumbnail_url ||
-    item?.image_url ||
-    item?.thumbnailUrl ||
-    item?.imageUrl ||
-    item?.thumbnailCdnUrl ||
-    item?.imageCdnUrl ||
-    null
-  );
-}
+import { getMomentImageCandidates } from "@/utils/moment/momentMediaFields";
 
 /**
  * Lưới khoảnh khắc — KHÔNG nút Làm mới.
@@ -56,6 +25,7 @@ const MomentsGallery = ({
   const [loadedItems, setLoadedItems] = useState([]);
   const [failedItems, setFailedItems] = useState([]);
   const [fallbackUrls, setFallbackUrls] = useState({});
+  const attemptedUrlsRef = useRef(new Map());
   const lastElementRef = useRef(null);
   const observerRef = useRef(null);
 
@@ -110,28 +80,23 @@ const MomentsGallery = ({
     setLoadedItems((prev) => (prev.includes(id) ? prev : [...prev, id]));
   };
 
-  const handleImageError = (id, currentUrl, primaryUrl) => {
-    const alternateUrl = getAlternateStorageHostUrl(currentUrl);
+  const handleImageError = (item, currentUrl, candidates) => {
+    const attempted = attemptedUrlsRef.current.get(item.id) || new Set();
+    attempted.add(currentUrl);
+    attemptedUrlsRef.current.set(item.id, attempted);
+    const nextUrl = candidates.find((url) => !attempted.has(url));
 
-    // Old cached entries can still contain the CDN-rewritten version. Retry the
-    // exact same path/query on Firebase first; for fresh signed Firebase URLs,
-    // CDN remains only a last fallback. Never show the broken icon until both
-    // hosts have failed.
-    if (
-      alternateUrl &&
-      alternateUrl !== currentUrl &&
-      currentUrl === primaryUrl
-    ) {
-      setLoadedItems((prev) => prev.filter((itemId) => itemId !== id));
-      setFailedItems((prev) => prev.filter((itemId) => itemId !== id));
+    if (nextUrl) {
+      setLoadedItems((prev) => prev.filter((itemId) => itemId !== item.id));
+      setFailedItems((prev) => prev.filter((itemId) => itemId !== item.id));
       setFallbackUrls((prev) => ({
         ...prev,
-        [id]: { source: primaryUrl, fallback: alternateUrl },
+        [item.id]: { source: candidates[0], fallback: nextUrl },
       }));
       return;
     }
 
-    handleFailed(id);
+    handleFailed(item.id);
   };
 
   if (moments.length === 0) {
@@ -167,7 +132,8 @@ const MomentsGallery = ({
       className="grid gap-1 grid-cols-3 md:grid-cols-6 md:gap-2"
     >
       {visibleMoments.map((item, index) => {
-        const primaryImageUrl = resolvePrimaryImageUrl(item);
+        const imageCandidates = getMomentImageCandidates(item);
+        const primaryImageUrl = imageCandidates[0] || null;
         const fallbackEntry = fallbackUrls[item.id];
         const imageSrc =
           fallbackEntry?.source === primaryImageUrl
@@ -218,7 +184,7 @@ const MomentsGallery = ({
                   }`}
                   onLoad={() => handleLoaded(item.id)}
                   onError={() =>
-                    handleImageError(item.id, imageSrc, primaryImageUrl)
+                    handleImageError(item, imageSrc, imageCandidates)
                   }
                   loading={shouldPrioritize ? "eager" : "lazy"}
                   fetchPriority={shouldPrioritize ? "high" : "auto"}

@@ -7,6 +7,7 @@ import {
   getAllMoments,
   getMomentsByUser,
 } from "@/cache/momentDB";
+import { mergeMomentMediaFields } from "@/utils/moment/momentMediaFields";
 
 const { initialVisible, loadMoreLimit } = MOMENTS_CONFIG;
 
@@ -97,19 +98,7 @@ function mergeMoment(local, incoming) {
     captions: preferLocalMusic
       ? local.captions
       : incoming.captions || local.captions,
-    image_url:
-      incoming.image_url ||
-      local.image_url ||
-      incoming.thumbnail_url ||
-      local.thumbnail_url ||
-      null,
-    thumbnail_url:
-      incoming.thumbnail_url ||
-      local.thumbnail_url ||
-      incoming.image_url ||
-      local.image_url ||
-      null,
-    video_url: incoming.video_url || local.video_url || null,
+    ...mergeMomentMediaFields(local, incoming),
   };
 }
 
@@ -299,7 +288,6 @@ export const useMomentsStoreV2 = create((set, get) => ({
 
       let attempts = 0;
       let hasAdvanced = false;
-      let fetchedAnyNew = false;
       let isExhausted = false;
 
       // Allow fetching up to 3 pages if we keep getting 100% duplicates
@@ -331,7 +319,6 @@ export const useMomentsStoreV2 = create((set, get) => ({
 
           if (filtered.length > 0) {
             hasNewItems = true;
-            fetchedAnyNew = true;
             
             // Merge into cache and sort
             const mergedMoments = [...b.moments];
