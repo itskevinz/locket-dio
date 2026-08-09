@@ -1,0 +1,172 @@
+/* Admin V9 — explicit successful-auth page transition.
+   Loaded last so the security handoff is always visible before the dashboard appears. */
+
+/* Keep the successful verification layer above both gate and dashboard. */
+.admin-vault-handoff {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 99999 !important;
+  overflow: hidden !important;
+  pointer-events: all !important;
+  background: color-mix(in srgb, var(--color-base-100, #fff) 74%, transparent) !important;
+  backdrop-filter: blur(8px) saturate(1.15) !important;
+  -webkit-backdrop-filter: blur(8px) saturate(1.15) !important;
+  animation: admin-v9-handoff-shell 1.08s cubic-bezier(.22,1,.36,1) both !important;
+}
+
+/* Security panels visibly split away to reveal the dashboard behind them. */
+.admin-vault-handoff__door {
+  position: absolute !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  width: 50.5% !important;
+  opacity: 1 !important;
+  filter: none !important;
+  background:
+    linear-gradient(135deg,
+      color-mix(in srgb, var(--color-base-100, #fff) 90%, var(--color-primary, #0ea5e9) 10%),
+      color-mix(in srgb, var(--color-base-200, #eef2f7) 86%, var(--color-secondary, #8b5cf6) 14%)) !important;
+  box-shadow: inset 0 0 70px color-mix(in srgb, var(--color-primary, #0ea5e9) 12%, transparent) !important;
+  will-change: transform !important;
+}
+
+.admin-vault-handoff__door--left {
+  left: 0 !important;
+  right: auto !important;
+  border-right: 1px solid color-mix(in srgb, var(--color-primary, #0ea5e9) 40%, transparent) !important;
+  animation: admin-v9-door-left 1.08s cubic-bezier(.22,1,.36,1) both !important;
+}
+
+.admin-vault-handoff__door--right {
+  right: 0 !important;
+  left: auto !important;
+  border-left: 1px solid color-mix(in srgb, var(--color-secondary, #8b5cf6) 34%, transparent) !important;
+  animation: admin-v9-door-right 1.08s cubic-bezier(.22,1,.36,1) both !important;
+}
+
+/* Central verification stays clearly visible before the page opens. */
+.admin-vault-handoff__mark {
+  position: absolute !important;
+  z-index: 10 !important;
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  opacity: 1 !important;
+  text-align: center !important;
+  animation: admin-v9-verified-mark 1.02s cubic-bezier(.22,1,.36,1) both !important;
+}
+
+.admin-vault-handoff__seal {
+  box-shadow:
+    0 0 0 10px color-mix(in srgb, var(--color-success, #22c55e) 8%, transparent),
+    0 0 42px color-mix(in srgb, var(--color-success, #22c55e) 48%, transparent) !important;
+  animation: admin-v9-seal-pulse .72s ease-out both !important;
+}
+
+.admin-vault-handoff__mark strong {
+  display: block !important;
+  margin-top: .8rem !important;
+  font-weight: 1000 !important;
+  letter-spacing: .14em !important;
+  color: var(--color-success, #22c55e) !important;
+  text-shadow: 0 0 24px color-mix(in srgb, var(--color-success, #22c55e) 42%, transparent) !important;
+}
+
+.admin-vault-handoff__sweep {
+  position: absolute !important;
+  z-index: 8 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  width: 18% !important;
+  left: -22% !important;
+  opacity: 1 !important;
+  transform: skewX(-12deg) !important;
+  background: linear-gradient(90deg,
+    transparent,
+    color-mix(in srgb, var(--color-success, #22c55e) 26%, transparent),
+    color-mix(in srgb, var(--color-primary, #0ea5e9) 42%, transparent),
+    transparent) !important;
+  filter: blur(2px) !important;
+  animation: admin-v9-success-scan .62s cubic-bezier(.22,1,.36,1) both !important;
+}
+
+/* Dashboard is already mounted midway through the handoff by current auth logic.
+   Make that mount a visible page transition behind the opening security panels. */
+.admin-dashboard-enter {
+  transform-origin: center center !important;
+  will-change: transform, opacity, filter !important;
+  animation: admin-v9-dashboard-reveal .72s cubic-bezier(.16,1,.3,1) both !important;
+}
+
+@keyframes admin-v9-handoff-shell {
+  0% { opacity: 1; }
+  72% { opacity: 1; backdrop-filter: blur(8px) saturate(1.15); }
+  100% { opacity: 0; backdrop-filter: blur(0) saturate(1); }
+}
+
+@keyframes admin-v9-door-left {
+  0%, 45% { transform: translate3d(0,0,0) !important; }
+  58% { transform: translate3d(-3%,0,0) !important; }
+  100% { transform: translate3d(-104%,0,0) !important; }
+}
+
+@keyframes admin-v9-door-right {
+  0%, 45% { transform: translate3d(0,0,0) !important; }
+  58% { transform: translate3d(3%,0,0) !important; }
+  100% { transform: translate3d(104%,0,0) !important; }
+}
+
+@keyframes admin-v9-verified-mark {
+  0% { opacity: 0; transform: translate(-50%,-46%) scale(.72); filter: blur(8px); }
+  18% { opacity: 1; transform: translate(-50%,-50%) scale(1.08); filter: blur(0); }
+  42% { opacity: 1; transform: translate(-50%,-50%) scale(1); filter: blur(0); }
+  62% { opacity: 1; transform: translate(-50%,-50%) scale(.98); }
+  100% { opacity: 0; transform: translate(-50%,-54%) scale(.88); filter: blur(4px); }
+}
+
+@keyframes admin-v9-seal-pulse {
+  0% { transform: scale(.72) rotate(-8deg); filter: brightness(.85); }
+  42% { transform: scale(1.12) rotate(2deg); filter: brightness(1.35); }
+  100% { transform: scale(1) rotate(0); filter: brightness(1); }
+}
+
+@keyframes admin-v9-success-scan {
+  0% { left: -22%; opacity: 0; }
+  12% { opacity: 1; }
+  82% { opacity: 1; }
+  100% { left: 110%; opacity: 0; }
+}
+
+@keyframes admin-v9-dashboard-reveal {
+  0% {
+    opacity: 0;
+    transform: translate3d(72px, 0, 0) scale(.965);
+    filter: blur(10px) brightness(.92);
+  }
+  45% {
+    opacity: .72;
+    transform: translate3d(22px, 0, 0) scale(.985);
+    filter: blur(4px) brightness(.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0,0,0) scale(1);
+    filter: blur(0) brightness(1);
+  }
+}
+
+/* Deliberately keep this transition visible on mobile/perf-lite too. */
+@media (max-width: 640px) {
+  .admin-dashboard-enter {
+    animation-duration: .72s !important;
+  }
+}
+
+html.perf-lite .admin-vault-handoff,
+html.perf-lite .admin-vault-handoff__door,
+html.perf-lite .admin-vault-handoff__mark,
+html.perf-lite .admin-dashboard-enter,
+body.perf-lite .admin-vault-handoff,
+body.perf-lite .admin-dashboard-enter {
+  animation-play-state: running !important;
+}
