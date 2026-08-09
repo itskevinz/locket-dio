@@ -8,6 +8,7 @@ import "./styles/performance-lite.css";
 import "./styles/essential-motion.css";
 import "./styles/motion-policy.css";
 import "./styles/admin-gate.css";
+import "./styles/admin-gate-motion.css";
 import App from "./App.jsx";
 
 import ErrorBoundary from "./components/pages/ErrorBoundary";
