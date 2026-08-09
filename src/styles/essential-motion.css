@@ -1,8 +1,13 @@
 /*
  * Essential interaction motion.
  *
- * Giữ animation chức năng ở cả chế độ thường và Máy yếu. Máy yếu chỉ giảm
- * hiệu ứng trang trí nặng; không được làm UI trông đứng hình.
+ * Performance-lite may remove expensive decorative effects, but the two
+ * interactions users rely on to understand state changes must stay visible:
+ * 1) screen/panel sliding; 2) post-media loading/reveal feedback.
+ *
+ * Keep this file imported AFTER performance-lite.css so these narrow rules
+ * override the broad lite-mode reductions without re-enabling heavy blur,
+ * shadows, particles, or decorative animation.
  */
 
 :root {
@@ -10,15 +15,15 @@
   --hl-essential-media-ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Chuyển panel/trang phải nhìn thấy rõ, không nhảy tức thời. */
-.transition-transform.duration-500,
-.transition-all.duration-500 {
-  transition-timing-function: var(--hl-essential-slide-ease) !important;
-}
-
+/*
+ * Screen transitions intentionally authored as 500ms must remain a real slide
+ * in lite mode. 360ms is still cheap (transform-only in the important camera /
+ * history panels) but no longer looks like an instant jump caused by the
+ * generic 80ms lite-mode cap.
+ */
 html[data-performance-mode="lite"] .transition-transform.duration-500,
 html[data-performance-mode="lite"] .transition-all.duration-500 {
-  transition-duration: 420ms !important;
+  transition-duration: 360ms !important;
   transition-delay: 0ms !important;
   transition-timing-function: var(--hl-essential-slide-ease) !important;
 }
@@ -28,94 +33,53 @@ html[data-performance-mode="lite"] [data-history-panel="true"] {
   transition-property: transform !important;
 }
 
-/* Hiệu ứng quét/skeleton khi media đang tải. */
+/*
+ * Post/media loading feedback must remain visible on weak devices. Only active
+ * skeletons animate, so the animation disappears as soon as the image/video is
+ * ready instead of running permanently in the background.
+ */
 @keyframes hl-essential-media-shimmer {
-  0% { background-position: 185% 0; }
-  100% { background-position: -85% 0; }
+  from {
+    background-position: 180% 0;
+  }
+  to {
+    background-position: -80% 0;
+  }
 }
 
-.moment-skeleton,
-[data-ios-history-grid="true"] .skeleton,
-.skeleton {
-  background-image: linear-gradient(
-    105deg,
-    transparent 14%,
-    color-mix(in srgb, var(--color-base-content) 7%, transparent) 33%,
-    color-mix(in srgb, var(--color-base-content) 18%, transparent) 48%,
-    color-mix(in srgb, var(--color-base-content) 7%, transparent) 63%,
-    transparent 82%
-  ) !important;
-  background-size: 240% 100% !important;
-  animation: hl-essential-media-shimmer 1.25s linear infinite !important;
-}
-
-html[data-performance-mode="lite"] .moment-skeleton,
 html[data-performance-mode="lite"] [data-ios-history-grid="true"] .skeleton,
-html[data-performance-mode="lite"] .skeleton {
+html[data-performance-mode="lite"] .moment-skeleton {
   opacity: 1 !important;
   background-image: linear-gradient(
-    105deg,
-    transparent 16%,
-    color-mix(in srgb, var(--color-base-content) 6%, transparent) 35%,
-    color-mix(in srgb, var(--color-base-content) 15%, transparent) 49%,
-    color-mix(in srgb, var(--color-base-content) 6%, transparent) 63%,
-    transparent 82%
+    100deg,
+    transparent 18%,
+    color-mix(in srgb, var(--color-base-content) 10%, transparent) 44%,
+    transparent 72%
   ) !important;
-  background-size: 240% 100% !important;
-  animation: hl-essential-media-shimmer 1.45s linear infinite !important;
+  background-size: 220% 100% !important;
+  animation: hl-essential-media-shimmer 1.55s linear infinite !important;
 }
 
-/* Ảnh/video hiện lên có fade + zoom rất nhẹ để thấy rõ vừa load xong. */
-[data-ios-history-tile="true"] img,
-.moment-media-fade {
+/* Keep the actual media reveal noticeable after the skeleton disappears. */
+html[data-performance-mode="lite"] [data-ios-history-tile="true"] img,
+html[data-performance-mode="lite"] .moment-media-fade {
   transition-property: opacity, transform !important;
-  transition-duration: 300ms !important;
+  transition-duration: 220ms !important;
   transition-delay: 0ms !important;
   transition-timing-function: var(--hl-essential-media-ease) !important;
 }
 
-html[data-performance-mode="lite"] [data-ios-history-tile="true"] img,
-html[data-performance-mode="lite"] .moment-media-fade {
-  transition-duration: 260ms !important;
-}
-
-/* Feedback bấm nút vẫn còn ở Máy yếu. */
-button,
-[role="button"] {
-  transition-property: transform, opacity, background-color, color, border-color;
-  transition-duration: 160ms;
-  transition-timing-function: var(--hl-essential-slide-ease);
-}
-
-button:active:not(:disabled),
-[role="button"]:active {
-  transform: scale(0.965);
-}
-
-html[data-performance-mode="lite"] button,
-html[data-performance-mode="lite"] [role="button"] {
-  transition-duration: 120ms !important;
-}
-
-/* Tôn trọng giảm chuyển động của hệ điều hành. */
+/* Accessibility preference still wins over both normal and lite performance. */
 @media (prefers-reduced-motion: reduce) {
-  .transition-transform.duration-500,
-  .transition-all.duration-500,
-  [data-ios-history-tile="true"] img,
-  .moment-media-fade,
-  button,
-  [role="button"] {
+  html[data-performance-mode="lite"] .transition-transform.duration-500,
+  html[data-performance-mode="lite"] .transition-all.duration-500,
+  html[data-performance-mode="lite"] [data-ios-history-tile="true"] img,
+  html[data-performance-mode="lite"] .moment-media-fade {
     transition: none !important;
   }
 
-  .moment-skeleton,
-  [data-ios-history-grid="true"] .skeleton,
-  .skeleton {
+  html[data-performance-mode="lite"] [data-ios-history-grid="true"] .skeleton,
+  html[data-performance-mode="lite"] .moment-skeleton {
     animation: none !important;
-  }
-
-  button:active:not(:disabled),
-  [role="button"]:active {
-    transform: none !important;
   }
 }
