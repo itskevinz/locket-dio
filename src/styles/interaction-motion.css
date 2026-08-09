@@ -61,51 +61,25 @@
   100% { transform: scale(1); }
 }
 
-/* 2) Post appearance: the whole post visibly enters, then the card settles. */
+/* 2) Newly displayed moment: subtle lift, then media/overlay settle together. */
 .moment-enter {
-  animation: hl-moment-enter 360ms var(--hl-motion-ease) both;
-  transform-origin: 50% 54%;
-}
-
-.moment-card-enter {
-  animation: hl-moment-card-enter 420ms var(--hl-motion-ease) both;
-  transform-origin: 50% 55%;
-  will-change: transform, opacity;
+  animation: hl-moment-enter var(--hl-motion-normal) var(--hl-motion-ease) both;
 }
 
 .moment-overlay-enter {
-  animation: hl-overlay-enter 240ms 105ms var(--hl-motion-ease) both;
+  animation: hl-overlay-enter 180ms 45ms var(--hl-motion-ease) both;
 }
 
 .moment-media-fade {
-  transition: opacity 260ms ease !important;
+  transition: opacity 220ms ease !important;
 }
 
 @keyframes hl-moment-enter {
-  0% {
+  from {
     opacity: 0;
-    transform: translateY(22px) scale(0.955);
+    transform: translateY(10px) scale(0.99);
   }
-  65% {
-    opacity: 1;
-    transform: translateY(-2px) scale(1.006);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes hl-moment-card-enter {
-  0% {
-    opacity: 0.35;
-    transform: translateY(14px) scale(0.94);
-  }
-  72% {
-    opacity: 1;
-    transform: translateY(-1px) scale(1.012);
-  }
-  100% {
+  to {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
@@ -114,11 +88,11 @@
 @keyframes hl-overlay-enter {
   from {
     opacity: 0;
-    transform: translateY(7px) scale(0.985);
+    transform: translateY(5px);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
 }
 
@@ -182,32 +156,13 @@
   to { background-position: -80% 0; }
 }
 
-/* Lite mode keeps post appearance animation visible, only slightly cheaper. */
+/* Lite mode: keep the eye-candy, but shorten distance/time and stop endless shimmer. */
 @keyframes hl-moment-enter-lite {
-  0% {
-    opacity: 0.45;
-    transform: translateY(15px) scale(0.97);
+  from {
+    opacity: 0.7;
+    transform: translateY(4px) scale(0.997);
   }
-  70% {
-    opacity: 1;
-    transform: translateY(-1px) scale(1.004);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes hl-moment-card-enter-lite {
-  0% {
-    opacity: 0.5;
-    transform: translateY(10px) scale(0.965);
-  }
-  75% {
-    opacity: 1;
-    transform: translateY(0) scale(1.006);
-  }
-  100% {
+  to {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
@@ -215,8 +170,8 @@
 
 @keyframes hl-overlay-enter-lite {
   from {
-    opacity: 0.58;
-    transform: translateY(4px);
+    opacity: 0.75;
+    transform: translateY(2px);
   }
   to {
     opacity: 1;
@@ -252,16 +207,11 @@ html[data-performance-mode="lite"] #huy-locket-nav-drawer {
 }
 
 html[data-performance-mode="lite"] .moment-enter {
-  animation: hl-moment-enter-lite 300ms var(--hl-motion-ease) both !important;
-}
-
-html[data-performance-mode="lite"] .moment-card-enter {
-  animation: hl-moment-card-enter-lite 330ms var(--hl-motion-ease) both !important;
-  will-change: transform, opacity;
+  animation: hl-moment-enter-lite 130ms var(--hl-motion-ease) both !important;
 }
 
 html[data-performance-mode="lite"] .moment-overlay-enter {
-  animation: hl-overlay-enter-lite 190ms 80ms var(--hl-motion-ease) both !important;
+  animation: hl-overlay-enter-lite 110ms 20ms var(--hl-motion-ease) both !important;
 }
 
 html[data-performance-mode="lite"] .interaction-modal-backdrop {
@@ -288,7 +238,7 @@ html[data-performance-mode="lite"] .moment-skeleton {
 html[data-performance-mode="lite"] .sendButton,
 html[data-performance-mode="lite"] .sendStatusLayer,
 html[data-performance-mode="lite"] .moment-media-fade {
-  transition-duration: 160ms !important;
+  transition-duration: 100ms !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -297,7 +247,6 @@ html[data-performance-mode="lite"] .moment-media-fade {
   }
 
   .moment-enter,
-  .moment-card-enter,
   .moment-overlay-enter,
   .interaction-modal-backdrop,
   .interaction-modal-card,
