@@ -10,6 +10,7 @@ import "./styles/motion-policy.css";
 import "./styles/admin-gate.css";
 import "./styles/admin-gate-motion.css";
 import "./styles/admin-security-live-motion.css";
+import "./styles/admin-security-page-transitions.css";
 import App from "./App.jsx";
 
 import ErrorBoundary from "./components/pages/ErrorBoundary";
