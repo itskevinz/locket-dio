@@ -1,0 +1,279 @@
+/* Admin security gate — theme-aware presentation only.
+   Authentication, PIN, 2FA and trusted-device behavior stay in AdminUsers. */
+
+:root {
+  --admin-gate-radius: 2rem;
+  --admin-gate-shadow: 0 24px 70px color-mix(in srgb, var(--color-base-content, #111827) 10%, transparent);
+}
+
+/* Scope narrowly to the locked AdminUsers screen. The unlocked dashboard uses
+   different gradient utility values, so it is intentionally unaffected. */
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] {
+  background: var(--color-base-200, #f4f4f5) !important;
+  color: var(--color-base-content, #18181b) !important;
+  min-height: 100dvh;
+  padding-block: clamp(1rem, 4vh, 3rem) !important;
+  isolation: isolate;
+}
+
+/* Soft theme-coloured ambience instead of a fixed blue/indigo page. */
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] > .absolute[class*="bg-blue-400"],
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] > .absolute[class*="bg-indigo-400"] {
+  opacity: 0.7;
+  background: color-mix(in srgb, var(--color-primary, #6366f1) 18%, transparent) !important;
+  filter: blur(110px) !important;
+}
+
+/* Main security card. */
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] > .max-w-md.w-full {
+  border-radius: var(--admin-gate-radius) !important;
+  border: 1px solid color-mix(in srgb, var(--color-base-content, #18181b) 12%, transparent) !important;
+  background: color-mix(in srgb, var(--color-base-100, #fff) 92%, transparent) !important;
+  color: var(--color-base-content, #18181b) !important;
+  box-shadow: var(--admin-gate-shadow) !important;
+  backdrop-filter: blur(22px) saturate(135%) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(135%) !important;
+  padding: clamp(1.25rem, 3vw, 2rem) !important;
+  animation: admin-gate-enter 420ms cubic-bezier(.2,.8,.2,1) both;
+}
+
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] > .max-w-md.w-full:hover {
+  border-color: color-mix(in srgb, var(--color-primary, #6366f1) 38%, var(--color-base-300, #d4d4d8)) !important;
+}
+
+/* Decorative blob inside the card. */
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] > .max-w-md.w-full > .absolute {
+  background: color-mix(in srgb, var(--color-primary, #6366f1) 12%, transparent) !important;
+}
+
+/* Lock tile. */
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] .w-24.h-24.rounded-3xl {
+  width: 5rem !important;
+  height: 5rem !important;
+  margin-bottom: 1rem !important;
+  border-radius: 1.5rem !important;
+  border-color: color-mix(in srgb, var(--color-primary, #6366f1) 24%, transparent) !important;
+  background: color-mix(in srgb, var(--color-primary, #6366f1) 10%, var(--color-base-100, #fff)) !important;
+  color: var(--color-primary, #6366f1) !important;
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--color-primary, #6366f1) 12%, transparent) !important;
+}
+
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] .w-24.h-24.rounded-3xl svg {
+  width: 2.3rem !important;
+  height: 2.3rem !important;
+  color: var(--color-primary, #6366f1) !important;
+}
+
+/* Security status chip. */
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] .inline-flex[class*="tracking-widest"] {
+  border-color: color-mix(in srgb, var(--color-primary, #6366f1) 24%, transparent) !important;
+  background: color-mix(in srgb, var(--color-primary, #6366f1) 9%, var(--color-base-100, #fff)) !important;
+  color: var(--color-primary, #6366f1) !important;
+  box-shadow: none !important;
+}
+
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] .inline-flex[class*="tracking-widest"] .rounded-full {
+  background: var(--color-primary, #6366f1) !important;
+}
+
+/* Heading + copy follow the active theme instead of fixed slate/indigo. */
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] h1 {
+  background: none !important;
+  color: var(--color-base-content, #18181b) !important;
+  -webkit-text-fill-color: currentColor !important;
+  font-size: clamp(1.45rem, 5vw, 1.9rem) !important;
+  margin-bottom: .35rem !important;
+}
+
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] p,
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] label,
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] span {
+  color: inherit;
+}
+
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] p[class*="text-slate-500"] {
+  color: color-mix(in srgb, var(--color-base-content, #18181b) 62%, transparent) !important;
+}
+
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] p strong[class*="text-slate-900"] {
+  color: var(--color-base-content, #18181b) !important;
+}
+
+/* Information panels for PIN / 2FA. */
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] .bg-indigo-50\/90,
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] .bg-slate-50.p-4.rounded-2xl {
+  border-color: color-mix(in srgb, var(--color-primary, #6366f1) 18%, var(--color-base-300, #d4d4d8)) !important;
+  background: color-mix(in srgb, var(--color-primary, #6366f1) 6%, var(--color-base-100, #fff)) !important;
+  color: color-mix(in srgb, var(--color-base-content, #18181b) 78%, transparent) !important;
+  box-shadow: none !important;
+}
+
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] .bg-indigo-50\/90 strong,
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] .bg-slate-50.p-4.rounded-2xl strong {
+  color: var(--color-base-content, #18181b) !important;
+}
+
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] strong[class*="text-indigo-"],
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] label[class*="text-indigo-"] {
+  color: var(--color-primary, #6366f1) !important;
+}
+
+/* Errors stay semantic but are softened for all themes. */
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] .alert[class*="bg-rose-50"] {
+  background: color-mix(in srgb, var(--color-error, #ef4444) 10%, var(--color-base-100, #fff)) !important;
+  border-color: color-mix(in srgb, var(--color-error, #ef4444) 30%, transparent) !important;
+  color: var(--color-error, #ef4444) !important;
+  animation: admin-gate-error 260ms ease-out both !important;
+}
+
+/* PIN / OTP fields. */
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] input.input.input-bordered {
+  border: 1px solid var(--color-base-300, #d4d4d8) !important;
+  background: var(--color-base-100, #fff) !important;
+  color: var(--color-base-content, #18181b) !important;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-base-content, #18181b) 4%, transparent) !important;
+}
+
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] input.input.input-bordered:focus {
+  border-color: var(--color-primary, #6366f1) !important;
+  outline: 3px solid color-mix(in srgb, var(--color-primary, #6366f1) 16%, transparent) !important;
+  outline-offset: 1px !important;
+}
+
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] input.input.input-bordered + svg {
+  color: var(--color-primary, #6366f1) !important;
+  animation: none !important;
+}
+
+/* Numeric keypad — iOS-like soft keys. */
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] .grid.grid-cols-3.max-w-\[260px\] {
+  gap: .65rem !important;
+  max-width: 18rem !important;
+}
+
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] .grid.grid-cols-3.max-w-\[260px\] > button {
+  min-height: 3.25rem !important;
+  border-radius: 1.1rem !important;
+  border: 1px solid color-mix(in srgb, var(--color-base-content, #18181b) 10%, transparent) !important;
+  background: color-mix(in srgb, var(--color-base-100, #fff) 82%, var(--color-base-200, #f4f4f5)) !important;
+  color: var(--color-base-content, #18181b) !important;
+  box-shadow: 0 5px 16px color-mix(in srgb, var(--color-base-content, #18181b) 6%, transparent) !important;
+}
+
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] .grid.grid-cols-3.max-w-\[260px\] > button:hover {
+  background: color-mix(in srgb, var(--color-primary, #6366f1) 13%, var(--color-base-100, #fff)) !important;
+  color: var(--color-base-content, #18181b) !important;
+}
+
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] .grid.grid-cols-3.max-w-\[260px\] > button:active {
+  transform: scale(.96);
+}
+
+/* Remember-device row. */
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] input.checkbox {
+  border-color: color-mix(in srgb, var(--color-success, #22c55e) 65%, var(--color-base-300, #d4d4d8)) !important;
+  background-color: var(--color-base-100, #fff) !important;
+}
+
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] input.checkbox:checked {
+  background-color: var(--color-success, #22c55e) !important;
+}
+
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] label.group > span {
+  color: color-mix(in srgb, var(--color-base-content, #18181b) 74%, transparent) !important;
+}
+
+/* Main action buttons use the active theme primary color; 2FA keeps success. */
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] button[class*="from-indigo-600"][class*="to-purple-600"] {
+  background: var(--color-primary, #6366f1) !important;
+  color: var(--color-primary-content, #fff) !important;
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--color-primary, #6366f1) 24%, transparent) !important;
+}
+
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] button[class*="from-emerald-600"][class*="to-teal-600"] {
+  background: var(--color-success, #22c55e) !important;
+  color: var(--color-success-content, #fff) !important;
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--color-success, #22c55e) 22%, transparent) !important;
+}
+
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] nav button.btn-ghost,
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] > .max-w-md button.btn-ghost {
+  border-color: var(--color-base-300, #d4d4d8) !important;
+  background: transparent !important;
+  color: color-mix(in srgb, var(--color-base-content, #18181b) 72%, transparent) !important;
+}
+
+[class*="via-blue-50/60"][class*="to-indigo-50/80"] > .max-w-md button.btn-ghost:hover {
+  background: var(--color-base-200, #f4f4f5) !important;
+  color: var(--color-base-content, #18181b) !important;
+}
+
+@keyframes admin-gate-enter {
+  from { opacity: 0; transform: translateY(14px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes admin-gate-error {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Mobile: present the gate like a compact iOS sheet and keep the whole form scrollable. */
+@media (max-width: 640px) {
+  [class*="via-blue-50/60"][class*="to-indigo-50/80"] {
+    justify-content: flex-end !important;
+    padding: .75rem !important;
+    padding-bottom: max(.75rem, env(safe-area-inset-bottom)) !important;
+  }
+
+  [class*="via-blue-50/60"][class*="to-indigo-50/80"] > .max-w-md.w-full {
+    max-height: calc(100dvh - 1.5rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+    border-radius: 1.8rem !important;
+    padding: 1.15rem !important;
+  }
+
+  [class*="via-blue-50/60"][class*="to-indigo-50/80"] > .max-w-md.w-full::-webkit-scrollbar {
+    display: none;
+  }
+
+  [class*="via-blue-50/60"][class*="to-indigo-50/80"] .w-24.h-24.rounded-3xl {
+    width: 4.2rem !important;
+    height: 4.2rem !important;
+    border-radius: 1.35rem !important;
+    margin-bottom: .8rem !important;
+  }
+
+  [class*="via-blue-50/60"][class*="to-indigo-50/80"] .w-24.h-24.rounded-3xl svg {
+    width: 2rem !important;
+    height: 2rem !important;
+  }
+
+  [class*="via-blue-50/60"][class*="to-indigo-50/80"] .bg-indigo-50\/90,
+  [class*="via-blue-50/60"][class*="to-indigo-50/80"] .bg-slate-50.p-4.rounded-2xl {
+    padding: .8rem !important;
+    margin-bottom: 1rem !important;
+  }
+
+  [class*="via-blue-50/60"][class*="to-indigo-50/80"] input.input.input-bordered {
+    height: 3.5rem !important;
+  }
+
+  [class*="via-blue-50/60"][class*="to-indigo-50/80"] .grid.grid-cols-3.max-w-\[260px\] {
+    margin-top: .65rem !important;
+    margin-bottom: 0 !important;
+  }
+
+  [class*="via-blue-50/60"][class*="to-indigo-50/80"] .grid.grid-cols-3.max-w-\[260px\] > button {
+    min-height: 3rem !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [class*="via-blue-50/60"][class*="to-indigo-50/80"] > .max-w-md.w-full,
+  [class*="via-blue-50/60"][class*="to-indigo-50/80"] .alert[class*="bg-rose-50"] {
+    animation-duration: 1ms !important;
+  }
+}
