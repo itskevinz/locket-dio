@@ -51,6 +51,13 @@
 .admin-vault-glow--two { right: calc(50% - 31rem); bottom: -27rem; background: var(--color-secondary, var(--vault-primary)); opacity: 0.11; }
 
 .admin-vault-handoff {
+  --vault-primary: var(--color-primary, #c2185b);
+  --vault-on-primary: var(--color-primary-content, #fff);
+  --vault-surface: var(--color-base-100, #fff7fb);
+  --vault-surface-soft: var(--color-base-200, #ffecf3);
+  --vault-text: var(--color-base-content, #40152b);
+  --vault-muted: color-mix(in srgb, var(--vault-text) 62%, transparent);
+  --vault-success: var(--color-success, #15803d);
   position: fixed;
   z-index: 220;
   inset: 0;
@@ -59,24 +66,82 @@
   overflow: hidden;
   pointer-events: none;
   color: var(--vault-text);
-  background:
-    radial-gradient(circle at 50% 48%, color-mix(in srgb, var(--vault-primary) 18%, transparent), transparent 32%),
-    color-mix(in srgb, var(--vault-surface) 94%, transparent);
-  backdrop-filter: blur(14px);
+  background: var(--vault-surface-soft);
+  backdrop-filter: blur(10px);
 }
+
+.admin-vault-handoff__grid {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  opacity: 0.3;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--vault-primary) 10%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--vault-primary) 10%, transparent) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: radial-gradient(circle at center, #000 0%, transparent 72%);
+}
+
+.admin-vault-handoff__door {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  width: calc(50% + 1px);
+  background:
+    radial-gradient(circle at 100% 50%, color-mix(in srgb, var(--vault-primary) 16%, transparent), transparent 34%),
+    linear-gradient(145deg, color-mix(in srgb, var(--vault-surface) 96%, var(--vault-primary) 4%), var(--vault-surface-soft));
+  box-shadow: 0 0 60px color-mix(in srgb, var(--vault-text) 16%, transparent);
+}
+
+.admin-vault-handoff__door::after {
+  content: "";
+  position: absolute;
+  top: 7%;
+  bottom: 7%;
+  width: 1px;
+  background: linear-gradient(transparent, color-mix(in srgb, var(--vault-primary) 80%, transparent) 22%, var(--vault-primary) 50%, color-mix(in srgb, var(--vault-primary) 80%, transparent) 78%, transparent);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--vault-primary) 65%, transparent);
+}
+
+.admin-vault-handoff__door--left { left: 0; transform-origin: left center; }
+.admin-vault-handoff__door--left::after { right: 0; }
+.admin-vault-handoff__door--right {
+  right: 0;
+  transform-origin: right center;
+  background:
+    radial-gradient(circle at 0% 50%, color-mix(in srgb, var(--vault-primary) 16%, transparent), transparent 34%),
+    linear-gradient(215deg, color-mix(in srgb, var(--vault-surface) 96%, var(--vault-primary) 4%), var(--vault-surface-soft));
+}
+.admin-vault-handoff__door--right::after { left: 0; }
+
+.admin-vault-handoff::before,
+.admin-vault-handoff::after {
+  content: "";
+  position: absolute;
+  z-index: 4;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--vault-primary) 24%, var(--color-secondary, var(--vault-primary)) 76%, transparent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--vault-primary) 55%, transparent);
+}
+.admin-vault-handoff::before { top: 0; }
+.admin-vault-handoff::after { bottom: 0; }
 
 .admin-vault-handoff__sweep {
   position: absolute;
-  inset: -15% auto -15% 38%;
-  width: min(19rem, 34vw);
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--vault-primary) 16%, transparent), color-mix(in srgb, var(--vault-on-primary) 30%, transparent), transparent);
-  filter: blur(10px);
-  transform: skewX(-12deg);
+  z-index: 2;
+  inset: -20% auto -20% 42%;
+  width: min(17rem, 30vw);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--vault-primary) 20%, transparent), color-mix(in srgb, var(--vault-on-primary) 40%, transparent), color-mix(in srgb, var(--vault-primary) 16%, transparent), transparent);
+  filter: blur(7px);
+  transform: skewX(-14deg);
 }
 
 .admin-vault-handoff__mark {
   position: relative;
-  z-index: 1;
+  z-index: 3;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -84,22 +149,57 @@
   text-align: center;
 }
 
-.admin-vault-handoff__mark > span {
-  width: 4rem;
-  height: 4rem;
+.admin-vault-handoff__seal {
+  position: relative;
+  width: 6.4rem;
+  height: 6.4rem;
   display: grid;
   place-items: center;
-  margin-bottom: 0.45rem;
-  border: 1px solid color-mix(in srgb, var(--vault-success) 48%, transparent);
-  border-radius: 1.35rem;
-  color: var(--color-success-content, #fff);
-  background: var(--vault-success);
-  box-shadow: 0 0 0 8px color-mix(in srgb, var(--vault-success) 8%, transparent), 0 16px 42px color-mix(in srgb, var(--vault-success) 28%, transparent);
+  margin-bottom: 0.8rem;
 }
 
-.admin-vault-handoff__mark svg { width: 1.8rem; height: 1.8rem; stroke-width: 2.7; }
-.admin-vault-handoff__mark strong { color: var(--vault-primary); font-size: 0.68rem; font-weight: 900; letter-spacing: 0.2em; }
-.admin-vault-handoff__mark small { color: var(--vault-muted); font-size: 0.7rem; font-weight: 700; }
+.admin-vault-handoff__seal > span {
+  position: relative;
+  z-index: 2;
+  width: 4.35rem;
+  height: 4.35rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--vault-on-primary) 36%, transparent);
+  border-radius: 1.45rem;
+  color: var(--color-success-content, #fff);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--vault-success) 82%, var(--vault-primary) 18%), var(--vault-success));
+  box-shadow: 0 0 0 8px color-mix(in srgb, var(--vault-success) 9%, transparent), 0 0 42px color-mix(in srgb, var(--vault-success) 34%, transparent), 0 18px 42px color-mix(in srgb, var(--vault-text) 18%, transparent);
+}
+
+.admin-vault-handoff__seal svg { width: 1.95rem; height: 1.95rem; stroke-width: 2.8; }
+.admin-vault-handoff__orbit {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  border: 1px solid color-mix(in srgb, var(--vault-primary) 44%, transparent);
+  border-radius: 50%;
+  box-shadow: 0 0 24px color-mix(in srgb, var(--vault-primary) 12%, transparent) inset;
+  animation: admin-vault-orbit 1.8s linear infinite;
+}
+.admin-vault-handoff__orbit::before,
+.admin-vault-handoff__orbit::after {
+  content: "";
+  position: absolute;
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  background: var(--vault-primary);
+  box-shadow: 0 0 14px var(--vault-primary);
+}
+.admin-vault-handoff__orbit::before { top: -0.21rem; left: calc(50% - 0.21rem); }
+.admin-vault-handoff__orbit::after { right: -0.21rem; top: calc(50% - 0.21rem); }
+.admin-vault-handoff__orbit--two { inset: 0.55rem; opacity: 0.55; animation-direction: reverse; animation-duration: 1.25s; }
+
+.admin-vault-handoff__mark strong { color: var(--vault-primary); font-size: clamp(0.72rem, 2.4vw, 0.86rem); font-weight: 950; letter-spacing: 0.24em; text-shadow: 0 0 18px color-mix(in srgb, var(--vault-primary) 22%, transparent); }
+.admin-vault-handoff__mark small { margin-top: 0.05rem; color: var(--vault-muted); font-size: 0.72rem; font-weight: 750; }
+.admin-vault-handoff__status { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.75rem; padding: 0.34rem 0.58rem; border: 1px solid color-mix(in srgb, var(--vault-success) 22%, transparent); border-radius: 999px; color: color-mix(in srgb, var(--vault-success) 78%, var(--vault-text)); background: color-mix(in srgb, var(--vault-success) 7%, var(--vault-surface)); font-size: 0.48rem; font-weight: 900; letter-spacing: 0.11em; }
+.admin-vault-handoff__status i { width: 0.35rem; height: 0.35rem; border-radius: 50%; background: var(--vault-success); box-shadow: 0 0 9px var(--vault-success); animation: admin-vault-status-pulse 0.72s ease-in-out infinite alternate; }
 
 .admin-vault-card {
   position: relative;
@@ -291,12 +391,14 @@
 @keyframes admin-vault-shimmer { 0% { transform: skewX(-18deg) translateX(-140%); } 62%, 100% { transform: skewX(-18deg) translateX(330%); } }
 @keyframes admin-vault-success-line { from { transform: translateX(0); } to { transform: translateX(110%); } }
 @keyframes admin-vault-loading-line { 0% { transform: translateX(-110%); } 100% { transform: translateX(310%); } }
+@keyframes admin-vault-orbit { to { transform: rotate(360deg); } }
+@keyframes admin-vault-status-pulse { from { opacity: 0.55; transform: scale(0.85); } to { opacity: 1; transform: scale(1.12); } }
 
 .admin-dashboard-enter {
   position: relative;
   isolation: isolate;
   transform-origin: 50% 12%;
-  animation: admin-dashboard-enter 0.46s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: admin-dashboard-enter 0.62s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 .admin-dashboard-enter::before {
   content: "";
@@ -354,12 +456,17 @@
 
 html[data-performance-mode="lite"] .admin-vault-card { backdrop-filter: blur(10px); }
 html[data-performance-mode="lite"] .admin-vault-glow { filter: blur(64px); opacity: 0.1; }
+html[data-performance-mode="lite"] .admin-vault-handoff { backdrop-filter: none; }
+html[data-performance-mode="lite"] .admin-vault-handoff__sweep { filter: blur(3px); }
+html[data-performance-mode="lite"] .admin-vault-handoff__orbit { box-shadow: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .admin-dashboard-enter,
   .admin-dashboard-enter::before,
   .admin-vault-handoff,
-  .admin-vault-handoff__sweep {
+  .admin-vault-handoff__sweep,
+  .admin-vault-handoff__orbit,
+  .admin-vault-handoff__status i {
     animation: none !important;
   }
   .admin-vault *, .admin-vault *::before, .admin-vault *::after {
@@ -372,6 +479,8 @@ html[data-performance-mode="lite"] .admin-vault-glow { filter: blur(64px); opaci
 
 html[data-animation-enabled="false"] .admin-dashboard-enter,
 html[data-animation-enabled="false"] .admin-dashboard-enter::before,
-html[data-animation-enabled="false"] .admin-vault-handoff__sweep {
+html[data-animation-enabled="false"] .admin-vault-handoff__sweep,
+html[data-animation-enabled="false"] .admin-vault-handoff__orbit,
+html[data-animation-enabled="false"] .admin-vault-handoff__status i {
   animation: none !important;
 }

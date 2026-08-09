@@ -26,7 +26,7 @@ import { SonnerInfo, SonnerSuccess, SonnerWarning } from "@/components/uikit/Son
 import ScrollReveal from "@/components/Effects/ScrollReveal";
 import { updateAndSyncGpsLocation } from "@/services/UserActivityService";
 import AdminSystemHealth from "../AdminSystemHealth";
-import AdminSecurityGate, { AdminRouteLoading } from "./AdminSecurityGate";
+import AdminSecurityGate, { AdminRouteLoading, AdminSecurityHandoff } from "./AdminSecurityGate";
 import { CONFIG } from "@/config";
 import {
   adminRequest,
@@ -168,6 +168,7 @@ export default function AdminUsers() {
   const [gateError, setGateError] = useState(null);
   const [gateVerified, setGateVerified] = useState(false);
   const gateUnlockTimerRef = useRef(null);
+  const gateRevealTimerRef = useRef(null);
 
   // 2FA Security states
   const [is2FAEnabled, setIs2FAEnabled] = useState(false);
@@ -799,17 +800,22 @@ export default function AdminUsers() {
   const completeGateUnlock = useCallback(() => {
     setGateVerified(true);
     if (gateUnlockTimerRef.current) window.clearTimeout(gateUnlockTimerRef.current);
+    if (gateRevealTimerRef.current) window.clearTimeout(gateRevealTimerRef.current);
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches
       || document.documentElement.dataset.animationEnabled === "false";
-    gateUnlockTimerRef.current = window.setTimeout(() => {
+    gateRevealTimerRef.current = window.setTimeout(() => {
       setIsGateUnlocked(true);
+      gateRevealTimerRef.current = null;
+    }, reduceMotion ? 80 : 540);
+    gateUnlockTimerRef.current = window.setTimeout(() => {
       setGateVerified(false);
       gateUnlockTimerRef.current = null;
-    }, reduceMotion ? 160 : 840);
+    }, reduceMotion ? 140 : 1080);
   }, []);
 
   useEffect(() => () => {
     if (gateUnlockTimerRef.current) window.clearTimeout(gateUnlockTimerRef.current);
+    if (gateRevealTimerRef.current) window.clearTimeout(gateRevealTimerRef.current);
   }, []);
 
   const handleGateSubmit = async (e) => {
@@ -1101,35 +1107,40 @@ export default function AdminUsers() {
 
   if (!isGateUnlocked) {
     return (
-      <AdminSecurityGate
-        currentEmail={currentEmail}
-        currentRole={currentRole}
-        hasPin={hasPin}
-        error={gateError}
-        loading={gateLoading}
-        verified={gateVerified}
-        pin={gatePassword}
-        onPinChange={setGatePassword}
-        onPinSubmit={handleGateSubmit}
-        otpToken={gate2FATempToken}
-        otp={gate2FAOtp}
-        onOtpChange={setGate2FAOtp}
-        rememberDevice={gate2FARememberDevice}
-        onRememberDeviceChange={setGate2FARememberDevice}
-        onOtpSubmit={handleGate2FASubmit}
-        onOtpBack={() => {
-          setGate2FATempToken(null);
-          setGatePassword("");
-          setGate2FAOtp("");
-          setGateError(null);
-        }}
-        onLeave={() => navigate("/locket", { replace: true })}
-      />
+      <>
+        <AdminSecurityHandoff active={gateVerified} />
+        <AdminSecurityGate
+          currentEmail={currentEmail}
+          currentRole={currentRole}
+          hasPin={hasPin}
+          error={gateError}
+          loading={gateLoading}
+          verified={gateVerified}
+          pin={gatePassword}
+          onPinChange={setGatePassword}
+          onPinSubmit={handleGateSubmit}
+          otpToken={gate2FATempToken}
+          otp={gate2FAOtp}
+          onOtpChange={setGate2FAOtp}
+          rememberDevice={gate2FARememberDevice}
+          onRememberDeviceChange={setGate2FARememberDevice}
+          onOtpSubmit={handleGate2FASubmit}
+          onOtpBack={() => {
+            setGate2FATempToken(null);
+            setGatePassword("");
+            setGate2FAOtp("");
+            setGateError(null);
+          }}
+          onLeave={() => navigate("/locket", { replace: true })}
+        />
+      </>
     );
   }
 
   return (
-    <div className="admin-dashboard-enter min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/40 to-indigo-50/60 text-slate-800 p-3 sm:p-6 pt-24 max-w-7xl mx-auto pb-20 selection:bg-indigo-600 selection:text-white">
+    <>
+      <AdminSecurityHandoff active={gateVerified} />
+      <div className="admin-dashboard-enter min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/40 to-indigo-50/60 text-slate-800 p-3 sm:p-6 pt-24 max-w-7xl mx-auto pb-20 selection:bg-indigo-600 selection:text-white">
       {/* SUPREME COMMAND CENTER HERO HEADER */}
       <div className="bg-gradient-to-r from-white via-slate-50 to-indigo-50/80 text-slate-800 rounded-[2.5rem] p-6 sm:p-8 shadow-[0_15px_50px_-10px_rgba(30,41,59,0.08)] border border-slate-200/80 mb-8 relative overflow-hidden backdrop-blur-2xl">
         <div className="absolute top-0 right-0 w-96 h-96 bg-blue-400/10 rounded-full blur-[100px] pointer-events-none -mt-20 -mr-20" />
@@ -3966,7 +3977,8 @@ export default function AdminUsers() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
 

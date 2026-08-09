@@ -110,6 +110,67 @@ export function AdminRouteLoading() {
   );
 }
 
+export function AdminSecurityHandoff({ active }) {
+  const reduceMotion = useReducedMotion();
+
+  return (
+    <AnimatePresence>
+      {active && (
+        <Motion.div
+          key="admin-security-handoff"
+          className="admin-vault-handoff"
+          role="status"
+          aria-live="polite"
+          initial={reduceMotion ? { opacity: 1 } : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={reduceMotion ? { opacity: 0 } : { opacity: 0, filter: "blur(4px)" }}
+          transition={{ duration: reduceMotion ? 0 : 0.16 }}
+        >
+          <div className="admin-vault-handoff__grid" aria-hidden="true" />
+          <Motion.div
+            className="admin-vault-handoff__door admin-vault-handoff__door--left"
+            aria-hidden="true"
+            initial={reduceMotion ? false : { x: "0%" }}
+            animate={reduceMotion ? undefined : { x: ["0%", "0%", "-104%"] }}
+            transition={{ duration: 1.04, times: [0, 0.58, 1], ease: easeOut }}
+          />
+          <Motion.div
+            className="admin-vault-handoff__door admin-vault-handoff__door--right"
+            aria-hidden="true"
+            initial={reduceMotion ? false : { x: "0%" }}
+            animate={reduceMotion ? undefined : { x: ["0%", "0%", "104%"] }}
+            transition={{ duration: 1.04, times: [0, 0.58, 1], ease: easeOut }}
+          />
+          <Motion.div
+            className="admin-vault-handoff__sweep"
+            aria-hidden="true"
+            initial={reduceMotion ? false : { x: "-150%", opacity: 0 }}
+            animate={reduceMotion ? undefined : { x: ["-150%", "10%", "150%"], opacity: [0, 1, 0] }}
+            transition={{ duration: 0.68, times: [0, 0.46, 1], ease: easeOut }}
+          />
+          <Motion.div
+            className="admin-vault-handoff__mark"
+            initial={reduceMotion ? false : { scale: 0.72, opacity: 0, y: 12 }}
+            animate={reduceMotion
+              ? { scale: 1, opacity: 1, y: 0 }
+              : { scale: [0.72, 1.04, 1, 0.96], opacity: [0, 1, 1, 0], y: [12, 0, 0, -4] }}
+            transition={{ duration: reduceMotion ? 0 : 0.92, times: [0, 0.24, 0.68, 1], ease: easeOut }}
+          >
+            <div className="admin-vault-handoff__seal">
+              <i className="admin-vault-handoff__orbit admin-vault-handoff__orbit--one" aria-hidden="true" />
+              <i className="admin-vault-handoff__orbit admin-vault-handoff__orbit--two" aria-hidden="true" />
+              <span><Check /></span>
+            </div>
+            <strong>ACCESS GRANTED</strong>
+            <small>Đang giải mã trung tâm quản trị</small>
+            <div className="admin-vault-handoff__status"><i /><span>ENCRYPTED SESSION READY</span></div>
+          </Motion.div>
+        </Motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 export default function AdminSecurityGate({
   currentEmail,
   currentRole,
@@ -132,54 +193,16 @@ export default function AdminSecurityGate({
   const reduceMotion = useReducedMotion();
   const isOtp = Boolean(otpToken);
   const panelKey = verified ? "success" : isOtp ? "otp" : "pin";
-  const rootAnimation = verified && !reduceMotion
-    ? { opacity: [1, 1, 0], y: [0, 0, -8] }
-    : { opacity: 1, y: 0 };
-
   return (
     <Motion.main
       className="admin-vault"
       initial={reduceMotion ? false : { opacity: 0, y: 16 }}
-      animate={rootAnimation}
-      transition={verified && !reduceMotion
-        ? { duration: 0.64, times: [0, 0.64, 1], ease: easeOut }
-        : { duration: reduceMotion ? 0 : 0.3, ease: easeOut }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: reduceMotion ? 0 : 0.3, ease: easeOut }}
     >
       <div className="admin-vault-grid" aria-hidden="true" />
       <div className="admin-vault-glow admin-vault-glow--one" aria-hidden="true" />
       <div className="admin-vault-glow admin-vault-glow--two" aria-hidden="true" />
-
-      <AnimatePresence>
-        {verified && (
-          <Motion.div
-            className="admin-vault-handoff"
-            aria-live="polite"
-            initial={reduceMotion ? { opacity: 1 } : { opacity: 0 }}
-            animate={reduceMotion ? { opacity: 1 } : { opacity: [0, 1, 1, 0] }}
-            transition={reduceMotion
-              ? { duration: 0 }
-              : { duration: 0.82, times: [0, 0.18, 0.72, 1], ease: easeOut }}
-          >
-            <Motion.div
-              className="admin-vault-handoff__sweep"
-              aria-hidden="true"
-              initial={reduceMotion ? false : { x: "-130%" }}
-              animate={reduceMotion ? undefined : { x: "130%" }}
-              transition={{ duration: 0.72, ease: easeOut }}
-            />
-            <Motion.div
-              className="admin-vault-handoff__mark"
-              initial={reduceMotion ? false : { scale: 0.82, opacity: 0, y: 8 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              transition={{ duration: reduceMotion ? 0 : 0.28, ease: easeOut }}
-            >
-              <span><Check /></span>
-              <strong>ACCESS GRANTED</strong>
-              <small>Đang mở trung tâm quản trị</small>
-            </Motion.div>
-          </Motion.div>
-        )}
-      </AnimatePresence>
 
       <section className="admin-vault-card" aria-labelledby="admin-vault-title">
         <div className="admin-vault-card__edge" aria-hidden="true" />
