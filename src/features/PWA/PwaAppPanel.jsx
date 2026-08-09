@@ -10,9 +10,13 @@ import {
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
+  APP_UPDATE_PHASE,
+  getAppUpdateState,
   hasPWAInstallPrompt,
   isStandalonePWA,
   promptPWAInstall,
+  subscribeAppUpdate,
+  userForceUpdate,
 } from "@/utils/pwaUtils";
 
 function humanBytes(value) {
@@ -38,6 +42,7 @@ export default function PwaAppPanel() {
     waitingUpdate: false,
   });
   const [checking, setChecking] = useState(false);
+  const [appUpdate, setAppUpdate] = useState(() => getAppUpdateState());
 
   const inspect = useCallback(async () => {
     const next = {
@@ -81,11 +86,13 @@ export default function PwaAppPanel() {
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOnline);
     navigator.serviceWorker?.addEventListener?.("controllerchange", onInstall);
+    const unsubscribeUpdate = subscribeAppUpdate(setAppUpdate);
     return () => {
       window.removeEventListener("huy-locket-pwa-install-change", onInstall);
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOnline);
       navigator.serviceWorker?.removeEventListener?.("controllerchange", onInstall);
+      unsubscribeUpdate();
     };
   }, [inspect]);
 
@@ -128,16 +135,22 @@ export default function PwaAppPanel() {
   };
 
   const checkUpdate = async () => {
-    if (!navigator.serviceWorker) return;
+    if (checking) return;
     setChecking(true);
     try {
-      const registration = await navigator.serviceWorker.getRegistration("/");
-      await registration?.update();
-      if (registration?.waiting) {
-        registration.waiting.postMessage({ type: "SKIP_WAITING" });
-        toast.success("Đã áp dụng bản cập nhật mới");
-      } else {
-        toast.info("Ứng dụng đang dùng bản mới nhất");
+      const result = await userForceUpdate();
+      if (result === "offline") {
+        toast.warning("Không thể kiểm tra khi đang offline");
+      } else if (result === "latest") {
+        toast.success("Ứng dụng đang dùng bản mới nhất");
+      } else if (result === "busy") {
+        toast.info("Đã có bản mới", {
+          description: "Ứng dụng sẽ cập nhật sau khi bạn hoàn tất thao tác hiện tại.",
+        });
+      } else if (result === "applying") {
+        toast.info("Bản cập nhật đang được áp dụng");
+      } else if (result === "error") {
+        toast.error("Không thể áp dụng bản cập nhật");
       }
       await inspect();
     } catch (error) {
@@ -156,6 +169,23 @@ export default function PwaAppPanel() {
       toast.info("Hệ điều hành không cho đặt badge lúc này");
     }
   };
+
+  const updateBusy =
+    checking ||
+    appUpdate.phase === APP_UPDATE_PHASE.CHECKING ||
+    appUpdate.phase === APP_UPDATE_PHASE.APPLYING ||
+    appUpdate.phase === APP_UPDATE_PHASE.RELOADING;
+  const updateReady = appUpdate.available || appUpdate.phase === APP_UPDATE_PHASE.UPDATE_READY;
+  const updateLabel =
+    appUpdate.phase === APP_UPDATE_PHASE.RELOADING
+      ? "Đang tải lại..."
+      : appUpdate.phase === APP_UPDATE_PHASE.APPLYING
+        ? "Đang cập nhật..."
+        : updateBusy
+          ? "Đang kiểm tra..."
+          : updateReady
+            ? "Cập nhật ngay"
+            : "Kiểm tra cập nhật";
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-5 text-base-content">
@@ -176,12 +206,27 @@ export default function PwaAppPanel() {
             <button className="btn btn-sm btn-primary mt-3" disabled={state.standalone} onClick={install}>{state.standalone ? "Đã cài" : "Cài Huy Locket"}</button>
           </div>
 
-          <div className="rounded-2xl border border-base-300 bg-base-200/35 p-4">
+          <div className={`rounded-2xl border p-4 transition-all duration-300 ${updateReady ? "border-primary/40 bg-primary/5 shadow-md" : "border-base-300 bg-base-200/35"}`}>
             <div className="flex items-center justify-between"><span className="font-bold">Offline & Service Worker</span><Wifi className="h-5 w-5" /></div>
             <p className="mt-2 text-sm text-base-content/60">
               {state.swControlled ? `Service Worker ${state.swState}.` : "Service Worker chưa điều khiển trang."} {state.online ? "Đang online." : "Đang offline."}
             </p>
-            <button className="btn btn-sm btn-outline mt-3" disabled={checking} onClick={checkUpdate}><RefreshCw className={`h-4 w-4 ${checking ? "animate-spin" : ""}`} /> Kiểm tra cập nhật</button>
+            {updateReady && (
+              <p className="mt-2 text-xs font-semibold text-primary">
+                Đã phát hiện phiên bản mới{appUpdate.latest?.version ? ` · v${appUpdate.latest.version}` : ""}.
+              </p>
+            )}
+            <button
+              className={`btn btn-sm relative mt-3 transition-all duration-200 ${updateBusy || updateReady ? "btn-primary shadow-lg" : "btn-outline"} ${updateBusy ? "scale-[1.03]" : ""}`}
+              disabled={updateBusy}
+              onClick={checkUpdate}
+            >
+              <span className={`inline-flex items-center justify-center rounded-full transition-all ${updateBusy ? "bg-primary-content/15 p-1" : ""}`}>
+                <RefreshCw className={`h-4 w-4 ${updateBusy ? "animate-[spin_0.65s_linear_infinite] scale-110" : ""}`} />
+              </span>
+              <span>{updateLabel}</span>
+              {updateBusy && <span className="loading loading-dots loading-xs" />}
+            </button>
           </div>
 
           <div className="rounded-2xl border border-base-300 bg-base-200/35 p-4">
