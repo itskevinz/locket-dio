@@ -4,6 +4,7 @@ import { parseJwt } from "@/utils/auth";
 import { SonnerInfo } from "@/components/uikit/SonnerToast";
 import { instanceAuth } from "./instanceAuth";
 import { createUploadClient } from "./createBase";
+import { shouldBypassSessionRefresh } from "./auth401Policy";
 
 const AUTH_REFRESH_TEMPORARY = "AUTH_REFRESH_TEMPORARY";
 const AUTH_REFRESH_TERMINAL = "AUTH_REFRESH_TERMINAL";
@@ -189,8 +190,23 @@ api.interceptors.response.use(
 
     const originalRequest = error.config;
 
+    // A 401 from Locket itself (for example sendFriendRequest without a usable
+    // App Check credential) is NOT proof that the user's Huy Locket session
+    // expired. The API marks that condition as UPSTREAM_AUTH_FAILED. Never
+    // refresh or log the user out for that upstream failure.
+    if (
+      originalRequest &&
+      shouldBypassSessionRefresh({
+        status,
+        responseData,
+        skipAuthRefresh: originalRequest.skipAuthRefresh,
+      })
+    ) {
+      return Promise.reject(error);
+    }
+
     if (status === 401 && originalRequest) {
-      if (originalRequest._retry || originalRequest.skipAuthRefresh) {
+      if (originalRequest._retry) {
         logoutForExpiredSession();
         return Promise.reject(error);
       }
