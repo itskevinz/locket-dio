@@ -1,0 +1,312 @@
+/* Admin auth feedback V8 — unmistakable success / denied feedback.
+   Loaded last so the real auth result is always visible. */
+
+/* ---------- SUCCESS: full-screen handoff shown only when verification is real ---------- */
+.admin-vault-handoff {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 99999 !important;
+  display: grid !important;
+  place-items: center !important;
+  overflow: hidden !important;
+  pointer-events: all !important;
+  isolation: isolate !important;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(34,197,94,.17), transparent 30%),
+    color-mix(in srgb, var(--color-base-100, #fff) 76%, transparent) !important;
+  backdrop-filter: blur(16px) saturate(1.15) !important;
+}
+
+/* Retire the older door concept. */
+.admin-vault-handoff__door {
+  display: none !important;
+}
+
+.admin-vault-handoff__grid {
+  position: absolute !important;
+  inset: -20% !important;
+  opacity: .24 !important;
+  background-image:
+    linear-gradient(rgba(34,197,94,.15) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34,197,94,.15) 1px, transparent 1px) !important;
+  background-size: 44px 44px !important;
+  transform: perspective(700px) rotateX(62deg) translateY(8%) scale(1.2) !important;
+  transform-origin: center bottom !important;
+  animation: admin-v8-grid-lock .92s cubic-bezier(.22,1,.36,1) both !important;
+}
+
+.admin-vault-handoff::before,
+.admin-vault-handoff::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 15rem;
+  height: 15rem;
+  border-radius: 50%;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(.12);
+  opacity: 0;
+}
+
+.admin-vault-handoff::before {
+  border: 3px solid rgba(34,197,94,.82);
+  box-shadow: 0 0 45px rgba(34,197,94,.4), inset 0 0 30px rgba(34,197,94,.18);
+  animation: admin-v8-success-ring-a .92s cubic-bezier(.16,1,.3,1) both !important;
+}
+
+.admin-vault-handoff::after {
+  border: 1px solid rgba(134,239,172,.72);
+  animation: admin-v8-success-ring-b .95s cubic-bezier(.16,1,.3,1) .08s both !important;
+}
+
+.admin-vault-handoff__sweep {
+  position: absolute !important;
+  z-index: 2 !important;
+  top: 50% !important;
+  left: -25% !important;
+  width: 150% !important;
+  height: 4px !important;
+  opacity: 0 !important;
+  background: linear-gradient(90deg, transparent, #86efac, #fff, #22c55e, transparent) !important;
+  box-shadow: 0 0 20px #22c55e, 0 0 42px rgba(34,197,94,.55) !important;
+  transform: translateY(-50%) !important;
+  animation: admin-v8-success-scan .62s cubic-bezier(.22,1,.36,1) both !important;
+}
+
+.admin-vault-handoff__mark {
+  position: relative !important;
+  z-index: 5 !important;
+  min-width: min(88vw, 25rem) !important;
+  padding: 1.65rem 2rem 1.45rem !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 2rem !important;
+  border: 1px solid rgba(34,197,94,.38) !important;
+  color: var(--color-base-content, #111827) !important;
+  background: color-mix(in srgb, var(--color-base-100, #fff) 90%, transparent) !important;
+  box-shadow:
+    0 30px 80px rgba(0,0,0,.18),
+    0 0 0 1px rgba(255,255,255,.55) inset,
+    0 0 55px rgba(34,197,94,.25) !important;
+  backdrop-filter: blur(22px) !important;
+  animation: admin-v8-success-card .98s cubic-bezier(.22,1,.36,1) both !important;
+}
+
+.admin-vault-handoff__seal {
+  position: relative !important;
+  width: 6.4rem !important;
+  height: 6.4rem !important;
+  display: grid !important;
+  place-items: center !important;
+  margin-bottom: 1rem !important;
+  border-radius: 50% !important;
+  background: linear-gradient(145deg, #16a34a, #22c55e 56%, #86efac) !important;
+  color: #fff !important;
+  box-shadow: 0 0 0 12px rgba(34,197,94,.08), 0 0 48px rgba(34,197,94,.42) !important;
+  animation: admin-v8-seal-pop .72s cubic-bezier(.16,1.25,.3,1) both !important;
+}
+
+.admin-vault-handoff__seal > span {
+  width: 3.3rem !important;
+  height: 3.3rem !important;
+  display: grid !important;
+  place-items: center !important;
+  border-radius: 50% !important;
+  background: rgba(255,255,255,.14) !important;
+  border: 1px solid rgba(255,255,255,.42) !important;
+}
+
+.admin-vault-handoff__seal svg {
+  width: 2.15rem !important;
+  height: 2.15rem !important;
+  stroke-width: 3.2 !important;
+  animation: admin-v8-check-pop .48s cubic-bezier(.16,1.25,.3,1) .14s both !important;
+}
+
+.admin-vault-handoff__orbit {
+  position: absolute !important;
+  inset: -.65rem !important;
+  border-radius: 50% !important;
+  border: 1px dashed rgba(134,239,172,.7) !important;
+  animation: admin-v8-orbit .9s linear infinite !important;
+}
+.admin-vault-handoff__orbit--two {
+  inset: -1.25rem !important;
+  border-style: solid !important;
+  border-color: rgba(34,197,94,.24) !important;
+  animation-direction: reverse !important;
+  animation-duration: 1.2s !important;
+}
+
+.admin-vault-handoff__mark strong {
+  font-size: clamp(1.45rem, 4vw, 2rem) !important;
+  font-weight: 950 !important;
+  letter-spacing: .12em !important;
+  color: #16a34a !important;
+  text-shadow: 0 0 20px rgba(34,197,94,.22) !important;
+}
+
+.admin-vault-handoff__mark small {
+  margin-top: .35rem !important;
+  font-size: .74rem !important;
+  font-weight: 800 !important;
+  color: color-mix(in srgb, var(--color-base-content, #111827) 68%, transparent) !important;
+}
+
+.admin-vault-handoff__status {
+  margin-top: .9rem !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: .45rem !important;
+  padding: .45rem .7rem !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(34,197,94,.28) !important;
+  background: rgba(34,197,94,.08) !important;
+  color: #15803d !important;
+  font-size: .57rem !important;
+  font-weight: 950 !important;
+  letter-spacing: .13em !important;
+}
+
+.admin-vault-handoff__status i {
+  width: .48rem !important;
+  height: .48rem !important;
+  border-radius: 50% !important;
+  background: #22c55e !important;
+  box-shadow: 0 0 12px rgba(34,197,94,.62) !important;
+  animation: admin-v8-dot .55s ease-in-out infinite alternate !important;
+}
+
+/* ---------- DENIED: explicit red result card ---------- */
+.admin-vault-error {
+  position: absolute !important;
+  z-index: 999 !important;
+  left: 50% !important;
+  top: 50% !important;
+  width: min(88%, 24rem) !important;
+  margin: 0 !important;
+  padding: 1.05rem 1.15rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: .7rem !important;
+  text-align: center !important;
+  border: 1px solid rgba(244,63,94,.58) !important;
+  border-radius: 1.3rem !important;
+  color: #be123c !important;
+  background: color-mix(in srgb, var(--color-base-100, #fff) 94%, #fecdd3 6%) !important;
+  box-shadow:
+    0 22px 55px rgba(190,18,60,.24),
+    0 0 0 3px rgba(244,63,94,.08),
+    0 0 36px rgba(244,63,94,.22) !important;
+  transform: translate(-50%, -50%) !important;
+  backdrop-filter: blur(18px) !important;
+  animation: admin-v8-denied .95s cubic-bezier(.36,.07,.19,.97) both !important;
+}
+
+.admin-vault-error::before {
+  content: "ACCESS DENIED";
+  position: absolute;
+  top: -1.05rem;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: .32rem .6rem;
+  border-radius: 999px;
+  border: 1px solid rgba(244,63,94,.48);
+  background: var(--color-base-100, #fff);
+  color: #e11d48;
+  font-size: .52rem;
+  font-weight: 950;
+  letter-spacing: .18em;
+  white-space: nowrap;
+  box-shadow: 0 0 18px rgba(244,63,94,.2);
+}
+
+.admin-vault-error svg {
+  width: 1.4rem !important;
+  height: 1.4rem !important;
+  flex: 0 0 auto !important;
+  color: #e11d48 !important;
+  animation: admin-v8-alert-pulse .32s ease-in-out 2 alternate !important;
+}
+
+.admin-vault-card:has(.admin-vault-error) .admin-vault-panel {
+  animation: admin-v8-panel-reject .62s cubic-bezier(.36,.07,.19,.97) both !important;
+}
+
+.admin-vault-card:has(.admin-vault-error) .admin-vault-input-wrap {
+  box-shadow: 0 0 0 2px rgba(244,63,94,.16), 0 0 28px rgba(244,63,94,.3) !important;
+}
+
+@keyframes admin-v8-success-ring-a {
+  0% { opacity: 0; transform: translate(-50%,-50%) scale(.08); }
+  22% { opacity: 1; }
+  78% { opacity: .72; }
+  100% { opacity: 0; transform: translate(-50%,-50%) scale(4.6); }
+}
+@keyframes admin-v8-success-ring-b {
+  0% { opacity: 0; transform: translate(-50%,-50%) scale(.14); }
+  30% { opacity: .82; }
+  100% { opacity: 0; transform: translate(-50%,-50%) scale(5.8); }
+}
+@keyframes admin-v8-success-scan {
+  0% { opacity: 0; transform: translateY(-50%) translateX(-42%); }
+  28% { opacity: 1; }
+  72% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-50%) translateX(42%); }
+}
+@keyframes admin-v8-success-card {
+  0% { opacity: 0; transform: translateY(20px) scale(.86); filter: blur(9px); }
+  26% { opacity: 1; transform: translateY(0) scale(1.035); filter: blur(0); }
+  68% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(.985); filter: blur(2px); }
+}
+@keyframes admin-v8-seal-pop {
+  0% { opacity: 0; transform: scale(.45) rotate(-14deg); }
+  55% { opacity: 1; transform: scale(1.1) rotate(2deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+@keyframes admin-v8-check-pop {
+  0% { opacity: 0; transform: scale(.2) rotate(-18deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+@keyframes admin-v8-grid-lock {
+  0% { opacity: 0; background-position: 0 55px, 55px 0; }
+  35% { opacity: .3; }
+  100% { opacity: .08; background-position: 0 0, 0 0; }
+}
+@keyframes admin-v8-orbit { to { transform: rotate(360deg); } }
+@keyframes admin-v8-dot { from { opacity: .45; transform: scale(.75); } to { opacity: 1; transform: scale(1.15); } }
+@keyframes admin-v8-denied {
+  0% { opacity: 0; transform: translate(-50%,-50%) scale(.82); }
+  13% { opacity: 1; transform: translate(calc(-50% - 11px),-50%) scale(1.02); }
+  25% { transform: translate(calc(-50% + 10px),-50%) scale(1); }
+  37% { transform: translate(calc(-50% - 7px),-50%); }
+  49% { transform: translate(calc(-50% + 6px),-50%); }
+  62% { transform: translate(calc(-50% - 3px),-50%); }
+  75% { opacity: 1; transform: translate(-50%,-50%); }
+  100% { opacity: 0; transform: translate(-50%,-50%) scale(.96); pointer-events: none; }
+}
+@keyframes admin-v8-panel-reject {
+  0%,100% { transform: translateX(0); }
+  18% { transform: translateX(-10px); }
+  36% { transform: translateX(9px); }
+  54% { transform: translateX(-6px); }
+  72% { transform: translateX(4px); }
+}
+@keyframes admin-v8-alert-pulse { from { transform: scale(.85); } to { transform: scale(1.18); } }
+
+@media (max-width: 640px) {
+  .admin-vault-handoff__mark {
+    min-width: min(90vw, 21rem) !important;
+    padding: 1.4rem 1.2rem 1.25rem !important;
+    border-radius: 1.6rem !important;
+  }
+  .admin-vault-handoff__seal {
+    width: 5.4rem !important;
+    height: 5.4rem !important;
+  }
+}
