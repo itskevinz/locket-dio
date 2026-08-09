@@ -6,72 +6,69 @@ import { resolve } from "node:path";
 const root = resolve(import.meta.dirname, "../..");
 const read = (path) => readFileSync(resolve(root, path), "utf8");
 
-test("interaction motion pack is loaded and respects accessibility/performance", () => {
+test("all animation layers load deterministically before the app renders", () => {
   const main = read("src/main.jsx");
-  const css = read("src/styles/interaction-motion.css");
-  const essentialCss = read("src/styles/essential-motion.css");
+
+  assert.match(main, /styles\/animation\.css/);
+  assert.match(main, /styles\/interaction-motion\.css/);
+  assert.match(main, /styles\/performance-lite\.css/);
+  assert.match(main, /styles\/essential-motion\.css/);
+  assert.match(main, /styles\/motion-policy\.css/);
+  assert.match(
+    main,
+    /essential-motion\.css["'];\s*\nimport ["']\.\/styles\/motion-policy\.css/,
+  );
+});
+
+test("the in-app animation switch is the single Framer Motion authority", () => {
+  const context = read("src/context/AnimationContext.jsx");
   const pageTransition = read("src/components/Effects/PageTransition.jsx");
+  const scrollReveal = read("src/components/Effects/ScrollReveal.jsx");
 
-  assert.match(main, /interaction-motion\.css/);
-  assert.match(main, /performance-lite\.css["'];\s*\nimport ["']\.\/styles\/essential-motion\.css/);
-  assert.match(css, /prefers-reduced-motion:\s*reduce/);
-  assert.match(css, /data-performance-mode="lite"/);
-  assert.match(css, /#huy-locket-nav-drawer/);
-  assert.match(css, /hl-moment-enter-lite/);
-  assert.match(essentialCss, /prefers-reduced-motion:\s*reduce/);
-  assert.match(pageTransition, /useReducedMotion/);
-  assert.match(pageTransition, /litePageVariants/);
-  assert.match(pageTransition, /litePageTransition/);
-  assert.doesNotMatch(pageTransition, /filter:\s*["']blur/);
+  assert.match(context, /dataset\.animationEnabled/);
+  assert.match(
+    context,
+    /reducedMotion=\{isAnimationEnabled \? ["']never["'] : ["']always["']\}/,
+  );
+  assert.match(pageTransition, /useAnimation/);
+  assert.match(pageTransition, /if \(!isAnimationEnabled\)/);
+  assert.doesNotMatch(pageTransition, /useReducedMotion|litePageVariants/);
+  assert.match(scrollReveal, /useAnimation/);
+  assert.match(scrollReveal, /initial=\{\{\s*opacity:\s*0,\s*y:\s*yOffset\s*\}\}/);
+  assert.doesNotMatch(scrollReveal, /useReducedMotion|perfMode === ["']lite["']/);
 });
 
-test("menu and full-screen slides remain visible in lite mode", () => {
-  const css = read("src/styles/interaction-motion.css");
-  const essentialCss = read("src/styles/essential-motion.css");
-
-  assert.match(
-    css,
-    /#huy-locket-nav-drawer\s*\{[\s\S]*transition-property:\s*transform, opacity/i,
-  );
-  assert.match(
-    css,
-    /data-performance-mode="lite"\]\s+#huy-locket-nav-drawer[\s\S]*170ms/i,
-  );
-  assert.match(
-    css,
-    /data-performance-mode="lite"\]\s+\.moment-enter\s*\{[\s\S]*hl-moment-enter-lite/i,
-  );
-  assert.match(
-    essentialCss,
-    /transition-transform\.duration-500[\s\S]*360ms/i,
-  );
-  assert.match(essentialCss, /data-camera-panel="true"/);
-  assert.match(essentialCss, /data-history-panel="true"/);
-});
-
-test("post loading motion remains visible in lite mode", () => {
+test("core motion stays recognizable in weak-device mode when enabled", () => {
+  const policy = read("src/styles/motion-policy.css");
+  const interaction = read("src/styles/interaction-motion.css");
   const viewer = read(
     "src/pages/LocketCameraBeta/BottomHomeScreen/Views/SwiperView/MomentViewer.jsx",
   );
-  const essentialCss = read("src/styles/essential-motion.css");
-  const scrollReveal = read("src/components/Effects/ScrollReveal.jsx");
-  const modal = read("src/components/MomentDraft/RestoreDraftModal.jsx");
 
+  assert.match(policy, /data-animation-enabled="true"/);
+  assert.match(policy, /data-camera-panel="true"/);
+  assert.match(policy, /data-history-panel="true"/);
+  assert.match(policy, /transition-duration:\s*500ms\s*!important/);
+  assert.match(policy, /\.moment-enter[\s\S]*hl-moment-enter\s+200ms/);
+  assert.match(policy, /\.moment-skeleton[\s\S]*hl-skeleton-shimmer\s+1\.35s/);
+  assert.match(policy, /\.history-container/);
+  assert.match(policy, /\.dropdown-content/);
+  assert.match(interaction, /@keyframes\s+hl-moment-enter/);
   assert.match(viewer, /moment-enter/);
   assert.match(viewer, /moment-skeleton/);
   assert.match(viewer, /moment-overlay-enter/);
-  assert.match(essentialCss, /hl-essential-media-shimmer/);
-  assert.match(essentialCss, /data-ios-history-grid="true"[\s\S]*\.skeleton/);
-  assert.match(essentialCss, /\.moment-media-fade/);
-  assert.match(scrollReveal, /const isLite = perfMode === "lite"/);
+});
+
+test("turning the site animation switch off disables functional motion", () => {
+  const policy = read("src/styles/motion-policy.css");
+
+  assert.match(policy, /data-animation-enabled="false"/);
   assert.match(
-    scrollReveal,
-    /initial=\{\{\s*opacity:\s*isLite \? 0\.78 : 0/,
+    policy,
+    /data-animation-enabled="false"[\s\S]*transition-duration:\s*0\.01ms\s*!important/,
   );
-  assert.doesNotMatch(
-    scrollReveal,
-    /if \(perfMode === "lite"\)[\s\S]*React\.createElement/,
+  assert.match(
+    policy,
+    /data-animation-enabled="false"[\s\S]*animation:\s*none\s*!important/,
   );
-  assert.match(modal, /interaction-modal-backdrop/);
-  assert.match(modal, /interaction-modal-card/);
 });
