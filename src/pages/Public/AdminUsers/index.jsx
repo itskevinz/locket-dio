@@ -799,12 +799,13 @@ export default function AdminUsers() {
   const completeGateUnlock = useCallback(() => {
     setGateVerified(true);
     if (gateUnlockTimerRef.current) window.clearTimeout(gateUnlockTimerRef.current);
-    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches
+      || document.documentElement.dataset.animationEnabled === "false";
     gateUnlockTimerRef.current = window.setTimeout(() => {
       setIsGateUnlocked(true);
       setGateVerified(false);
       gateUnlockTimerRef.current = null;
-    }, reduceMotion ? 160 : 660);
+    }, reduceMotion ? 160 : 840);
   }, []);
 
   useEffect(() => () => {

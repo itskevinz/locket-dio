@@ -32,21 +32,24 @@ const adminShellVariants = {
 
 const adminContentVariants = {
   initial: {
-    y: 18,
-    scale: 0.992,
-    filter: "blur(4px)",
+    opacity: 0,
+    y: 22,
+    scale: 0.988,
+    filter: "blur(5px)",
   },
   in: {
+    opacity: 1,
     y: 0,
     scale: 1,
     filter: "blur(0px)",
     transition: {
       type: "tween",
       ease: [0.22, 1, 0.36, 1],
-      duration: 0.38,
+      duration: 0.42,
     },
   },
   out: {
+    opacity: 0,
     y: -10,
     scale: 0.996,
     filter: "blur(3px)",
@@ -114,6 +117,14 @@ export const PageTransition = ({ children, className = "w-full h-full", preset =
           animate={{ opacity: [0, 0.78, 0], x: ["-115%", "0%", "115%"] }}
           exit={{ opacity: [0, 0.45, 0], x: ["115%", "0%", "-115%"] }}
           transition={{ duration: 0.56, times: [0, 0.45, 1], ease: [0.22, 1, 0.36, 1] }}
+        />
+        <Motion.span
+          className="admin-route-transition__rail"
+          aria-hidden="true"
+          initial={{ scaleX: 0, opacity: 0 }}
+          animate={{ scaleX: [0, 0.72, 1], opacity: [0, 1, 0] }}
+          exit={{ scaleX: [0, 1], opacity: [0, 1, 0] }}
+          transition={{ duration: 0.48, times: [0, 0.72, 1], ease: [0.22, 1, 0.36, 1] }}
         />
         <Motion.div className="page-transition--admin__content" variants={adminContentVariants}>
           {children}

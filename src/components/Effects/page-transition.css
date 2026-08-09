@@ -9,11 +9,23 @@
 }
 
 .admin-route-transition__veil,
-.admin-route-transition__scan {
+.admin-route-transition__scan,
+.admin-route-transition__rail {
   position: fixed;
   z-index: 80;
   display: block;
   pointer-events: none;
+}
+
+.admin-route-transition__rail {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 82;
+  transform-origin: left center;
+  background: linear-gradient(90deg, transparent, var(--color-primary, #c2185b) 18%, var(--color-secondary, #ec4899) 74%, transparent);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--color-primary, #c2185b) 48%, transparent);
 }
 
 .admin-route-transition__veil {
@@ -46,7 +58,8 @@ html[data-performance-mode="lite"] .admin-route-transition__scan {
 
 @media (prefers-reduced-motion: reduce) {
   .admin-route-transition__veil,
-  .admin-route-transition__scan {
+  .admin-route-transition__scan,
+  .admin-route-transition__rail {
     display: none;
   }
 }

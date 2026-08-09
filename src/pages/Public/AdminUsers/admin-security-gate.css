@@ -50,6 +50,57 @@
 .admin-vault-glow--one { top: -23rem; left: calc(50% - 31rem); background: var(--vault-primary); }
 .admin-vault-glow--two { right: calc(50% - 31rem); bottom: -27rem; background: var(--color-secondary, var(--vault-primary)); opacity: 0.11; }
 
+.admin-vault-handoff {
+  position: fixed;
+  z-index: 220;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  pointer-events: none;
+  color: var(--vault-text);
+  background:
+    radial-gradient(circle at 50% 48%, color-mix(in srgb, var(--vault-primary) 18%, transparent), transparent 32%),
+    color-mix(in srgb, var(--vault-surface) 94%, transparent);
+  backdrop-filter: blur(14px);
+}
+
+.admin-vault-handoff__sweep {
+  position: absolute;
+  inset: -15% auto -15% 38%;
+  width: min(19rem, 34vw);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--vault-primary) 16%, transparent), color-mix(in srgb, var(--vault-on-primary) 30%, transparent), transparent);
+  filter: blur(10px);
+  transform: skewX(-12deg);
+}
+
+.admin-vault-handoff__mark {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.32rem;
+  text-align: center;
+}
+
+.admin-vault-handoff__mark > span {
+  width: 4rem;
+  height: 4rem;
+  display: grid;
+  place-items: center;
+  margin-bottom: 0.45rem;
+  border: 1px solid color-mix(in srgb, var(--vault-success) 48%, transparent);
+  border-radius: 1.35rem;
+  color: var(--color-success-content, #fff);
+  background: var(--vault-success);
+  box-shadow: 0 0 0 8px color-mix(in srgb, var(--vault-success) 8%, transparent), 0 16px 42px color-mix(in srgb, var(--vault-success) 28%, transparent);
+}
+
+.admin-vault-handoff__mark svg { width: 1.8rem; height: 1.8rem; stroke-width: 2.7; }
+.admin-vault-handoff__mark strong { color: var(--vault-primary); font-size: 0.68rem; font-weight: 900; letter-spacing: 0.2em; }
+.admin-vault-handoff__mark small { color: var(--vault-muted); font-size: 0.7rem; font-weight: 700; }
+
 .admin-vault-card {
   position: relative;
   width: min(100%, 29rem);
@@ -258,7 +309,7 @@
   animation: admin-dashboard-sweep 0.62s cubic-bezier(0.22, 1, 0.36, 1) 0.04s both;
 }
 @keyframes admin-dashboard-enter {
-  from { opacity: 0.36; transform: translateY(14px) scale(0.99); filter: blur(3px); }
+  from { opacity: 0; transform: translateY(22px) scale(0.985); filter: blur(5px); }
   to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
 }
 @keyframes admin-dashboard-sweep {
@@ -306,7 +357,9 @@ html[data-performance-mode="lite"] .admin-vault-glow { filter: blur(64px); opaci
 
 @media (prefers-reduced-motion: reduce) {
   .admin-dashboard-enter,
-  .admin-dashboard-enter::before {
+  .admin-dashboard-enter::before,
+  .admin-vault-handoff,
+  .admin-vault-handoff__sweep {
     animation: none !important;
   }
   .admin-vault *, .admin-vault *::before, .admin-vault *::after {
@@ -318,6 +371,7 @@ html[data-performance-mode="lite"] .admin-vault-glow { filter: blur(64px); opaci
 }
 
 html[data-animation-enabled="false"] .admin-dashboard-enter,
-html[data-animation-enabled="false"] .admin-dashboard-enter::before {
+html[data-animation-enabled="false"] .admin-dashboard-enter::before,
+html[data-animation-enabled="false"] .admin-vault-handoff__sweep {
   animation: none !important;
 }

@@ -149,6 +149,38 @@ export default function AdminSecurityGate({
       <div className="admin-vault-glow admin-vault-glow--one" aria-hidden="true" />
       <div className="admin-vault-glow admin-vault-glow--two" aria-hidden="true" />
 
+      <AnimatePresence>
+        {verified && (
+          <Motion.div
+            className="admin-vault-handoff"
+            aria-live="polite"
+            initial={reduceMotion ? { opacity: 1 } : { opacity: 0 }}
+            animate={reduceMotion ? { opacity: 1 } : { opacity: [0, 1, 1, 0] }}
+            transition={reduceMotion
+              ? { duration: 0 }
+              : { duration: 0.82, times: [0, 0.18, 0.72, 1], ease: easeOut }}
+          >
+            <Motion.div
+              className="admin-vault-handoff__sweep"
+              aria-hidden="true"
+              initial={reduceMotion ? false : { x: "-130%" }}
+              animate={reduceMotion ? undefined : { x: "130%" }}
+              transition={{ duration: 0.72, ease: easeOut }}
+            />
+            <Motion.div
+              className="admin-vault-handoff__mark"
+              initial={reduceMotion ? false : { scale: 0.82, opacity: 0, y: 8 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              transition={{ duration: reduceMotion ? 0 : 0.28, ease: easeOut }}
+            >
+              <span><Check /></span>
+              <strong>ACCESS GRANTED</strong>
+              <small>Đang mở trung tâm quản trị</small>
+            </Motion.div>
+          </Motion.div>
+        )}
+      </AnimatePresence>
+
       <section className="admin-vault-card" aria-labelledby="admin-vault-title">
         <div className="admin-vault-card__edge" aria-hidden="true" />
         <header className="admin-vault-header">
