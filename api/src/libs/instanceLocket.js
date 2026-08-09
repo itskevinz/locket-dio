@@ -2,6 +2,7 @@ const axios = require("axios");
 const { HttpsProxyAgent } = require("https-proxy-agent");
 const { locketServices } = require("../config/app.config");
 const { proxy } = require("../config/app.config");
+const { tryDioFriendFallback } = require("./dioFriendCompat");
 
 const proxyUrl = proxy.locketProxy;
 
@@ -22,7 +23,8 @@ const loginHeader = {
     process.env.LOCKET_X_FIREBASE_CLIENT ||
     "H4sIAAAAAAAAAKtWykhNLCpJSk0sKVayio7VUSpLLSrOzM9TslIyUqoFAFyivEQfAAAA",
 };
-// Optional FCM / AppCheck — set via env, never hardcode live tokens
+
+// Optional FCM / AppCheck — set via env, never hardcode live tokens.
 if (process.env.LOCKET_FCM_INSTANCE_ID_TOKEN) {
   loginHeader["Firebase-Instance-ID-Token"] =
     process.env.LOCKET_FCM_INSTANCE_ID_TOKEN;
@@ -38,7 +40,7 @@ const instanceLocketV2 = axios.create({
   },
 });
 
-// Interceptor: thêm token động trước mỗi request
+// Interceptor: thêm token động trước mỗi request.
 instanceLocketV2.interceptors.request.use(
   (config) => {
     // ✅ Proxy (áp dụng cho mọi request Locket)
@@ -64,6 +66,20 @@ instanceLocketV2.interceptors.request.use(
     return config;
   },
   (error) => Promise.reject(error),
+);
+
+// Locket currently rejects friend/follow mutations when our self-hosted server
+// has no usable App Check source. Dio's current public client routes these two
+// operations through its beta backend. Reproduce that behavior server-side so
+// browsers do not hit cross-origin/CORS issues. The fallback is only attempted
+// after Locket itself returns 401/403 and only when explicitly enabled.
+instanceLocketV2.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const fallbackResponse = await tryDioFriendFallback(error);
+    if (fallbackResponse) return fallbackResponse;
+    return Promise.reject(error);
+  },
 );
 
 module.exports = { instanceLocketV2 };
