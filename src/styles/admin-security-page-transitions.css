@@ -1,169 +1,307 @@
-/* Full Admin route transitions.
-   Loaded after all historical motion layers so entering Admin and unlocking it
-   always reads as a real security-page transition instead of a static swap. */
+/* Theme-aware Admin security transitions.
+   Concept: encrypted terminal / biometric scan. No hard-coded blue/navy vault doors.
+   All motion colors inherit the active Huy Locket theme. */
 
 .admin-vault,
 .admin-vault-handoff,
 .admin-dashboard-enter {
-  --admin-page-ease: cubic-bezier(.22, 1, .36, 1);
+  --admin-page-ease: cubic-bezier(.16, 1, .3, 1);
+  --admin-primary: var(--color-primary, #c2185b);
+  --admin-secondary: var(--color-secondary, var(--admin-primary));
+  --admin-accent: var(--color-accent, var(--admin-primary));
+  --admin-base-100: var(--color-base-100, #ffffff);
+  --admin-base-200: var(--color-base-200, #f4f4f5);
+  --admin-base-300: var(--color-base-300, #e4e4e7);
+  --admin-content: var(--color-base-content, #18181b);
+  --admin-success: var(--color-success, #22c55e);
 }
 
-/* ---------- ENTER ADMIN ROUTE ---------- */
+/* ==================== ENTER ADMIN: SECURE CHANNEL ==================== */
 .admin-vault--loading {
   position: fixed !important;
   inset: 0 !important;
   z-index: 9998 !important;
   overflow: hidden !important;
-  animation: admin-route-blackout-in 360ms ease-out both !important;
+  color: var(--admin-content) !important;
+  background:
+    radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--admin-primary) 15%, transparent) 0 14%, transparent 42%),
+    linear-gradient(145deg, var(--admin-base-200), var(--admin-base-100)) !important;
+  animation: admin-terminal-screen-in 520ms var(--admin-page-ease) both !important;
 }
 
 .admin-vault--loading::before {
   content: "";
   position: absolute;
   z-index: 1;
-  inset: 0;
+  inset: -20%;
   pointer-events: none;
-  opacity: .76;
-  background:
-    linear-gradient(90deg, transparent 0 48%, color-mix(in srgb, var(--vault-primary) 24%, transparent) 50%, transparent 52% 100%),
-    repeating-linear-gradient(0deg, transparent 0 34px, color-mix(in srgb, var(--vault-primary) 7%, transparent) 35px 36px);
-  background-size: 220% 100%, 100% 36px;
-  animation: admin-route-grid-scan 1.15s linear infinite !important;
+  opacity: .52;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--admin-primary) 10%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--admin-primary) 10%, transparent) 1px, transparent 1px),
+    radial-gradient(circle at center, transparent 0 22%, color-mix(in srgb, var(--admin-primary) 13%, transparent) 22.3% 22.8%, transparent 23.2% 34%, color-mix(in srgb, var(--admin-secondary) 11%, transparent) 34.3% 34.8%, transparent 35.2%);
+  background-size: 42px 42px, 42px 42px, 100% 100%;
+  transform: perspective(700px) rotateX(64deg) translateY(18%);
+  transform-origin: center;
+  animation: admin-terminal-grid-boot 1.8s linear infinite !important;
 }
 
 .admin-vault--loading::after {
   content: "";
   position: absolute;
   z-index: 2;
-  left: -25%;
-  top: 0;
-  width: 34%;
-  height: 100%;
+  left: 6%;
+  right: 6%;
+  top: -3px;
+  height: 3px;
   pointer-events: none;
   opacity: 0;
-  transform: skewX(-14deg);
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--vault-primary) 18%, transparent), rgba(255,255,255,.28), transparent);
-  filter: blur(5px);
-  animation: admin-route-entry-sweep 920ms var(--admin-page-ease) 80ms both !important;
+  border-radius: 999px;
+  background: linear-gradient(90deg,
+    transparent,
+    color-mix(in srgb, var(--admin-secondary) 65%, transparent),
+    var(--admin-primary),
+    color-mix(in srgb, var(--admin-accent) 72%, transparent),
+    transparent);
+  box-shadow:
+    0 0 12px var(--admin-primary),
+    0 0 38px color-mix(in srgb, var(--admin-primary) 38%, transparent);
+  animation: admin-terminal-entry-scan 1.05s var(--admin-page-ease) 80ms both !important;
 }
 
 .admin-vault--loading .admin-vault-loading {
   position: relative;
   z-index: 4;
-  animation: admin-route-loader-rise 620ms var(--admin-page-ease) both !important;
+  animation: admin-terminal-loader-lock 720ms var(--admin-page-ease) both !important;
 }
 
-/* Even if permission checking is extremely fast, the gate itself completes the
-   visual handoff so clicking Admin never looks like a hard route swap. */
+/* ==================== SECURITY GATE ARRIVAL ==================== */
 .admin-vault:not(.admin-vault--loading) {
-  animation: admin-route-gate-screen-in 660ms var(--admin-page-ease) both !important;
+  animation: admin-terminal-gate-in 700ms var(--admin-page-ease) both !important;
+}
+
+.admin-vault:not(.admin-vault--loading)::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  width: min(68rem, 145vw);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  pointer-events: none;
+  border: 1px solid color-mix(in srgb, var(--admin-primary) 18%, transparent);
+  box-shadow:
+    0 0 0 42px color-mix(in srgb, var(--admin-primary) 3%, transparent),
+    0 0 0 84px color-mix(in srgb, var(--admin-secondary) 2.5%, transparent);
+  animation: admin-terminal-radar-breathe 3.2s ease-in-out infinite !important;
 }
 
 .admin-vault:not(.admin-vault--loading) .admin-vault-card {
-  animation: admin-route-gate-card-in 760ms var(--admin-page-ease) 40ms both !important;
+  transform-origin: 50% 52%;
+  animation: admin-terminal-card-materialize 820ms var(--admin-page-ease) 40ms both !important;
 }
 
 .admin-vault:not(.admin-vault--loading) .admin-vault-card__edge {
-  animation: admin-route-edge-charge 950ms ease-out 280ms both !important;
+  transform-origin: center;
+  background: linear-gradient(90deg,
+    transparent,
+    var(--admin-secondary),
+    var(--admin-primary),
+    var(--admin-accent),
+    transparent) !important;
+  animation: admin-terminal-edge-auth 1.35s ease-in-out 300ms infinite alternate !important;
 }
 
-/* ---------- PASSWORD / OTP PAGE SWAP ---------- */
+/* Scanner ring around the security mark. */
+.admin-vault-mark::before {
+  content: "";
+  position: absolute;
+  inset: -9px;
+  border-radius: inherit;
+  pointer-events: none;
+  border: 1px solid color-mix(in srgb, var(--admin-primary) 30%, transparent);
+  border-top-color: var(--admin-primary);
+  border-right-color: color-mix(in srgb, var(--admin-secondary) 78%, transparent);
+  animation: admin-terminal-mark-scan 2.25s linear infinite !important;
+}
+
+.admin-vault-mark::after {
+  content: "";
+  position: absolute;
+  inset: -18px;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: .28;
+  border: 1px dashed color-mix(in srgb, var(--admin-accent) 45%, transparent);
+  animation: admin-terminal-mark-scan-reverse 3.4s linear infinite !important;
+}
+
+/* ==================== PIN / OTP: ENCRYPTED PANEL SWAP ==================== */
 .admin-vault-panel {
-  animation: admin-route-auth-panel-in 520ms var(--admin-page-ease) both !important;
+  position: relative;
+  animation: admin-terminal-auth-panel 560ms var(--admin-page-ease) both !important;
 }
 
 .admin-vault-panel::before {
   content: "";
   position: absolute;
   pointer-events: none;
+  z-index: 3;
   left: 1.75rem;
   right: 1.75rem;
-  top: .25rem;
+  top: .2rem;
   height: 1px;
-  opacity: .75;
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--vault-primary) 72%, transparent), transparent);
-  transform-origin: center;
-  animation: admin-route-auth-line 720ms ease-out both !important;
+  opacity: .8;
+  transform-origin: left;
+  background: linear-gradient(90deg,
+    var(--admin-primary),
+    color-mix(in srgb, var(--admin-secondary) 72%, transparent),
+    transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--admin-primary) 32%, transparent);
+  animation: admin-terminal-auth-channel 840ms var(--admin-page-ease) both !important;
 }
 
-/* ---------- PASSWORD VERIFIED: SECURITY VAULT HANDOFF ---------- */
+.admin-vault-input-wrap:focus-within {
+  animation: admin-terminal-input-lock 1.45s ease-in-out infinite alternate !important;
+}
+
+/* ==================== VERIFIED: BIOMETRIC / ENCRYPTION HANDOFF ==================== */
 .admin-vault-handoff {
   position: fixed !important;
   inset: 0 !important;
   z-index: 10050 !important;
   overflow: hidden !important;
   isolation: isolate;
-  background: color-mix(in srgb, #020712 88%, transparent) !important;
-  backdrop-filter: blur(11px) saturate(.9) !important;
-  animation: admin-route-handoff-backdrop 1080ms ease-in-out both !important;
+  color: var(--admin-content) !important;
+  background:
+    radial-gradient(circle at center,
+      color-mix(in srgb, var(--admin-primary) 17%, var(--admin-base-100)) 0,
+      color-mix(in srgb, var(--admin-base-100) 92%, var(--admin-primary) 8%) 28%,
+      var(--admin-base-200) 72%) !important;
+  backdrop-filter: blur(14px) saturate(1.05) !important;
+  animation: admin-terminal-handoff 1.12s ease-in-out both !important;
 }
 
-/* Extra shutters independent from Framer's existing doors. They close first,
-   hold while ACCESS GRANTED is shown, then open to expose the dashboard. */
+/* Remove old vault-door look completely. */
+.admin-vault-handoff__door {
+  display: none !important;
+}
+
+/* Two expanding encryption rings replace the doors. */
 .admin-vault-handoff::before,
 .admin-vault-handoff::after {
   content: "";
   position: absolute;
   z-index: 2;
-  top: 0;
-  bottom: 0;
-  width: 51%;
+  left: 50%;
+  top: 50%;
+  width: min(76vmin, 34rem);
+  aspect-ratio: 1;
+  border-radius: 50%;
   pointer-events: none;
-  background:
-    linear-gradient(90deg, color-mix(in srgb, #020712 98%, var(--vault-primary) 2%), color-mix(in srgb, #07101f 94%, var(--vault-primary) 6%));
-  box-shadow: 0 0 60px rgba(0,0,0,.62), inset 0 0 0 1px color-mix(in srgb, var(--vault-primary) 17%, transparent);
+  transform: translate(-50%, -50%) scale(.08);
 }
 
 .admin-vault-handoff::before {
-  left: 0;
-  transform: translate3d(-101%,0,0);
-  animation: admin-route-vault-left 1080ms var(--admin-page-ease) both !important;
+  border: 2px solid color-mix(in srgb, var(--admin-primary) 72%, transparent);
+  box-shadow:
+    0 0 24px color-mix(in srgb, var(--admin-primary) 35%, transparent),
+    0 0 80px color-mix(in srgb, var(--admin-primary) 16%, transparent) inset;
+  animation: admin-terminal-security-ring 1.02s var(--admin-page-ease) both !important;
 }
 
 .admin-vault-handoff::after {
-  right: 0;
-  transform: translate3d(101%,0,0);
-  animation: admin-route-vault-right 1080ms var(--admin-page-ease) both !important;
+  width: min(54vmin, 24rem);
+  border: 1px dashed color-mix(in srgb, var(--admin-secondary) 65%, transparent);
+  box-shadow: 0 0 36px color-mix(in srgb, var(--admin-secondary) 18%, transparent);
+  animation: admin-terminal-security-ring-two 1.02s var(--admin-page-ease) 70ms both !important;
 }
 
 .admin-vault-handoff__grid {
-  z-index: 4 !important;
-  opacity: .72 !important;
-  animation: admin-route-security-grid 760ms ease-in-out infinite alternate !important;
+  z-index: 1 !important;
+  opacity: .38 !important;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--admin-primary) 9%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--admin-primary) 9%, transparent) 1px, transparent 1px) !important;
+  background-size: 38px 38px !important;
+  animation: admin-terminal-handoff-grid 1.1s linear both !important;
 }
 
 .admin-vault-handoff__sweep {
   z-index: 5 !important;
-  filter: blur(4px) drop-shadow(0 0 18px color-mix(in srgb, var(--vault-primary) 45%, transparent)) !important;
+  width: 3px !important;
+  opacity: 1 !important;
+  background: linear-gradient(180deg,
+    transparent,
+    var(--admin-primary),
+    var(--admin-accent),
+    transparent) !important;
+  box-shadow:
+    0 0 14px var(--admin-primary),
+    0 0 42px color-mix(in srgb, var(--admin-primary) 36%, transparent) !important;
+  filter: none !important;
+  animation: admin-terminal-biometric-sweep 820ms var(--admin-page-ease) 80ms both !important;
 }
 
 .admin-vault-handoff__mark {
   z-index: 8 !important;
-  filter: drop-shadow(0 0 28px color-mix(in srgb, var(--vault-primary) 28%, transparent));
+  color: var(--admin-content) !important;
+  filter: drop-shadow(0 0 30px color-mix(in srgb, var(--admin-primary) 28%, transparent));
+  animation: admin-terminal-access-mark 920ms var(--admin-page-ease) both !important;
+}
+
+.admin-vault-handoff__mark strong {
+  color: var(--admin-primary) !important;
+  text-shadow: 0 0 18px color-mix(in srgb, var(--admin-primary) 24%, transparent) !important;
 }
 
 .admin-vault-handoff__seal {
-  animation: admin-route-seal-charge 720ms var(--admin-page-ease) 100ms both !important;
+  border-color: color-mix(in srgb, var(--admin-primary) 35%, transparent) !important;
+  background: color-mix(in srgb, var(--admin-base-100) 86%, var(--admin-primary) 14%) !important;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--admin-primary) 18%, transparent),
+    0 0 42px color-mix(in srgb, var(--admin-primary) 22%, transparent) !important;
+  animation: admin-terminal-seal-verify 860ms var(--admin-page-ease) both !important;
+}
+
+.admin-vault-handoff__orbit {
+  border-color: color-mix(in srgb, var(--admin-primary) 52%, transparent) !important;
+}
+
+.admin-vault-handoff__orbit::before,
+.admin-vault-handoff__orbit::after {
+  background: var(--admin-primary) !important;
+  box-shadow: 0 0 14px var(--admin-primary) !important;
 }
 
 .admin-vault-handoff__status {
-  animation: admin-route-status-lock 640ms var(--admin-page-ease) 240ms both !important;
+  color: color-mix(in srgb, var(--admin-success) 78%, var(--admin-content)) !important;
+  border-color: color-mix(in srgb, var(--admin-success) 30%, transparent) !important;
+  background: color-mix(in srgb, var(--admin-base-100) 90%, var(--admin-success) 10%) !important;
+  animation: admin-terminal-status-confirm 680ms var(--admin-page-ease) 220ms both !important;
 }
 
-/* Dashboard mounts while the handoff overlay is still active. Delay its slide
-   so the user actually sees the secure doors open and the dashboard move in. */
+/* Dashboard appears as the encrypted layer disperses, using theme glow. */
 .admin-dashboard-enter {
-  animation: admin-route-dashboard-in 760ms var(--admin-page-ease) 360ms both !important;
+  position: relative;
+  animation: admin-terminal-dashboard-reveal 820ms var(--admin-page-ease) 300ms both !important;
   will-change: transform, opacity, filter;
   backface-visibility: hidden;
 }
 
-.admin-dashboard-enter > * {
-  animation-duration: 360ms !important;
+.admin-dashboard-enter::before {
+  content: "";
+  position: fixed;
+  z-index: 9999;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(circle at 50% 50%,
+    color-mix(in srgb, var(--admin-primary) 24%, transparent),
+    transparent 55%);
+  animation: admin-terminal-dashboard-flash 780ms ease-out 260ms both !important;
 }
 
-/* Never collapse this security transition in lite/mobile or the site animation
-   switch. The user explicitly wants Admin security motion to remain visible. */
+/* Keep Admin security motion visible in lite/mobile and if global motion is off. */
 html[data-performance-mode="lite"] .admin-vault--loading,
 html[data-performance-mode="lite"] .admin-vault:not(.admin-vault--loading),
 html[data-performance-mode="lite"] .admin-vault:not(.admin-vault--loading) .admin-vault-card,
@@ -179,112 +317,150 @@ html[data-animation-enabled="false"] .admin-dashboard-enter {
   animation-play-state: running !important;
 }
 
-@keyframes admin-route-blackout-in {
-  from { opacity: 0; filter: brightness(1.35); }
-  to { opacity: 1; filter: brightness(1); }
+@keyframes admin-terminal-screen-in {
+  from { opacity: 0; filter: blur(8px) saturate(.8); }
+  60% { opacity: 1; filter: blur(0) saturate(1.08); }
+  to { opacity: 1; filter: none; }
 }
 
-@keyframes admin-route-grid-scan {
-  from { background-position: 100% 0, 0 0; }
-  to { background-position: -100% 0, 0 36px; }
+@keyframes admin-terminal-grid-boot {
+  from { background-position: 0 0, 0 0, center; }
+  to { background-position: 0 42px, 42px 0, center; }
 }
 
-@keyframes admin-route-entry-sweep {
-  0% { left: -28%; opacity: 0; }
-  18% { opacity: .85; }
-  82% { opacity: .85; }
-  100% { left: 112%; opacity: 0; }
+@keyframes admin-terminal-entry-scan {
+  0% { top: -2%; opacity: 0; }
+  16% { opacity: 1; }
+  82% { opacity: 1; }
+  100% { top: 102%; opacity: 0; }
 }
 
-@keyframes admin-route-loader-rise {
-  from { opacity: 0; transform: translate3d(0,26px,0) scale(.96); filter: blur(8px); }
-  70% { opacity: 1; transform: translate3d(0,-3px,0) scale(1.006); filter: blur(0); }
-  to { opacity: 1; transform: translate3d(0,0,0) scale(1); filter: blur(0); }
+@keyframes admin-terminal-loader-lock {
+  from { opacity: 0; transform: scale(.86); filter: blur(12px); }
+  58% { opacity: 1; transform: scale(1.035); filter: blur(0); }
+  to { opacity: 1; transform: scale(1); filter: none; }
 }
 
-@keyframes admin-route-gate-screen-in {
-  from { opacity: 0; transform: translate3d(128px,0,0); filter: blur(8px); }
-  72% { opacity: 1; transform: translate3d(-8px,0,0); filter: blur(0); }
-  to { opacity: 1; transform: translate3d(0,0,0); filter: blur(0); }
+@keyframes admin-terminal-gate-in {
+  from { opacity: 0; transform: translate3d(0, 44px, 0) scale(.965); filter: blur(10px); }
+  68% { opacity: 1; transform: translate3d(0, -4px, 0) scale(1.004); filter: blur(0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); filter: none; }
 }
 
-@keyframes admin-route-gate-card-in {
-  from { opacity: 0; transform: translate3d(92px,0,0) scale(.955); filter: blur(10px); }
-  68% { opacity: 1; transform: translate3d(-10px,0,0) scale(1.008); filter: blur(0); }
-  to { opacity: 1; transform: translate3d(0,0,0) scale(1); filter: blur(0); }
+@keyframes admin-terminal-radar-breathe {
+  0%,100% { opacity: .28; transform: scale(.94); }
+  50% { opacity: .62; transform: scale(1.035); }
 }
 
-@keyframes admin-route-edge-charge {
-  from { opacity: 0; transform: scaleX(.08); box-shadow: 0 0 0 transparent; }
-  50% { opacity: 1; transform: scaleX(1); box-shadow: 0 0 28px color-mix(in srgb, var(--vault-primary) 55%, transparent); }
-  to { opacity: .8; transform: scaleX(.72); }
+@keyframes admin-terminal-card-materialize {
+  0% { opacity: 0; transform: perspective(900px) rotateX(7deg) translateY(52px) scale(.94); filter: blur(12px); }
+  62% { opacity: 1; transform: perspective(900px) rotateX(-1deg) translateY(-5px) scale(1.008); filter: blur(0); }
+  100% { opacity: 1; transform: perspective(900px) rotateX(0) translateY(0) scale(1); filter: none; }
 }
 
-@keyframes admin-route-auth-panel-in {
-  from { opacity: 0; transform: translate3d(78px,0,0); filter: blur(7px); }
-  72% { opacity: 1; transform: translate3d(-7px,0,0); filter: blur(0); }
-  to { opacity: 1; transform: translate3d(0,0,0); filter: blur(0); }
+@keyframes admin-terminal-edge-auth {
+  from { opacity: .28; transform: scaleX(.34); filter: brightness(.85); }
+  to { opacity: 1; transform: scaleX(1); filter: brightness(1.2); }
 }
 
-@keyframes admin-route-auth-line {
+@keyframes admin-terminal-mark-scan { to { transform: rotate(360deg); } }
+@keyframes admin-terminal-mark-scan-reverse { to { transform: rotate(-360deg); } }
+
+@keyframes admin-terminal-auth-panel {
+  from { opacity: 0; transform: translate3d(62px, 0, 0); filter: blur(7px); }
+  70% { opacity: 1; transform: translate3d(-5px, 0, 0); filter: blur(0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); filter: none; }
+}
+
+@keyframes admin-terminal-auth-channel {
   from { opacity: 0; transform: scaleX(.04); }
-  55% { opacity: 1; transform: scaleX(1); }
-  to { opacity: .35; transform: scaleX(.55); }
+  58% { opacity: 1; transform: scaleX(1); }
+  to { opacity: .48; transform: scaleX(.72); }
 }
 
-@keyframes admin-route-handoff-backdrop {
+@keyframes admin-terminal-input-lock {
+  from { filter: drop-shadow(0 0 0 transparent); }
+  to { filter: drop-shadow(0 0 10px color-mix(in srgb, var(--admin-primary) 20%, transparent)); }
+}
+
+@keyframes admin-terminal-handoff {
   0% { opacity: 0; }
-  12% { opacity: 1; }
+  10% { opacity: 1; }
   82% { opacity: 1; }
   100% { opacity: 0; }
 }
 
-@keyframes admin-route-vault-left {
-  0% { transform: translate3d(-101%,0,0); }
-  28% { transform: translate3d(0,0,0); }
-  60% { transform: translate3d(0,0,0); }
-  100% { transform: translate3d(-103%,0,0); }
+@keyframes admin-terminal-security-ring {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.08); }
+  30% { opacity: 1; transform: translate(-50%, -50%) scale(.72); }
+  56% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(2.8); }
 }
 
-@keyframes admin-route-vault-right {
-  0% { transform: translate3d(101%,0,0); }
-  28% { transform: translate3d(0,0,0); }
-  60% { transform: translate3d(0,0,0); }
-  100% { transform: translate3d(103%,0,0); }
+@keyframes admin-terminal-security-ring-two {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.12) rotate(0deg); }
+  34% { opacity: .9; transform: translate(-50%, -50%) scale(.86) rotate(80deg); }
+  62% { opacity: .8; transform: translate(-50%, -50%) scale(1.08) rotate(150deg); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(3.1) rotate(260deg); }
 }
 
-@keyframes admin-route-security-grid {
-  from { opacity: .35; filter: brightness(.75); }
-  to { opacity: .8; filter: brightness(1.25); }
+@keyframes admin-terminal-handoff-grid {
+  0% { opacity: 0; background-position: 0 0, 0 0; }
+  35% { opacity: .42; }
+  100% { opacity: 0; background-position: 0 38px, 38px 0; }
 }
 
-@keyframes admin-route-seal-charge {
-  from { opacity: 0; transform: scale(.58) rotate(-8deg); filter: blur(7px); }
-  62% { opacity: 1; transform: scale(1.08) rotate(1deg); filter: blur(0); }
-  to { opacity: 1; transform: scale(1) rotate(0); filter: blur(0); }
+@keyframes admin-terminal-biometric-sweep {
+  0% { left: 12%; opacity: 0; }
+  14% { opacity: 1; }
+  86% { opacity: 1; }
+  100% { left: 88%; opacity: 0; }
 }
 
-@keyframes admin-route-status-lock {
-  from { opacity: 0; transform: translate3d(0,10px,0) scale(.9); }
-  70% { opacity: 1; transform: translate3d(0,-2px,0) scale(1.03); }
-  to { opacity: 1; transform: translate3d(0,0,0) scale(1); }
+@keyframes admin-terminal-access-mark {
+  0% { opacity: 0; transform: scale(.72); filter: blur(10px); }
+  42% { opacity: 1; transform: scale(1.07); filter: blur(0); }
+  72% { opacity: 1; transform: scale(1); filter: blur(0); }
+  100% { opacity: 0; transform: scale(.96); filter: blur(3px); }
 }
 
-@keyframes admin-route-dashboard-in {
-  from { opacity: 0; transform: translate3d(132px,0,0) scale(.985); filter: blur(9px); }
-  68% { opacity: 1; transform: translate3d(-9px,0,0) scale(1.002); filter: blur(0); }
-  to { opacity: 1; transform: translate3d(0,0,0) scale(1); filter: blur(0); }
+@keyframes admin-terminal-seal-verify {
+  0% { opacity: 0; transform: scale(.58) rotate(-18deg); }
+  55% { opacity: 1; transform: scale(1.12) rotate(3deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+
+@keyframes admin-terminal-status-confirm {
+  from { opacity: 0; transform: translateY(12px) scale(.92); }
+  68% { opacity: 1; transform: translateY(-2px) scale(1.025); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes admin-terminal-dashboard-reveal {
+  0% { opacity: 0; transform: scale(.965); filter: blur(12px) saturate(.82); }
+  52% { opacity: .72; transform: scale(.992); filter: blur(4px) saturate(.94); }
+  78% { opacity: 1; transform: scale(1.004); filter: blur(0) saturate(1.04); }
+  100% { opacity: 1; transform: scale(1); filter: none; }
+}
+
+@keyframes admin-terminal-dashboard-flash {
+  0% { opacity: 0; transform: scale(.72); }
+  38% { opacity: .62; }
+  100% { opacity: 0; transform: scale(1.55); }
 }
 
 @media (max-width: 640px) {
-  .admin-vault:not(.admin-vault--loading) {
-    animation-duration: 660ms !important;
-  }
-  .admin-vault:not(.admin-vault--loading) .admin-vault-card {
-    animation-duration: 760ms !important;
-  }
+  .admin-vault:not(.admin-vault--loading),
+  .admin-vault:not(.admin-vault--loading) .admin-vault-card,
   .admin-dashboard-enter {
     animation-duration: 760ms !important;
-    animation-delay: 360ms !important;
+  }
+
+  .admin-vault-handoff::before {
+    width: 86vmin;
+  }
+
+  .admin-vault-handoff::after {
+    width: 62vmin;
   }
 }
