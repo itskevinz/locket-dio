@@ -1,0 +1,381 @@
+/* Admin auth result V4 — real result feedback driven by existing verified/error DOM states. */
+
+/* ---------- VERIFIED / ACCESS GRANTED ---------- */
+.admin-vault-card:has(.admin-vault-success) {
+  animation: admin-auth-success-lock 980ms cubic-bezier(.22,1,.36,1) both !important;
+  border-color: color-mix(in srgb, #22c55e 72%, transparent) !important;
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, #22c55e 24%, transparent),
+    0 0 48px color-mix(in srgb, #22c55e 30%, transparent),
+    0 32px 90px color-mix(in srgb, var(--admin-text, #111827) 20%, transparent) !important;
+}
+
+.admin-vault-card:has(.admin-vault-success)::before {
+  opacity: 1 !important;
+  padding: 2px !important;
+  background: conic-gradient(
+    from 0deg,
+    #ff3158,
+    #ff8a00,
+    #ffd60a,
+    #22c55e,
+    #00d9ff,
+    #367cff,
+    #8b5cf6,
+    #ff3cac,
+    #22c55e,
+    #22c55e
+  ) !important;
+  animation: admin-auth-rgb-collapse 920ms cubic-bezier(.22,1,.36,1) both !important;
+}
+
+.admin-vault-card:has(.admin-vault-success)::after {
+  content: "" !important;
+  z-index: 40 !important;
+  inset: 50% auto auto 50% !important;
+  width: 8rem !important;
+  height: 8rem !important;
+  border-radius: 50% !important;
+  pointer-events: none !important;
+  background: transparent !important;
+  border: 2px solid color-mix(in srgb, #22c55e 76%, transparent) !important;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, #fff 36%, transparent) inset,
+    0 0 42px color-mix(in srgb, #22c55e 46%, transparent) !important;
+  transform: translate(-50%, -50%) scale(.15) !important;
+  animation: admin-auth-success-wave 840ms cubic-bezier(.16,1,.3,1) 80ms both !important;
+}
+
+.admin-vault-success {
+  position: relative !important;
+  isolation: isolate;
+  overflow: visible !important;
+  animation: admin-auth-success-panel 760ms cubic-bezier(.22,1,.36,1) both !important;
+}
+
+.admin-vault-success::before,
+.admin-vault-success::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: 50%;
+  top: 50%;
+  width: 7.6rem;
+  height: 7.6rem;
+  border-radius: 50%;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(.2);
+  border: 1px solid color-mix(in srgb, #22c55e 66%, transparent);
+  opacity: 0;
+}
+
+.admin-vault-success::before {
+  animation: admin-auth-success-ring-a 1.1s cubic-bezier(.16,1,.3,1) 80ms both !important;
+}
+
+.admin-vault-success::after {
+  animation: admin-auth-success-ring-b 1.15s cubic-bezier(.16,1,.3,1) 180ms both !important;
+}
+
+.admin-vault-success > div {
+  position: relative !important;
+  z-index: 3 !important;
+  width: 5.2rem !important;
+  height: 5.2rem !important;
+  color: #fff !important;
+  border: 1px solid color-mix(in srgb, #fff 52%, transparent) !important;
+  background: linear-gradient(145deg, #16a34a, #22c55e 55%, #4ade80) !important;
+  box-shadow:
+    0 0 0 10px color-mix(in srgb, #22c55e 10%, transparent),
+    0 0 52px color-mix(in srgb, #22c55e 52%, transparent),
+    0 16px 42px color-mix(in srgb, #15803d 32%, transparent) !important;
+  animation: admin-auth-check-pop 720ms cubic-bezier(.16,1.25,.3,1) both !important;
+}
+
+.admin-vault-success > div::before {
+  content: "";
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
+  border: 2px dashed color-mix(in srgb, #4ade80 70%, transparent);
+  animation: admin-auth-success-orbit 1.5s linear infinite !important;
+}
+
+.admin-vault-success svg {
+  width: 2.3rem !important;
+  height: 2.3rem !important;
+  stroke-width: 3 !important;
+  filter: drop-shadow(0 0 9px rgba(255,255,255,.55));
+  animation: admin-auth-check-draw 520ms cubic-bezier(.22,1,.36,1) 130ms both !important;
+}
+
+.admin-vault-success h2 {
+  position: relative;
+  margin-top: 1.25rem !important;
+  color: color-mix(in srgb, #22c55e 76%, var(--admin-text, #111827)) !important;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+}
+
+.admin-vault-success h2::before {
+  content: "ACCESS VERIFIED";
+  display: block;
+  margin-bottom: .4rem;
+  color: #22c55e;
+  font-size: .58rem;
+  font-weight: 950;
+  letter-spacing: .22em;
+  text-shadow: 0 0 16px color-mix(in srgb, #22c55e 42%, transparent);
+  animation: admin-auth-success-text 560ms ease-out 170ms both !important;
+}
+
+.admin-vault-success > span {
+  display: block !important;
+  position: relative;
+  width: min(19rem, 82%);
+  height: 3px !important;
+  margin-top: 1.2rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, #22c55e 15%, transparent) !important;
+}
+
+.admin-vault-success > span::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform-origin: left;
+  background: linear-gradient(90deg, #22c55e, #86efac, #fff, #22c55e);
+  box-shadow: 0 0 16px color-mix(in srgb, #22c55e 55%, transparent);
+  animation: admin-auth-success-progress 820ms cubic-bezier(.22,1,.36,1) both !important;
+}
+
+/* ---------- DENIED / WRONG PIN OR OTP ---------- */
+.admin-vault-card:has(.admin-vault-error) {
+  animation: admin-auth-denied-card 620ms cubic-bezier(.36,.07,.19,.97) both !important;
+  border-color: color-mix(in srgb, #ff3158 72%, transparent) !important;
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, #ff3158 18%, transparent),
+    0 0 42px color-mix(in srgb, #ff3158 28%, transparent),
+    0 30px 86px color-mix(in srgb, var(--admin-text, #111827) 20%, transparent) !important;
+}
+
+.admin-vault-card:has(.admin-vault-error)::before {
+  opacity: 1 !important;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0 14%,
+    #ff3158 20% 32%,
+    transparent 38% 58%,
+    #ff3158 66% 79%,
+    transparent 86% 100%
+  ) !important;
+  animation: admin-auth-denied-border 640ms steps(4,end) both !important;
+}
+
+.admin-vault-card:has(.admin-vault-error)::after {
+  content: "ACCESS DENIED" !important;
+  z-index: 45 !important;
+  left: 50% !important;
+  top: 1rem !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: auto !important;
+  height: auto !important;
+  padding: .42rem .7rem !important;
+  border-radius: 999px !important;
+  border: 1px solid color-mix(in srgb, #ff3158 48%, transparent) !important;
+  color: #ff3158 !important;
+  background: color-mix(in srgb, var(--admin-base, #fff) 88%, transparent) !important;
+  box-shadow: 0 0 22px color-mix(in srgb, #ff3158 22%, transparent) !important;
+  font-size: .52rem !important;
+  font-weight: 950 !important;
+  letter-spacing: .18em !important;
+  white-space: nowrap;
+  transform: translateX(-50%) !important;
+  animation: admin-auth-denied-badge 820ms cubic-bezier(.22,1,.36,1) both !important;
+}
+
+.admin-vault-card:has(.admin-vault-error) .admin-vault-input-wrap {
+  animation: admin-auth-denied-input 560ms ease-in-out both !important;
+}
+
+.admin-vault-card:has(.admin-vault-error) .admin-vault-input {
+  border-color: #ff3158 !important;
+  color: color-mix(in srgb, #ff3158 72%, var(--admin-text, #111827)) !important;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, #ff3158 14%, transparent),
+    0 0 30px color-mix(in srgb, #ff3158 22%, transparent) !important;
+}
+
+.admin-vault-card:has(.admin-vault-error) .admin-vault-key {
+  animation: admin-auth-denied-key 520ms ease-in-out both !important;
+}
+
+.admin-vault-card:has(.admin-vault-error) .admin-vault-key:nth-child(1),
+.admin-vault-card:has(.admin-vault-error) .admin-vault-key:nth-child(4),
+.admin-vault-card:has(.admin-vault-error) .admin-vault-key:nth-child(7),
+.admin-vault-card:has(.admin-vault-error) .admin-vault-key:nth-child(10) { animation-delay: 30ms !important; }
+.admin-vault-card:has(.admin-vault-error) .admin-vault-key:nth-child(2),
+.admin-vault-card:has(.admin-vault-error) .admin-vault-key:nth-child(5),
+.admin-vault-card:has(.admin-vault-error) .admin-vault-key:nth-child(8),
+.admin-vault-card:has(.admin-vault-error) .admin-vault-key:nth-child(11) { animation-delay: 85ms !important; }
+.admin-vault-card:has(.admin-vault-error) .admin-vault-key:nth-child(3),
+.admin-vault-card:has(.admin-vault-error) .admin-vault-key:nth-child(6),
+.admin-vault-card:has(.admin-vault-error) .admin-vault-key:nth-child(9),
+.admin-vault-card:has(.admin-vault-error) .admin-vault-key:nth-child(12) { animation-delay: 140ms !important; }
+
+.admin-vault-error {
+  position: relative !important;
+  overflow: hidden !important;
+  color: #ff3158 !important;
+  border-color: color-mix(in srgb, #ff3158 46%, transparent) !important;
+  background: linear-gradient(90deg,
+    color-mix(in srgb, #ff3158 11%, var(--admin-base, #fff)),
+    color-mix(in srgb, #ff3158 4%, var(--admin-base, #fff))) !important;
+  box-shadow: 0 10px 30px color-mix(in srgb, #ff3158 12%, transparent) !important;
+  animation: admin-auth-denied-alert 560ms cubic-bezier(.22,1,.36,1) both !important;
+}
+
+.admin-vault-error::before {
+  content: "DENIED";
+  flex: 0 0 auto;
+  padding: .2rem .36rem;
+  border-radius: .35rem;
+  color: #fff;
+  background: #ff3158;
+  font-size: .46rem;
+  font-weight: 950;
+  letter-spacing: .12em;
+  box-shadow: 0 0 14px color-mix(in srgb, #ff3158 42%, transparent);
+}
+
+.admin-vault-error::after {
+  content: "";
+  position: absolute;
+  left: -35%;
+  top: 0;
+  width: 28%;
+  height: 100%;
+  pointer-events: none;
+  transform: skewX(-18deg);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, #ff3158 30%, transparent), transparent);
+  animation: admin-auth-denied-scan 820ms ease-out both !important;
+}
+
+/* ---------- KEYFRAMES ---------- */
+@keyframes admin-auth-success-lock {
+  0% { transform: scale(1); filter: brightness(1); }
+  18% { transform: scale(.992); filter: brightness(1.18); }
+  42% { transform: scale(1.006); filter: brightness(1.05); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+
+@property --admin-auth-angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+
+@keyframes admin-auth-rgb-collapse {
+  0% { filter: saturate(1.4) brightness(1.15); transform: rotate(0deg); }
+  48% { filter: saturate(1.8) brightness(1.25); transform: rotate(150deg); }
+  100% { filter: saturate(1) brightness(1); transform: rotate(360deg); background: conic-gradient(from 0deg, #22c55e, #86efac, #22c55e) !important; }
+}
+
+@keyframes admin-auth-success-wave {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.15); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(8.5); }
+}
+
+@keyframes admin-auth-success-panel {
+  from { opacity: 0; transform: scale(.92); filter: blur(8px); }
+  65% { opacity: 1; transform: scale(1.02); filter: blur(0); }
+  to { opacity: 1; transform: scale(1); filter: blur(0); }
+}
+
+@keyframes admin-auth-success-ring-a {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.25); }
+  22% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(2.8); }
+}
+@keyframes admin-auth-success-ring-b {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.3); }
+  20% { opacity: .75; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(3.5); }
+}
+
+@keyframes admin-auth-check-pop {
+  0% { opacity: 0; transform: scale(.28) rotate(-16deg); }
+  58% { opacity: 1; transform: scale(1.16) rotate(3deg); }
+  78% { transform: scale(.96) rotate(-1deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+
+@keyframes admin-auth-check-draw {
+  from { opacity: 0; transform: scale(.4) rotate(-18deg); }
+  to { opacity: 1; transform: scale(1) rotate(0); }
+}
+
+@keyframes admin-auth-success-orbit { to { transform: rotate(360deg); } }
+
+@keyframes admin-auth-success-text {
+  from { opacity: 0; transform: translateY(7px); letter-spacing: .35em; }
+  to { opacity: 1; transform: translateY(0); letter-spacing: .22em; }
+}
+
+@keyframes admin-auth-success-progress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes admin-auth-denied-card {
+  0%, 100% { transform: translateX(0); filter: brightness(1); }
+  12% { transform: translateX(-13px); filter: brightness(1.08); }
+  24% { transform: translateX(11px); }
+  36% { transform: translateX(-9px); }
+  48% { transform: translateX(7px); }
+  62% { transform: translateX(-4px); }
+  76% { transform: translateX(3px); }
+}
+
+@keyframes admin-auth-denied-border {
+  0%,100% { opacity: .55; filter: brightness(1); }
+  25%,75% { opacity: 1; filter: brightness(1.65); }
+  50% { opacity: .7; filter: brightness(.85); }
+}
+
+@keyframes admin-auth-denied-badge {
+  0% { opacity: 0; transform: translateX(-50%) translateY(-12px) scale(.78); }
+  28% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1.08); }
+  72% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  100% { opacity: .92; transform: translateX(-50%) translateY(0) scale(1); }
+}
+
+@keyframes admin-auth-denied-input {
+  0%,100% { transform: translateX(0); }
+  20% { transform: translateX(-9px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(3px); }
+}
+
+@keyframes admin-auth-denied-key {
+  0%,100% { transform: translateY(0); border-color: inherit; box-shadow: inherit; }
+  38% { transform: translateY(2px) scale(.965); border-color: color-mix(in srgb, #ff3158 58%, transparent); box-shadow: 0 0 18px color-mix(in srgb, #ff3158 24%, transparent); }
+  72% { transform: translateY(0) scale(1); }
+}
+
+@keyframes admin-auth-denied-alert {
+  0% { opacity: 0; transform: translateY(-8px) scale(.96); }
+  46% { opacity: 1; transform: translateY(2px) scale(1.015); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes admin-auth-denied-scan {
+  from { left: -35%; opacity: 0; }
+  18% { opacity: 1; }
+  to { left: 118%; opacity: 0; }
+}
+
+@media (max-width: 640px) {
+  .admin-vault-card:has(.admin-vault-error) { animation-duration: 560ms !important; }
+  .admin-vault-card:has(.admin-vault-success)::after { width: 6rem !important; height: 6rem !important; }
+}
