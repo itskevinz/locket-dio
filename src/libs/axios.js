@@ -1,6 +1,7 @@
 import { clearLocalData, getToken, removeToken, removeUser } from "../utils";
 import { CONFIG } from "@/config";
 import { parseJwt } from "@/utils/auth";
+import { saveAccountLockNotice } from "@/utils/accountLockNotice";
 import { SonnerInfo } from "@/components/uikit/SonnerToast";
 import { instanceAuth } from "./instanceAuth";
 import { createUploadClient } from "./createBase";
@@ -232,15 +233,22 @@ api.interceptors.response.use(
     }
 
     if (status === 403) {
-      const errorCode = responseData?.error || responseData?.code;
+      const errorCode = responseData?.code || responseData?.error;
       if (
         errorCode === "ACCOUNT_LOCKED" ||
-        errorCode === "SESSION_REVOKED" ||
-        String(message).toLowerCase().includes("locked")
+        String(message).toLowerCase().includes("account is locked") ||
+        String(message).toLowerCase().includes("tài khoản locket web của bạn đã bị khóa")
       ) {
-        SonnerInfo(
-          "⛔ Tài khoản của bạn đã bị Quản Trị Viên khóa và cấm truy cập!",
-        );
+        const notice = saveAccountLockNotice({
+          reason: responseData?.reason,
+          lockedAt: responseData?.lockedAt,
+        });
+        SonnerInfo(`⛔ Tài khoản của bạn đã bị khóa. Lý do: ${notice?.reason || "Không có lý do chi tiết."}`);
+        handleLogout();
+        return Promise.reject(error);
+      }
+      if (errorCode === "SESSION_REVOKED") {
+        SonnerInfo("⛔ Phiên làm việc của bạn đã bị Quản Trị Viên thu hồi.");
         handleLogout();
         return Promise.reject(error);
       }
