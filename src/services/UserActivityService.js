@@ -2,12 +2,21 @@ import { CONFIG } from "@/config";
 import currentBuild from "@/config/buildMeta.json";
 import { getToken } from "@/utils";
 import { toast } from "sonner";
+import { saveAccountLockNotice } from "@/utils/accountLockNotice";
 
 let isRevoking = false;
-async function handleAuthRevocation(code) {
+async function handleAuthRevocation(code, details = {}) {
   if (isRevoking) return;
   isRevoking = true;
   stopUserActivityLifecycle();
+
+  const lockNotice = code === "ACCOUNT_LOCKED"
+    ? saveAccountLockNotice({
+        reason: details.reason,
+        lockedAt: details.lockedAt,
+      })
+    : null;
+
   try {
     const { useAuthStore } = await import("@/stores/AuthStore");
     await useAuthStore.getState().clearAndlogout();
@@ -16,8 +25,8 @@ async function handleAuthRevocation(code) {
   } finally {
     if (code === "ACCOUNT_LOCKED") {
       toast.error("⛔ Tài khoản đã bị Khóa", {
-        description: "Tài khoản Locket Web của bạn đã bị Quản Trị Viên khóa quyền sử dụng do vi phạm quy định hoặc lý do bảo mật.",
-        duration: 10000,
+        description: `Lý do: ${lockNotice?.reason || "Không có lý do chi tiết từ Quản Trị Viên."}`,
+        duration: 12000,
       });
     } else if (code === "SESSION_REVOKED") {
       toast.error("⛔ Phiên làm việc đã chấm dứt", {
@@ -95,8 +104,13 @@ async function activityRequest(path, body, { keepalive = false } = {}) {
     const error = new Error(data.error || "Activity request failed");
     error.status = response.status;
     error.code = data.code || "ACTIVITY_REQUEST_FAILED";
+    error.reason = data.reason || null;
+    error.lockedAt = data.lockedAt || null;
     if (error.code === "ACCOUNT_LOCKED" || error.code === "SESSION_REVOKED") {
-      handleAuthRevocation(error.code);
+      handleAuthRevocation(error.code, {
+        reason: error.reason,
+        lockedAt: error.lockedAt,
+      });
     }
     throw error;
   }
