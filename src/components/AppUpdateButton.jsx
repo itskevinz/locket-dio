@@ -10,6 +10,89 @@ import { SonnerInfo, SonnerError } from "@/components/uikit/SonnerToast";
 import "./AppUpdateButton.css";
 
 const FEEDBACK_MS = 1400;
+const USER_UPDATE_TIMEOUT_MS = 5200;
+const RELOAD_WATCHDOG_MS = 4200;
+const CACHE_CLEAR_TIMEOUT_MS = 1800;
+
+function settleWithin(promise, timeoutMs, fallback) {
+  let timer = null;
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise((resolve) => {
+      timer = window.setTimeout(() => resolve(fallback), timeoutMs);
+    }),
+  ]).finally(() => {
+    if (timer) window.clearTimeout(timer);
+  });
+}
+
+function makeManualRefreshUrl() {
+  const url = new URL(window.location.href);
+  url.searchParams.set("_manual_update", String(Date.now()));
+  return url.toString();
+}
+
+/**
+ * Last-resort refresh path for Android/PWA.
+ *
+ * Some Android Chrome/PWA sessions can leave navigator.locks, SW update(), or
+ * controllerchange pending even though the user explicitly pressed Update.
+ * A manual press must never stay stuck forever: clear the old Workbox caches,
+ * wake/skip a waiting worker when possible, then navigate to a cache-busted URL.
+ */
+async function forceFreshNavigation() {
+  try {
+    if ("caches" in window) {
+      await settleWithin(
+        caches.keys().then((keys) => Promise.all(keys.map((key) => caches.delete(key)))),
+        CACHE_CLEAR_TIMEOUT_MS,
+        null,
+      );
+    }
+  } catch (error) {
+    console.warn("[AppUpdateButton] cache clear skipped", error);
+  }
+
+  try {
+    const registration = await settleWithin(
+      navigator.serviceWorker?.getRegistration?.("/"),
+      1200,
+      null,
+    );
+
+    if (registration?.waiting) {
+      try {
+        registration.waiting.postMessage({ type: "SKIP_WAITING" });
+      } catch {
+        /* best effort */
+      }
+    }
+
+    if (registration?.update) {
+      void settleWithin(registration.update(), 1600, false).catch(() => {});
+    }
+  } catch {
+    /* navigation below remains the source of truth */
+  }
+
+  const freshUrl = makeManualRefreshUrl();
+  window.location.replace(freshUrl);
+
+  // Extremely defensive Android fallback. Normally replace() unloads this
+  // document immediately; if a WebView/PWA shell swallows that navigation,
+  // assigning href on the next tick forces a second navigation attempt.
+  window.setTimeout(() => {
+    try {
+      window.location.href = freshUrl;
+    } catch {
+      try {
+        window.location.reload();
+      } catch {
+        /* ignore */
+      }
+    }
+  }, 700);
+}
 
 /**
  * Nút tròn cập nhật — luôn hiện cạnh avatar hồ sơ.
@@ -23,6 +106,7 @@ export default function AppUpdateButton({ className = "" }) {
   const [clicking, setClicking] = useState(false);
   const [feedback, setFeedback] = useState("");
   const feedbackTimerRef = useRef(null);
+  const reloadWatchdogRef = useRef(null);
 
   useEffect(() => {
     checkForAppUpdate().catch(() => {});
@@ -42,6 +126,9 @@ export default function AppUpdateButton({ className = "" }) {
       if (feedbackTimerRef.current) {
         window.clearTimeout(feedbackTimerRef.current);
       }
+      if (reloadWatchdogRef.current) {
+        window.clearTimeout(reloadWatchdogRef.current);
+      }
     },
     [],
   );
@@ -55,6 +142,16 @@ export default function AppUpdateButton({ className = "" }) {
       setFeedback("");
       feedbackTimerRef.current = null;
     }, FEEDBACK_MS);
+  };
+
+  const armReloadWatchdog = () => {
+    if (reloadWatchdogRef.current) {
+      window.clearTimeout(reloadWatchdogRef.current);
+    }
+    reloadWatchdogRef.current = window.setTimeout(() => {
+      reloadWatchdogRef.current = null;
+      void forceFreshNavigation();
+    }, RELOAD_WATCHDOG_MS);
   };
 
   const phase = updateState.phase || APP_UPDATE_PHASE.IDLE;
@@ -73,21 +170,44 @@ export default function AppUpdateButton({ className = "" }) {
     setFeedback("");
     setClicking(true);
     try {
-      const status = await userForceUpdate();
+      // Do not let an Android navigator.locks/SW promise hold this button in a
+      // permanent spinner. If the normal updater does not settle, the manual
+      // path below performs one fresh navigation itself.
+      const status = await settleWithin(
+        userForceUpdate(),
+        USER_UPDATE_TIMEOUT_MS,
+        "timeout",
+      );
 
-      if (status === "latest") {
-        showFeedback("latest");
-        SonnerInfo("Đang dùng bản mới nhất", "Chưa có phiên bản mới hơn trên máy chủ.");
-      } else if (status === "offline") {
+      if (status === "offline") {
         showFeedback("offline");
         SonnerError("Đang ngoại tuyến", "Vui lòng kiểm tra kết nối mạng.");
       } else if (status === "error") {
         showFeedback("error");
         SonnerError("Kiểm tra thất bại", "Không thể kiểm tra cập nhật.");
+      } else if (status === "latest") {
+        // The server says this build is current, but an installed PWA can still
+        // be showing stale cached HTML/assets. A manual Update press doubles as
+        // a real refresh so the user is never trapped on that stale shell.
+        showFeedback("latest");
+        SonnerInfo("Đang làm mới ứng dụng", "Đang tải lại bản mới nhất từ máy chủ.");
+        await forceFreshNavigation();
       } else if (status === "busy") {
+        // Auto-update still respects draft/upload busy state. The explicit
+        // Update button is a force action requested by the user, so do not leave
+        // it in “busy” forever on Android.
         showFeedback("busy");
+        SonnerInfo("Đang buộc cập nhật", "Ứng dụng sẽ tải lại ngay.");
+        await forceFreshNavigation();
+      } else if (status === "timeout") {
+        showFeedback("busy");
+        SonnerInfo("Đang làm mới ứng dụng", "Trình cập nhật phản hồi chậm, đang tải lại trực tiếp.");
+        await forceFreshNavigation();
       } else if (status === "updated" || status === "applying") {
-        // updateWatcher owns the applying/reloading state and the one guarded reload.
+        // updateWatcher normally reloads through controllerchange. If Android
+        // never emits it or a navigation is swallowed, this watchdog guarantees
+        // the page still refreshes once.
+        armReloadWatchdog();
       }
     } catch (err) {
       console.error("[AppUpdateButton]", err);
@@ -99,10 +219,10 @@ export default function AppUpdateButton({ className = "" }) {
   };
 
   let statusText = "";
-  if (feedback === "latest") statusText = "Đã là bản mới nhất";
+  if (feedback === "latest") statusText = "Đang tải lại bản mới nhất…";
   else if (feedback === "offline") statusText = "Mất kết nối mạng";
   else if (feedback === "error") statusText = "Kiểm tra cập nhật lỗi";
-  else if (feedback === "busy") statusText = "Đang bận — sẽ cập nhật sau";
+  else if (feedback === "busy") statusText = "Đang buộc tải bản mới…";
   else if (phase === APP_UPDATE_PHASE.CHECKING || clicking)
     statusText = "Đang kiểm tra…";
   else if (phase === APP_UPDATE_PHASE.UPDATE_READY) statusText = "Có bản mới";
