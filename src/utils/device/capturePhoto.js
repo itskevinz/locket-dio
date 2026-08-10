@@ -2,16 +2,17 @@
  * Highest-quality still capture for Huy Locket.
  *
  * Priority:
- *  - Android: ImageCapture.grabFrame() first so the saved square uses the exact
- *    same live camera frame/FOV the user saw before pressing the shutter.
+ *  - Android: capture the live <video> frame first so the saved square uses the
+ *    exact same frame/FOV/crop the user saw before pressing the shutter.
  *  - Other browsers: ImageCapture.takePhoto() first for native still bytes.
  *  - Remaining fallbacks: grabFrame() / <video> → canvas.
  *
  * Important:
  * - Never reduce capture quality because a device is classified as low-end.
- * - Android camera HALs can return a takePhoto() still with a different FOV
- *   from the live preview. That looks like the picture suddenly zooms after
- *   capture, so Android intentionally prefers the high-resolution live frame.
+ * - Android camera HALs can return a takePhoto()/grabFrame frame with a
+ *   different FOV or orientation from the HTMLVideoElement viewfinder. That
+ *   looks like the picture suddenly zooms after capture, so Android snapshots
+ *   the actual live <video> element at full negotiated track resolution.
  * - Rear native stills on non-Android are not re-encoded when they already fit
  *   the upload transport budget. The API performs the center-square crop.
  * - Canvas fallbacks prefer PNG (lossless). JPEG quality=1 is used only when a
@@ -58,7 +59,8 @@ function canvasToBlob(canvas, type, quality) {
 
 /**
  * Center-crop a decoded source without downscaling.
- * PNG is attempted first so pixels are not damaged by another lossy encode.
+ * This is mathematically the same crop as object-fit: cover + object-position:
+ * center when the destination is square.
  */
 async function cropSourceToSquareBlob(source, srcW, srcH, opts = {}) {
   const mirror = Boolean(opts.mirror);
@@ -87,6 +89,8 @@ async function cropSourceToSquareBlob(source, srcW, srcH, opts = {}) {
     ctx.scale(-1, 1);
   }
 
+  // drawImage() runs synchronously. For a HTMLVideoElement this freezes the
+  // current viewfinder frame before React can swap/unmount the live <video>.
   ctx.drawImage(
     source,
     sx,
@@ -199,6 +203,29 @@ async function grabFrameBlob(track, opts = {}) {
 }
 
 /**
+ * Capture the exact frame currently painted by the HTMLVideoElement.
+ *
+ * Do not await rAF before drawImage: the UI starts a provisional shutter
+ * preview in parallel and may unmount the live video. Drawing immediately also
+ * prevents a one-frame framing change while the Android camera HAL is busy.
+ */
+async function captureViewfinderBlob(video, opts = {}) {
+  if (!video || video.readyState < 2 || !video.videoWidth || !video.videoHeight) {
+    return null;
+  }
+  try {
+    return await cropSourceToSquareBlob(
+      video,
+      video.videoWidth,
+      video.videoHeight,
+      { mirror: opts.mirror },
+    );
+  } catch {
+    return null;
+  }
+}
+
+/**
  * @param {HTMLVideoElement} video
  * @param {{
  *   mirror?: boolean,
@@ -236,17 +263,28 @@ export async function captureSharpSquarePhoto(video, opts = {}) {
     };
   };
 
-  // ── Android: lock the final image to the exact live-view framing ──
-  // Some Android OEM camera HALs expose a takePhoto() still with a narrower
-  // field of view than the MediaStream. Swapping that still into the square UI
-  // makes the image visibly "jump/zoom" after the shutter. grabFrame() comes
-  // from this exact track, so its square center crop matches object-cover in the
-  // square viewfinder pixel-for-pixel in framing while keeping full track res.
-  if (preferViewfinderFrame && track?.readyState === "live") {
-    const viewfinderFrame = await grabFrameBlob(track, { mirror });
-    if (viewfinderFrame) {
-      emitPreview(viewfinderFrame);
-      return toResult(viewfinderFrame, "ImageCapture.grabFrame.viewfinder");
+  // ── Android: exact viewfinder frame first ──
+  // HTMLVideoElement is the source of truth for what the user saw. Some Android
+  // implementations make ImageCapture.takePhoto() narrower and some also expose
+  // grabFrame() with a subtly different sensor crop/orientation. Capturing the
+  // live video element itself guarantees the post-shot image cannot jump zoom.
+  // The camera stream is requested at up to 2560×1920, and this path never
+  // downsizes the square, so still quality is kept at full negotiated track res.
+  if (preferViewfinderFrame) {
+    const viewfinder = await captureViewfinderBlob(video, { mirror });
+    if (viewfinder) {
+      emitPreview(viewfinder);
+      return toResult(viewfinder, "video.canvas.viewfinder");
+    }
+
+    // If the HTMLVideoElement was not ready, try the same live MediaStream track
+    // before falling back to a native still with potentially different FOV.
+    if (track?.readyState === "live") {
+      const grabbed = await grabFrameBlob(track, { mirror });
+      if (grabbed) {
+        emitPreview(grabbed);
+        return toResult(grabbed, "ImageCapture.grabFrame.viewfinder-fallback");
+      }
     }
   }
 
