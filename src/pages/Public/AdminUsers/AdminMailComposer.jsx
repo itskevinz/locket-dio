@@ -1,3 +1,76 @@
+const TEMPLATES = [
+  {
+    id: "apology",
+    icon: "🙏",
+    title: "Xin lỗi khóa nhầm",
+    description: "Dùng khi Admin lỡ khóa nhầm tài khoản. Xác nhận đã kiểm tra, mở khóa và xin lỗi người dùng.",
+    badge: "XIN LỖI",
+    previewTitle: "Tài khoản của bạn đã bị khóa nhầm",
+    status: "Đã mở khóa • Hoạt động bình thường",
+    activeClass: "border-violet-500 bg-violet-50",
+  },
+  {
+    id: "restored",
+    icon: "✅",
+    title: "Xác nhận đã mở khóa",
+    description: "Thông báo tài khoản đã được khôi phục và có thể sử dụng Duchi Locket bình thường.",
+    badge: "KHÔI PHỤC TÀI KHOẢN",
+    previewTitle: "Tài khoản của bạn đã được mở khóa",
+    status: "Đã mở khóa • Hoạt động bình thường",
+    activeClass: "border-emerald-500 bg-emerald-50",
+  },
+  {
+    id: "warning",
+    icon: "⚠️",
+    title: "Cảnh báo tài khoản",
+    description: "Nhắc người dùng về hoạt động bất thường, vi phạm hoặc vấn đề cần chú ý trước khi áp dụng hạn chế.",
+    badge: "CẢNH BÁO TÀI KHOẢN",
+    previewTitle: "Tài khoản của bạn cần được chú ý",
+    status: "Cần chú ý • Tài khoản vẫn được theo dõi",
+    activeClass: "border-amber-500 bg-amber-50",
+  },
+  {
+    id: "maintenance",
+    icon: "🛠️",
+    title: "Thông báo bảo trì",
+    description: "Gửi thông tin bảo trì hoặc nâng cấp hệ thống tới một người dùng cụ thể.",
+    badge: "BẢO TRÌ HỆ THỐNG",
+    previewTitle: "Duchi Locket sắp thực hiện bảo trì",
+    status: "Hệ thống • Bảo trì có kế hoạch",
+    activeClass: "border-sky-500 bg-sky-50",
+  },
+  {
+    id: "incident",
+    icon: "🚨",
+    title: "Thông báo sự cố",
+    description: "Thông báo khi hệ thống đang gặp lỗi và đội ngũ quản trị đang xử lý.",
+    badge: "CẬP NHẬT SỰ CỐ",
+    previewTitle: "Chúng tôi đang xử lý một sự cố hệ thống",
+    status: "Sự cố • Đang được xử lý",
+    activeClass: "border-rose-500 bg-rose-50",
+  },
+  {
+    id: "welcome",
+    icon: "👋",
+    title: "Chào mừng người dùng",
+    description: "Thư chào mừng tài khoản mới hoặc người dùng vừa được hỗ trợ đăng nhập thành công.",
+    badge: "CHÀO MỪNG",
+    previewTitle: "Chào mừng bạn đến với Duchi Locket",
+    status: "Tài khoản • Sẵn sàng sử dụng",
+    activeClass: "border-blue-500 bg-blue-50",
+  },
+  {
+    id: "feature",
+    icon: "✨",
+    title: "Thông báo tính năng mới",
+    description: "Giới thiệu bản cập nhật hoặc tính năng mới vừa được phát hành trên Duchi Locket.",
+    badge: "TÍNH NĂNG MỚI",
+    previewTitle: "Duchi Locket vừa được nâng cấp",
+    status: "Cập nhật • Phiên bản mới khả dụng",
+    activeClass: "border-fuchsia-500 bg-fuchsia-50",
+  },
+];
+
 export default function AdminMailComposer({
   open,
   email,
@@ -9,62 +82,76 @@ export default function AdminMailComposer({
 }) {
   if (!open) return null;
 
+  const selected = TEMPLATES.find((item) => item.id === template) || TEMPLATES[0];
+
   return (
-    <div className="fixed inset-0 z-[10000] bg-slate-950/45 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-xl rounded-[2rem] bg-white border border-slate-200 shadow-2xl overflow-hidden">
-        <div className="px-6 py-5 border-b border-slate-100 bg-gradient-to-r from-violet-50 via-white to-indigo-50">
-          <div className="text-xs font-black uppercase tracking-[0.16em] text-violet-600">✉️ Gửi thư</div>
-          <div className="text-xl font-black text-slate-900 mt-1">Chọn mẫu thư cần gửi</div>
+    <div className="fixed inset-0 z-[10000] bg-slate-950/45 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+      <div className="w-full max-w-5xl max-h-[92vh] rounded-[2rem] bg-white border border-slate-200 shadow-2xl overflow-hidden flex flex-col">
+        <div className="px-5 sm:px-6 py-5 border-b border-slate-100 bg-gradient-to-r from-violet-50 via-white to-indigo-50 shrink-0">
+          <div className="text-xs font-black uppercase tracking-[0.16em] text-violet-600">✉️ Mail Center</div>
+          <div className="text-xl font-black text-slate-900 mt-1">Chọn mẫu thư và xem trước trước khi gửi</div>
           <div className="text-sm text-slate-500 mt-1 break-all">
             Người nhận: <strong className="text-slate-800">{email}</strong>
           </div>
         </div>
 
-        <div className="p-6 space-y-3">
-          <button
-            type="button"
-            onClick={() => onTemplateChange("apology")}
-            className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${template === "apology" ? "border-violet-500 bg-violet-50 shadow-sm" : "border-slate-200 bg-white hover:border-violet-200"}`}
-          >
-            <div className="flex items-start gap-3">
-              <div className="text-2xl">🙏</div>
-              <div className="min-w-0">
-                <div className="font-black text-slate-900">Xin lỗi khóa nhầm</div>
-                <div className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  Dùng khi Admin lỡ khóa nhầm tài khoản. Thư xác nhận đã kiểm tra, mở khóa và xin lỗi người dùng.
-                </div>
+        <div className="grid grid-cols-1 lg:grid-cols-[1.05fr_.95fr] min-h-0 flex-1 overflow-hidden">
+          <div className="p-4 sm:p-5 overflow-y-auto border-b lg:border-b-0 lg:border-r border-slate-100">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {TEMPLATES.map((item) => {
+                const active = item.id === template;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => onTemplateChange(item.id)}
+                    className={`w-full text-left p-3.5 rounded-2xl border-2 transition-all ${active ? `${item.activeClass} shadow-sm` : "border-slate-200 bg-white hover:border-violet-200"}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="text-xl">{item.icon}</div>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-black text-sm text-slate-900">{item.title}</div>
+                        <div className="text-[11px] text-slate-500 mt-1 leading-relaxed">{item.description}</div>
+                      </div>
+                      <div className={`mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${active ? "border-violet-600" : "border-slate-300"}`}>
+                        {active && <div className="w-2.5 h-2.5 bg-violet-600 rounded-full" />}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="p-4 sm:p-5 overflow-y-auto bg-slate-50/70">
+            <div className="text-[11px] font-black tracking-wider uppercase text-slate-500 mb-2">Bản xem trước email</div>
+            <div className="rounded-[1.6rem] overflow-hidden border border-slate-200 bg-white shadow-lg">
+              <div className="px-5 py-4 border-b border-slate-100">
+                <div className="text-lg font-black tracking-wide text-violet-600">DUCHI LOCKET</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">Thông báo từ hệ thống</div>
               </div>
-              <div className={`ml-auto mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${template === "apology" ? "border-violet-600" : "border-slate-300"}`}>
-                {template === "apology" && <div className="w-2.5 h-2.5 bg-violet-600 rounded-full" />}
+              <div className="p-5">
+                <div className="text-[11px] font-black tracking-wider text-violet-600">{selected.badge}</div>
+                <div className="text-xl font-black text-slate-900 mt-2 leading-tight">{selected.previewTitle}</div>
+                <p className="text-xs text-slate-600 leading-relaxed mt-3">
+                  Chào người dùng, đây là nội dung mẫu được gửi tự động từ bộ phận quản trị Duchi Locket tới <strong className="text-slate-900">{email}</strong>.
+                </p>
+                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-xs text-slate-500">Trạng thái</div>
+                  <div className="mt-1 text-sm font-black text-slate-900">{selected.status}</div>
+                </div>
+                <button type="button" tabIndex={-1} className="mt-4 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-black text-white pointer-events-none">Mở Duchi Locket</button>
+                <div className="mt-4 text-[11px] text-slate-500 leading-relaxed">Email tự động từ Duchi Locket. Không yêu cầu mật khẩu, mã OTP hoặc thông tin đăng nhập.</div>
               </div>
             </div>
-          </button>
 
-          <button
-            type="button"
-            onClick={() => onTemplateChange("restored")}
-            className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${template === "restored" ? "border-emerald-500 bg-emerald-50 shadow-sm" : "border-slate-200 bg-white hover:border-emerald-200"}`}
-          >
-            <div className="flex items-start gap-3">
-              <div className="text-2xl">✅</div>
-              <div className="min-w-0">
-                <div className="font-black text-slate-900">Xác nhận đã mở khóa</div>
-                <div className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  Thông báo tài khoản đã được khôi phục và có thể sử dụng Duchi Locket bình thường.
-                </div>
-              </div>
-              <div className={`ml-auto mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${template === "restored" ? "border-emerald-600" : "border-slate-300"}`}>
-                {template === "restored" && <div className="w-2.5 h-2.5 bg-emerald-600 rounded-full" />}
-              </div>
+            <div className="rounded-2xl bg-white border border-slate-200 p-3 mt-3 text-xs text-slate-500 leading-relaxed">
+              Mẫu <strong className="text-slate-700">Xin lỗi khóa nhầm</strong> và <strong className="text-slate-700">Xác nhận đã mở khóa</strong> chỉ nên gửi sau khi tài khoản đã được mở khóa. Các mẫu cảnh báo/bảo trì/sự cố/chào mừng/tính năng mới có thể gửi độc lập.
             </div>
-          </button>
-
-          <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-500 leading-relaxed">
-            Email vẫn dùng giao diện HTML Duchi Locket như thông báo Canh Slot. Hệ thống chỉ cho gửi thư khôi phục khi tài khoản đã được mở khóa.
           </div>
         </div>
 
-        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/80 flex items-center justify-end gap-2">
+        <div className="px-5 sm:px-6 py-4 border-t border-slate-100 bg-white flex items-center justify-end gap-2 shrink-0">
           <button
             type="button"
             onClick={onClose}
@@ -77,7 +164,7 @@ export default function AdminMailComposer({
             type="button"
             onClick={onSend}
             disabled={sending}
-            className="btn h-10 px-5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white border-0 font-black min-w-[130px]"
+            className="btn h-10 px-5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white border-0 font-black min-w-[150px]"
           >
             {sending ? <span className="loading loading-spinner loading-xs" /> : <span>✉️ Gửi thư này</span>}
           </button>
