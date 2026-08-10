@@ -8,6 +8,7 @@ import { usePostStore } from "@/stores";
 import { useTranslation } from "react-i18next";
 import { getPerfProfile } from "@/utils/device/perfProfile";
 import { captureSharpSquarePhoto } from "@/utils/device/capturePhoto";
+import { createInstantShutterPreview } from "@/utils/device/instantShutterPreview";
 
 /** Giữ nhẹ để quay — đủ phân biệt tap chụp vs hold quay */
 const HOLD_TO_RECORD_MS = 300;
@@ -117,6 +118,7 @@ const CameraButton = () => {
   const isRecordingRef = useRef(false);
   const drawRafRef = useRef(0);
   const capturingRef = useRef(false);
+  const captureFinalizedRef = useRef(false);
   const canvasRef = useRef(null);
   const pointerIdRef = useRef(null);
 
@@ -376,7 +378,9 @@ const CameraButton = () => {
   };
 
   /**
-   * Chụp nhanh: grabFrame / video canvas (không đợi takePhoto 48MP).
+   * Chụp nhanh về cảm giác nhưng vẫn giữ ảnh cuối ở chất lượng native.
+   * Một frozen preview 512px chỉ dùng để phản hồi UI; file upload vẫn đi qua
+   * ImageCapture.takePhoto()/grabFrame pipeline chất lượng cao.
    */
   const captureImage = () => {
     if (capturingRef.current) return;
@@ -392,6 +396,7 @@ const CameraButton = () => {
     }
 
     capturingRef.current = true;
+    captureFinalizedRef.current = false;
     const mirror = cameraMode === "user";
 
     // Feedback tức thì
@@ -401,25 +406,88 @@ const CameraButton = () => {
       /* ignore */
     }
 
-    captureSharpSquarePhoto(video, {
-      mirror,
-      onPreviewUrl: (url) => {
-        usePostStore.setState({
-          preview: { type: "image", data: url },
-          selectedFile: null,
-          isSizeMedia: null,
-        });
-        setCameraActive(false);
-      },
-    })
-      .then(({ file, method }) => {
+    // Start the high-quality still FIRST so Android's camera HAL receives the
+    // shutter request before React swaps the live <video> for a frozen preview.
+    const fullQualityCapture = captureSharpSquarePhoto(video, { mirror });
+
+    // In parallel, freeze the exact visible frame at tiny UI-only resolution.
+    // This normally appears within one paint instead of waiting for takePhoto().
+    void createInstantShutterPreview(video, { mirror }).then((url) => {
+      if (!url) return;
+      if (!capturingRef.current || captureFinalizedRef.current) {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {
+          /* ignore */
+        }
+        return;
+      }
+
+      usePostStore.setState({
+        preview: { type: "image", data: url, capturePending: true },
+        selectedFile: null,
+        isSizeMedia: null,
+      });
+      // Preview mode parks (does not stop) the live track, so the native still
+      // request already in flight can finish without keeping the user waiting.
+      setCameraActive(false);
+    });
+
+    fullQualityCapture
+      .then(async ({ file, blob, method }) => {
+        captureFinalizedRef.current = true;
+
         if (import.meta.env?.DEV) {
           console.info("[capture]", method, file?.size);
         }
+
+        // Replace the tiny provisional frame with the real still immediately;
+        // draft/IndexedDB work can then finish without delaying the visual shot.
+        try {
+          const currentPreview = usePostStore.getState().preview;
+          const finalUrl = URL.createObjectURL(blob);
+          if (
+            currentPreview?.capturePending &&
+            typeof currentPreview.data === "string" &&
+            currentPreview.data.startsWith("blob:")
+          ) {
+            try {
+              URL.revokeObjectURL(currentPreview.data);
+            } catch {
+              /* ignore */
+            }
+          }
+          usePostStore.setState({
+            preview: { type: "image", data: finalUrl, capturePending: true },
+            selectedFile: null,
+            isSizeMedia: null,
+          });
+          setCameraActive(false);
+        } catch {
+          /* applyMedia below still owns the final file */
+        }
+
         return applyMedia(file);
       })
       .catch((err) => {
+        captureFinalizedRef.current = true;
         console.warn("[capture] failed:", err?.message || err);
+
+        const currentPreview = usePostStore.getState().preview;
+        if (currentPreview?.capturePending) {
+          try {
+            if (
+              typeof currentPreview.data === "string" &&
+              currentPreview.data.startsWith("blob:")
+            ) {
+              URL.revokeObjectURL(currentPreview.data);
+            }
+          } catch {
+            /* ignore */
+          }
+          usePostStore.getState().resetMedia?.();
+        }
+        setCameraActive(true);
         SonnerInfo(t("home.camera_not_ready"));
       })
       .finally(() => {

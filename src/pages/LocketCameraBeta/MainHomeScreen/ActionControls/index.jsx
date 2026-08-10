@@ -23,12 +23,18 @@ const ActionControls = () => {
   const draftCount = useMomentDraftStore((s) => s.draftCount);
 
   const hasFile = !!(selectedFile || preview);
+  const capturePending = Boolean(preview?.capturePending && !selectedFile);
   // Badge only — never blocked by restore modal (modal removed)
   const showDraftChip = !hasFile && (hasDraft || draftCount > 0);
+  const pendingClass = capturePending ? "pointer-events-none opacity-55" : "";
 
   return (
-    <div className="w-full flex flex-col items-center" data-action-controls="true">
-      {hasFile ? <SaveDraftActions /> : null}
+    <div
+      className="w-full flex flex-col items-center"
+      data-action-controls="true"
+      data-capture-pending={capturePending ? "true" : undefined}
+    >
+      {hasFile && !capturePending ? <SaveDraftActions /> : null}
       <div className="w-full flex justify-center px-2">
       <div
         className="cameraControlPill"
@@ -46,7 +52,7 @@ const ActionControls = () => {
             {showDraftChip ? <DraftButton /> : null}
           </div>
           <div
-            className={`actionBarSlot ${hasFile ? "is-active" : "is-idle"}`}
+            className={`actionBarSlot ${hasFile ? "is-active" : "is-idle"} ${pendingClass}`}
             aria-hidden={!hasFile}
           >
             <DelButton />
@@ -81,7 +87,7 @@ const ActionControls = () => {
             <CameraToggle />
           </div>
           <div
-            className={`actionBarSlot ${hasFile ? "is-active" : "is-idle"}`}
+            className={`actionBarSlot ${hasFile ? "is-active" : "is-idle"} ${pendingClass}`}
             aria-hidden={!hasFile}
           >
             <OverlayButton />

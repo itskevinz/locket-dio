@@ -47,6 +47,10 @@ const SendButton = () => {
 
   const isImage = preview?.type === "image";
   const isVideo = preview?.type === "video";
+  // A provisional shutter frame is intentionally low-cost UI only. Never let
+  // it become the uploaded file while ImageCapture is still producing the
+  // native-quality still.
+  const capturePending = Boolean(preview?.capturePending && !selectedFile);
 
   const isTooBig = isImage
     ? isSizeMedia > maxImageSizeMB
@@ -63,7 +67,7 @@ const SendButton = () => {
   const submitLockRef = useRef(false);
 
   const sendDisabled =
-    uploadLoading || isSuccess || isOffline || !serverReachable;
+    capturePending || uploadLoading || isSuccess || isOffline || !serverReachable;
 
   const handleDelete = useCallback(() => {
     // Dừng stream cũ nếu có
@@ -83,7 +87,7 @@ const SendButton = () => {
   // Hàm submit được cải tiến
   const handleSubmit = async () => {
     // Chặn double-tap / double-enqueue ngay trong cùng event loop.
-    if (submitLockRef.current || uploadLoading || isSuccess) return;
+    if (submitLockRef.current || uploadLoading || isSuccess || capturePending) return;
     submitLockRef.current = true;
 
     try {
@@ -141,7 +145,7 @@ const SendButton = () => {
               reloadUser();
             },
           },
-        });
+        );
         return;
       }
       if (isSizeMedia > maxFileSize) {
@@ -236,7 +240,7 @@ const SendButton = () => {
       ? "sendButton--overLimit"
       : isSuccess
         ? "sendButton--success"
-        : uploadLoading
+        : uploadLoading || capturePending
           ? "sendButton--loading"
           : isOffline || !serverReachable
             ? "sendButton--warn"
@@ -248,26 +252,31 @@ const SendButton = () => {
       onClick={handleSubmit}
       disabled={sendDisabled}
       aria-label={
-        isOffline
-          ? "Mất mạng — không thể đăng"
-          : !serverReachable
-            ? "Máy chủ đang bảo trì — không thể đăng"
-            : "Đăng bài"
+        capturePending
+          ? "Đang hoàn tất ảnh chất lượng cao"
+          : isOffline
+            ? "Mất mạng — không thể đăng"
+            : !serverReachable
+              ? "Máy chủ đang bảo trì — không thể đăng"
+              : "Đăng bài"
       }
-      aria-busy={uploadLoading || undefined}
+      aria-busy={uploadLoading || capturePending || undefined}
       title={
-        isOffline
-          ? "Mất mạng · Bản nháp vẫn được lưu"
-          : !serverReachable
-            ? "Máy chủ đang bảo trì · Bản nháp vẫn được lưu"
-            : undefined
+        capturePending
+          ? "Đang hoàn tất ảnh chất lượng cao"
+          : isOffline
+            ? "Mất mạng · Bản nháp vẫn được lưu"
+            : !serverReachable
+              ? "Máy chủ đang bảo trì · Bản nháp vẫn được lưu"
+              : undefined
       }
       className={`sendButton ${toneClass}`.trim()}
       data-send-button="true"
+      data-capture-pending={capturePending ? "true" : undefined}
       data-offline={isOffline || !serverReachable ? "true" : undefined}
     >
       <UploadStatusIcon
-        loading={uploadLoading}
+        loading={uploadLoading || capturePending}
         success={isSuccess}
         overLimit={isTooBig}
       />
