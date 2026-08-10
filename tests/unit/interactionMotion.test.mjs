@@ -107,12 +107,33 @@ test("moment swipe hydrates only nearby viewers and keeps one video decoder acti
     swiper,
     /virtual=\{\{ addSlidesBefore: 1, addSlidesAfter: 1 \}\}/,
   );
+  assert.match(swiper, /pendingIndexRef\.current = nextIndex/);
+  assert.match(swiper, /onTransitionEnd=\{\(swiper\) =>/);
+  assert.match(swiper, /commitSettledIndex\(swiper\)/);
+  assert.match(swiper, /Math\.abs\(index - renderIndex\)/);
+  assert.match(swiper, /dataset\.locketDetail/);
   assert.match(swiper, /dataset\.locketSwiping/);
   assert.match(swiper, /isActive=\{isActive\}/);
   assert.match(viewer, /isActive && videoSrc && !videoFailed/);
   assert.match(viewer, /export default memo\(MomentViewer\)/);
   assert.match(grid, /invisible opacity-0/);
   assert.match(swipeCss, /data-locket-swiping="true"/);
+  assert.match(swipeCss, /data-locket-detail="true"/);
+  assert.match(swipeCss, /background-color:\s*var\(--color-base-100\)/);
   assert.match(swipeCss, /backdrop-filter:\s*none\s*!important/);
   assert.match(swipeCss, /animation-play-state:\s*paused\s*!important/);
+  assert.doesNotMatch(swipeCss, /backface-visibility/);
+  assert.doesNotMatch(swipeCss, /contain:\s*paint/);
+});
+
+test("service worker update checks have a hard timeout", () => {
+  const registerSw = read("src/utils/pwaUtils/registerSW.js");
+
+  assert.match(registerSw, /UPDATE_REQUEST_TIMEOUT_MS = 3500/);
+  assert.match(registerSw, /function settleWithin\(/);
+  assert.match(registerSw, /currentRegistration\.update\(\)/);
+  assert.match(
+    registerSw,
+    /settleWithin\([\s\S]*currentRegistration\.update\(\)[\s\S]*UPDATE_REQUEST_TIMEOUT_MS/,
+  );
 });

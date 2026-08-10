@@ -1,22 +1,21 @@
 /*
  * Moment-detail swipe fast path.
  *
- * The visual design stays unchanged at rest. While the finger is dragging we
- * temporarily remove a few expensive paint effects so Android can spend its
- * frame budget on Swiper's translate transform instead of repeatedly blurring
- * and shadowing full-screen layers.
+ * Keep the transform on its own compositor path, but avoid backface-visibility
+ * and contain:paint on every slide. Those aggressive layer flags caused a
+ * one-frame white flash on some Android/Chrome GPUs when the active slide
+ * changed.
  */
+
+[data-ios-detail-view="true"],
+[data-ios-detail-view="true"] .swiper,
+[data-ios-detail-view="true"] .swiper-wrapper,
+[data-ios-detail-view="true"] .swiper-slide {
+  background-color: var(--color-base-100);
+}
 
 [data-ios-detail-view="true"] .swiper-wrapper {
   will-change: transform;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-}
-
-[data-ios-detail-view="true"] .swiper-slide {
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-  contain: paint;
 }
 
 /* Do not run per-post entrance/shimmer work while Swiper is following a finger. */
@@ -29,8 +28,14 @@ html[data-locket-swiping="true"] .moment-skeleton {
   animation-play-state: paused !important;
 }
 
+/*
+ * Expensive glass blur is disabled for the full lifetime of the mobile detail
+ * viewer instead of toggling on every touch. That both lowers GPU cost and keeps
+ * the visual surface stable, eliminating the bright blink caused by blur being
+ * removed/re-added each swipe.
+ */
 @media (max-width: 767px) {
-  html.theme-ios[data-locket-swiping="true"] :where(
+  html[data-locket-detail="true"].theme-ios :where(
       [data-header-profile="true"],
       #hamburger-menu-trigger,
       [data-friends-pill="true"],
@@ -43,7 +48,7 @@ html[data-locket-swiping="true"] .moment-skeleton {
     box-shadow: none !important;
   }
 
-  html.theme-ios[data-locket-swiping="true"]
+  html[data-locket-detail="true"].theme-ios
     [data-ios-detail-view="true"]
     .moment-enter
     > div

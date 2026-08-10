@@ -6,6 +6,7 @@ import {
 const SW_URL = "/sw.js";
 const SW_SCOPE = "/";
 const UPDATE_CHECK_MS = 10 * 60 * 1000;
+const UPDATE_REQUEST_TIMEOUT_MS = 3500;
 
 let initialized = false;
 let initPromise = null;
@@ -16,6 +17,18 @@ let notifiedWaitingWorker = null;
 let visibilityHandler = null;
 let updateFoundHandler = null;
 const workerStateHandlers = new Map();
+
+function settleWithin(promise, timeoutMs, fallback = false) {
+  let timer = null;
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise((resolve) => {
+      timer = setTimeout(() => resolve(fallback), timeoutMs);
+    }),
+  ]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
 
 function removeWorkerStateHandler(worker) {
   const handler = workerStateHandlers.get(worker);
@@ -64,10 +77,45 @@ function requestRegistrationUpdate() {
   if (registrationUpdatePromise) return registrationUpdatePromise;
 
   registrationUpdatePromise = (async () => {
-    const currentRegistration = registration || (await initPromise);
+    let currentRegistration = registration;
+
+    // navigator.serviceWorker.register()/update() can occasionally stay pending
+    // for a long time on Android when Chrome/PWA networking is waking up. A
+    // manual update button must never wait forever for that best-effort check;
+    // version.json remains the source of truth in updateWatcher.
+    if (!currentRegistration && initPromise) {
+      currentRegistration = await settleWithin(
+        initPromise,
+        UPDATE_REQUEST_TIMEOUT_MS,
+        null,
+      );
+    }
+
+    if (!currentRegistration) {
+      try {
+        currentRegistration = await settleWithin(
+          navigator.serviceWorker?.getRegistration?.(SW_SCOPE),
+          UPDATE_REQUEST_TIMEOUT_MS,
+          null,
+        );
+        if (currentRegistration) registration = currentRegistration;
+      } catch {
+        currentRegistration = null;
+      }
+    }
+
     if (!currentRegistration) return false;
 
-    await currentRegistration.update();
+    try {
+      await settleWithin(
+        currentRegistration.update(),
+        UPDATE_REQUEST_TIMEOUT_MS,
+        false,
+      );
+    } catch {
+      // Do not block the version.json check if SW update() fails.
+    }
+
     watchInstallingWorker(currentRegistration.installing);
     return notifyWaitingWorker();
   })().finally(() => {

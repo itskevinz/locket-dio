@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Virtual } from "swiper/modules";
 import "swiper/css";
@@ -8,9 +8,9 @@ import { useMomentsStoreV2, useSelectedStore } from "@/stores";
 import QueueViewer from "./QueueViewer";
 import MomentViewer from "./MomentViewer";
 
-// Only the current post and its immediate neighbours need the full viewer.
-// Keeping every MomentViewer mounted makes Android decode media, subscribe to
-// stores and build overlays for posts that are nowhere near the viewport.
+// The current post and its immediate neighbours stay hydrated. Crucially, the
+// hydration window only moves AFTER Swiper finishes translating; mounting a new
+// MomentViewer while the finger/transition is moving was a major Android hitch.
 const VIEWER_RADIUS = 1;
 
 const SwiperView = () => {
@@ -32,6 +32,10 @@ const SwiperView = () => {
 
   const momentActive = typeof selectedMoment === "number";
   const queueActive = typeof selectedQueue === "number";
+  const [renderIndex, setRenderIndex] = useState(() =>
+    typeof selectedMoment === "number" ? selectedMoment : 0,
+  );
+  const pendingIndexRef = useRef(null);
 
   const setSwipePerformanceMode = useCallback((active) => {
     if (typeof document === "undefined") return;
@@ -39,6 +43,18 @@ const SwiperView = () => {
     if (active) root.dataset.locketSwiping = "true";
     else delete root.dataset.locketSwiping;
   }, []);
+
+  // Keep the expensive-detail paint policy stable for the entire viewer
+  // lifetime. Previously blur/shadow toggled on every finger-down/up, which
+  // itself produced a bright flash on some Android GPUs.
+  useEffect(() => {
+    if (typeof document === "undefined" || !momentActive) return undefined;
+    document.documentElement.dataset.locketDetail = "true";
+    return () => {
+      delete document.documentElement.dataset.locketDetail;
+      delete document.documentElement.dataset.locketSwiping;
+    };
+  }, [momentActive]);
 
   useEffect(
     () => () => {
@@ -53,14 +69,58 @@ const SwiperView = () => {
     const newIndex = moments.findIndex((m) => m.id === selectedMomentId);
     if (newIndex === -1) return;
 
-    if (newIndex !== selectedMoment) {
-      setSelectedMoment(newIndex);
+    // External/programmatic selection can still jump immediately. Normal finger
+    // swipes do not update selectedMomentId until transition-end below.
+    if (newIndex !== swiperRef.activeIndex) {
+      pendingIndexRef.current = null;
+      setRenderIndex(newIndex);
+      if (newIndex !== selectedMoment) setSelectedMoment(newIndex);
       swiperRef.slideTo(newIndex, 0);
     }
-  }, [moments, selectedMomentId, swiperRef, selectedMoment, setSelectedMoment]);
+  }, [
+    moments,
+    selectedMomentId,
+    swiperRef,
+    selectedMoment,
+    setSelectedMoment,
+  ]);
+
+  const commitSettledIndex = useCallback(
+    (swiper) => {
+      const candidate = Number.isInteger(pendingIndexRef.current)
+        ? pendingIndexRef.current
+        : swiper?.activeIndex;
+      pendingIndexRef.current = null;
+
+      if (!Number.isInteger(candidate)) return;
+      if (candidate < 0 || candidate >= moments.length) return;
+
+      // This is intentionally after the transform finishes: React may now mount
+      // the next neighbour, update stores and start the active video decoder
+      // without competing with the 60fps gesture.
+      setRenderIndex(candidate);
+      if (candidate !== selectedMoment) setSelectedMoment(candidate);
+
+      const nextId = moments[candidate]?.id;
+      if (nextId != null && nextId !== selectedMomentId) {
+        setSelectedMomentId(nextId);
+      }
+    },
+    [
+      moments,
+      selectedMoment,
+      selectedMomentId,
+      setSelectedMoment,
+      setSelectedMomentId,
+    ],
+  );
 
   const handleClose = useCallback(() => {
+    pendingIndexRef.current = null;
     setSwipePerformanceMode(false);
+    if (typeof document !== "undefined") {
+      delete document.documentElement.dataset.locketDetail;
+    }
     setSelectedMoment(null);
     setSelectedMomentId(null);
   }, [setSelectedMoment, setSelectedMomentId, setSwipePerformanceMode]);
@@ -78,38 +138,41 @@ const SwiperView = () => {
         direction="vertical"
         className="flex h-full w-full max-w-md flex-col items-center justify-center aspect-square"
         modules={[Virtual]}
-        onSwiper={setSwiperRef}
+        onSwiper={(swiper) => {
+          setSwiperRef(swiper);
+          setRenderIndex(swiper.activeIndex);
+        }}
         slidesPerView={1}
         initialSlide={selectedMoment}
-        // Explicitly keep Swiper's own virtual window tight as well. The
-        // adjacent slides stay ready so the finger never swipes into a blank.
         virtual={{ addSlidesBefore: 1, addSlidesAfter: 1 }}
-        speed={300}
-        threshold={5}
+        speed={280}
+        threshold={6}
         resistanceRatio={0.72}
         onTouchStart={() => setSwipePerformanceMode(true)}
         onSliderFirstMove={() => setSwipePerformanceMode(true)}
         onTransitionStart={() => setSwipePerformanceMode(true)}
-        onTouchEnd={(swiper) => {
-          // Touch can end before momentum/transition finishes. Keep the cheap
-          // paint mode until Swiper reports that animation has actually ended.
-          if (!swiper?.animating) setSwipePerformanceMode(false);
-        }}
-        onTransitionEnd={() => setSwipePerformanceMode(false)}
         onSlideChange={(swiper) => {
-          const newIndex = swiper.activeIndex;
-
-          if (newIndex === selectedMoment) return;
-          if (newIndex < 0 || newIndex >= moments.length) return;
-
-          setSelectedMoment(newIndex);
-          setSelectedMomentId(moments[newIndex]?.id);
+          const nextIndex = swiper.activeIndex;
+          if (nextIndex < 0 || nextIndex >= moments.length) return;
+          // Do NOT set React/Zustand state here. onSlideChange fires while the
+          // slide is still moving and that was causing frame drops + white flash.
+          pendingIndexRef.current = nextIndex;
+        }}
+        onTouchEnd={(swiper) => {
+          if (!swiper?.animating) {
+            setSwipePerformanceMode(false);
+            commitSettledIndex(swiper);
+          }
+        }}
+        onTransitionEnd={(swiper) => {
+          setSwipePerformanceMode(false);
+          commitSettledIndex(swiper);
         }}
       >
         {moments.map((slideContent, index) => {
-          const distance = Math.abs(index - selectedMoment);
+          const distance = Math.abs(index - renderIndex);
           const shouldHydrateViewer = distance <= VIEWER_RADIUS;
-          const isActive = index === selectedMoment;
+          const isActive = index === renderIndex;
 
           return (
             <SwiperSlide
