@@ -1,6 +1,8 @@
 const DEFAULT_NORMAL_INTERVAL_MS = 30_000;
 const FAST_INTERVAL_MS = 10_000;
-const AUTO_REQUEST_INTERVAL_MS = 1_000;
+// 1s polling was too aggressive when Locket returned partial celeb snapshots.
+// Keep auto-request responsive without hammering upstream or flooding Railway logs.
+const AUTO_REQUEST_INTERVAL_MS = 5_000;
 const FAST_WINDOW_MS = 3 * 60 * 1000;
 const MIN_WORKER_DELAY_MS = 1_000;
 const MAX_JITTER_MS = 1_500;
