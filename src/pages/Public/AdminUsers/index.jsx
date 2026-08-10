@@ -27,6 +27,7 @@ import ScrollReveal from "@/components/Effects/ScrollReveal";
 import { updateAndSyncGpsLocation } from "@/services/UserActivityService";
 import AdminSystemHealth from "../AdminSystemHealth";
 import AdminSecurityGate, { AdminRouteLoading, AdminSecurityHandoff } from "./AdminSecurityGate";
+import AdminMailComposer from "./AdminMailComposer";
 import { CONFIG } from "@/config";
 import {
   adminRequest,
@@ -481,7 +482,9 @@ export default function AdminUsers() {
   const [reauthError, setReauthError] = useState(null);
   const [pendingCallback, setPendingCallback] = useState(null);
   const [generalApologyEmail, setGeneralApologyEmail] = useState("");
-  const [generalApologyLoading, setGeneralApologyLoading] = useState(false);
+  const [mailComposer, setMailComposer] = useState(null);
+  const [mailTemplate, setMailTemplate] = useState("apology");
+  const [mailSending, setMailSending] = useState(false);
 
   const fetchUsers = useCallback(async (token = "", { silent = false, live = false } = {}) => {
     const isRootRefresh = !token;
@@ -962,65 +965,67 @@ export default function AdminUsers() {
     }
   };
 
-  const handleSendApologyEmail = async (user) => {
+  const openUserMailComposer = (user) => {
     const targetEmail = String(user?.email || "").trim();
     if (!targetEmail) {
-      SonnerWarning("Không thể gửi email", "Tài khoản này chưa có địa chỉ email.");
+      SonnerWarning("Không thể gửi thư", "Tài khoản này chưa có địa chỉ email.");
       return;
     }
     if (user?.disabled || String(user?.accountStatus || "").toLowerCase() === "locked") {
-      SonnerWarning("Hãy mở khóa tài khoản trước", "Sau khi mở khóa, bấm Gửi xin lỗi để hệ thống gửi email khôi phục đúng trạng thái.");
+      SonnerWarning("Hãy mở khóa tài khoản trước", "Sau khi mở khóa, bạn có thể chọn mẫu thư và gửi cho người dùng.");
       return;
     }
+    setMailTemplate("apology");
+    setMailComposer({ mode: "user", user, email: targetEmail });
+  };
 
-    const loadingKey = `apology-${user.uid}`;
-    setActionLoading(loadingKey);
+  const openGeneralMailComposer = () => {
+    const targetEmail = generalApologyEmail.trim().toLowerCase();
+    if (!targetEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(targetEmail)) {
+      SonnerWarning("Email không hợp lệ", "Nhập đúng email của người dùng cần gửi thư.");
+      return;
+    }
+    setMailTemplate("apology");
+    setMailComposer({ mode: "general", email: targetEmail });
+  };
+
+  const handleSendSelectedMail = async () => {
+    if (!mailComposer || mailSending) return;
+    const targetEmail = String(mailComposer.email || "").trim().toLowerCase();
+    if (!targetEmail) return;
+
+    setMailSending(true);
     const fn = async () => {
       const requestId = globalThis.crypto?.randomUUID?.()
         || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-      await adminRequest(`/users/${encodeURIComponent(user.uid)}/apology-email`, {
-        method: "POST",
-        body: JSON.stringify({ requestId }),
-      });
+      let result;
+      if (mailComposer.mode === "user" && mailComposer.user?.uid) {
+        result = await adminRequest(`/users/${encodeURIComponent(mailComposer.user.uid)}/apology-email`, {
+          method: "POST",
+          body: JSON.stringify({ requestId, template: mailTemplate }),
+        });
+      } else {
+        result = await adminRequest("/apology-email", {
+          method: "POST",
+          body: JSON.stringify({ email: targetEmail, requestId, template: mailTemplate }),
+        });
+      }
+
+      const templateLabel = mailTemplate === "restored"
+        ? "Xác nhận đã mở khóa"
+        : "Xin lỗi khóa nhầm";
       SonnerSuccess(
-        "✉️ Đã gửi email xin lỗi",
-        `Email giao diện Duchi Locket đã được gửi tới ${targetEmail}.`,
+        "✉️ Đã gửi thư",
+        `${templateLabel} đã được gửi tới ${result?.email || targetEmail}.`,
       );
+      if (mailComposer.mode === "general") setGeneralApologyEmail("");
+      setMailComposer(null);
     };
 
     try {
       await handleActionWithSessionCheck(fn);
     } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleSendGeneralApologyEmail = async () => {
-    const targetEmail = generalApologyEmail.trim().toLowerCase();
-    if (!targetEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(targetEmail)) {
-      SonnerWarning("Email không hợp lệ", "Nhập đúng email của người dùng cần gửi lời xin lỗi.");
-      return;
-    }
-
-    setGeneralApologyLoading(true);
-    const fn = async () => {
-      const requestId = globalThis.crypto?.randomUUID?.()
-        || `1786375571960-594h3ydv`;
-      const result = await adminRequest("/apology-email", {
-        method: "POST",
-        body: JSON.stringify({ email: targetEmail, requestId }),
-      });
-      SonnerSuccess(
-        "✉️ Đã gửi email xin lỗi",
-        `Email giao diện Duchi Locket đã được gửi tới ${result?.email || targetEmail}.`,
-      );
-      setGeneralApologyEmail("");
-    };
-
-    try {
-      await handleActionWithSessionCheck(fn);
-    } finally {
-      setGeneralApologyLoading(false);
+      setMailSending(false);
     }
   };
 
@@ -1204,6 +1209,15 @@ export default function AdminUsers() {
   return (
     <>
       <AdminSecurityHandoff active={gateVerified} />
+      <AdminMailComposer
+        open={Boolean(mailComposer)}
+        email={mailComposer?.email || ""}
+        template={mailTemplate}
+        sending={mailSending}
+        onTemplateChange={setMailTemplate}
+        onClose={() => setMailComposer(null)}
+        onSend={handleSendSelectedMail}
+      />
       <div className="admin-dashboard-enter min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/40 to-indigo-50/60 text-slate-800 p-3 sm:p-6 pt-24 max-w-7xl mx-auto pb-20 selection:bg-indigo-600 selection:text-white">
       {/* SUPREME COMMAND CENTER HERO HEADER */}
       <div className="bg-gradient-to-r from-white via-slate-50 to-indigo-50/80 text-slate-800 rounded-[2.5rem] p-6 sm:p-8 shadow-[0_15px_50px_-10px_rgba(30,41,59,0.08)] border border-slate-200/80 mb-8 relative overflow-hidden backdrop-blur-2xl">
@@ -1425,9 +1439,9 @@ export default function AdminUsers() {
             <div className="bg-white/95 p-4 sm:p-5 rounded-3xl border border-violet-200/80 shadow-md">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div className="min-w-0">
-                  <div className="text-xs font-black uppercase tracking-wider text-violet-700">✉️ Gửi email xin lỗi chung</div>
-                  <div className="text-sm font-bold text-slate-900 mt-1">Nhập email người dùng rồi gửi trực tiếp</div>
-                  <div className="text-xs text-slate-500 mt-1">Hệ thống tự kiểm tra email thuộc user Huy Locket, tài khoản đã mở khóa và gửi đúng mẫu email Duchi Locket.</div>
+                  <div className="text-xs font-black uppercase tracking-wider text-violet-700">✉️ Gửi thư chung</div>
+                  <div className="text-sm font-bold text-slate-900 mt-1">Nhập email người dùng rồi chọn mẫu thư cần gửi</div>
+                  <div className="text-xs text-slate-500 mt-1">Bạn có thể chọn thư Xin lỗi khóa nhầm hoặc Xác nhận đã mở khóa trước khi gửi.</div>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto lg:min-w-[520px]">
                   <input
@@ -1435,23 +1449,19 @@ export default function AdminUsers() {
                     value={generalApologyEmail}
                     onChange={(event) => setGeneralApologyEmail(event.target.value)}
                     onKeyDown={(event) => {
-                      if (event.key === "Enter" && !generalApologyLoading) handleSendGeneralApologyEmail();
+                      if (event.key === "Enter") openGeneralMailComposer();
                     }}
                     placeholder="Nhập email người dùng..."
                     className="input input-bordered flex-1 h-11 rounded-2xl bg-slate-50 border-slate-200 focus:border-violet-500 text-sm font-medium"
-                    disabled={generalApologyLoading}
+                    disabled={mailSending}
                   />
                   <button
                     type="button"
-                    onClick={handleSendGeneralApologyEmail}
-                    disabled={generalApologyLoading || !generalApologyEmail.trim()}
+                    onClick={openGeneralMailComposer}
+                    disabled={!generalApologyEmail.trim()}
                     className="btn h-11 px-5 rounded-2xl bg-violet-600 hover:bg-violet-700 text-white border-0 font-black shadow-sm disabled:bg-slate-200 disabled:text-slate-400"
                   >
-                    {generalApologyLoading ? (
-                      <span className="loading loading-spinner loading-xs" />
-                    ) : (
-                      <span>✉️ Gửi xin lỗi</span>
-                    )}
+                    <span>✉️ Chọn thư</span>
                   </button>
                 </div>
               </div>
@@ -1772,8 +1782,8 @@ export default function AdminUsers() {
                               {sourceLabel(latestLogin?.web_source || user.webSource)}
                             </span>
                           </td>
-                          <td className="text-right pr-6">
-                            <div className="flex items-center justify-end gap-2">
+                          <td className="text-right pr-6 min-w-[350px] whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5 flex-nowrap">
                               {isSuperAdmin ? (
                                 <span className="px-2.5 py-1 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-black uppercase select-none">
                                   🔒 Cố định
@@ -1796,16 +1806,12 @@ export default function AdminUsers() {
                                       </button>
                                       <button
                                         type="button"
-                                        disabled={actionLoading === `apology-${user.uid}` || user.disabled || !user.email}
-                                        className={`btn btn-xs rounded-xl font-extrabold h-8 px-3 transition-all ${user.disabled || !user.email ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed" : "bg-violet-50 hover:bg-violet-600 text-violet-700 hover:text-white border border-violet-200"}`}
-                                        onClick={() => handleSendApologyEmail(user)}
-                                        title={user.disabled ? "Mở khóa tài khoản trước khi gửi email xin lỗi" : user.email ? `Gửi email xin lỗi tới ${user.email}` : "Tài khoản chưa có email"}
+                                        disabled={user.disabled || !user.email}
+                                        className={`btn btn-xs rounded-xl font-extrabold h-8 px-2.5 shrink-0 transition-all ${user.disabled || !user.email ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed" : "bg-violet-50 hover:bg-violet-600 text-violet-700 hover:text-white border border-violet-200"}`}
+                                        onClick={() => openUserMailComposer(user)}
+                                        title={user.disabled ? "Mở khóa tài khoản trước khi gửi thư" : user.email ? `Chọn thư gửi tới ${user.email}` : "Tài khoản chưa có email"}
                                       >
-                                        {actionLoading === `apology-${user.uid}` ? (
-                                          <span className="loading loading-spinner loading-xs" />
-                                        ) : (
-                                          <span>✉️ Gửi xin lỗi</span>
-                                        )}
+                                        <span>✉️ Gửi thư</span>
                                       </button>
                                       <button
                                         type="button"

@@ -894,6 +894,9 @@ router.post("/apology-email", requireActivityDatabase, requireActiveAdminSession
   }
 
   const targetEmail = String(req.body?.email || "").trim().toLowerCase();
+  const template = ["apology", "restored"].includes(String(req.body?.template || "").trim().toLowerCase())
+    ? String(req.body.template).trim().toLowerCase()
+    : "apology";
   if (!targetEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(targetEmail)) {
     return res.status(400).json({
       success: false,
@@ -938,13 +941,15 @@ router.post("/apology-email", requireActivityDatabase, requireActiveAdminSession
       email: targetEmail,
       displayName: user.display_name || user.displayName || user.username || "",
       uid: user.uid || "",
-      idempotencyKey: `admin-general-apology:${user.uid || targetEmail}:${requestId}`,
+      template,
+      idempotencyKey: `admin-general-mail:${template}:${user.uid || targetEmail}:${requestId}`,
     });
 
-    await audit(req, "SEND_ACCOUNT_APOLOGY_EMAIL", user.uid || null, `Sent general account apology email to ${targetEmail}`);
+    await audit(req, "SEND_ACCOUNT_APOLOGY_EMAIL", user.uid || null, `Sent admin mail template ${template} to ${targetEmail}`);
     return res.status(200).json({
       success: true,
-      message: "Đã gửi email xin lỗi tới người dùng.",
+      message: "Đã gửi thư tới người dùng.",
+      template: sendResult.template || template,
       uid: user.uid || null,
       email: targetEmail,
       provider: sendResult.provider,
@@ -980,6 +985,9 @@ router.post("/users/:uid/apology-email", requireActivityDatabase, requireActiveA
   }
 
   const targetUid = String(req.params.uid || "").trim();
+  const template = ["apology", "restored"].includes(String(req.body?.template || "").trim().toLowerCase())
+    ? String(req.body.template).trim().toLowerCase()
+    : "apology";
   if (!targetUid) {
     return res.status(400).json({ success: false, code: "USER_UID_REQUIRED", error: "Thiếu UID người dùng" });
   }
@@ -1013,13 +1021,15 @@ router.post("/users/:uid/apology-email", requireActivityDatabase, requireActiveA
       email: targetEmail,
       displayName: user.display_name || user.displayName || user.username || "",
       uid: user.uid || targetUid,
-      idempotencyKey: `admin-apology:${targetUid}:${requestId}`,
+      template,
+      idempotencyKey: `admin-user-mail:${template}:${targetUid}:${requestId}`,
     });
 
-    await audit(req, "SEND_ACCOUNT_APOLOGY_EMAIL", targetUid, `Sent account lock apology email to ${targetEmail}`);
+    await audit(req, "SEND_ACCOUNT_APOLOGY_EMAIL", targetUid, `Sent admin mail template ${template} to ${targetEmail}`);
     return res.status(200).json({
       success: true,
-      message: "Đã gửi email xin lỗi tới người dùng.",
+      message: "Đã gửi thư tới người dùng.",
+      template: result.template || template,
       provider: result.provider,
       messageId: result.messageId || null,
       deduped: Boolean(result.deduped),
