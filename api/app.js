@@ -23,6 +23,7 @@ const { antiBotMiddleware, globalDDoSShield, wafSecurityShield } = require("./sr
 const { securityHeaders } = require("./src/middlewares/securityHeaders.js");
 const { requireJsonContentType, sanitizeBodyStrings, validateUploadBuffer, ALLOWED_IMAGE_MIMES, ALLOWED_VIDEO_MIMES } = require("./src/middlewares/payloadValidation.js");
 const { startSlotMonitorWorker } = require("./src/modules/slotMonitor");
+const { deepHealthController } = require("./src/controllers/systemController.js");
 
 const allowedMediaMimes = new Set([...ALLOWED_IMAGE_MIMES, ...ALLOWED_VIDEO_MIMES]);
 
@@ -148,6 +149,10 @@ initChatSocket(io);
 
 // ── Express middleware ────────────────────────────────────────
 app.use(globalDDoSShield);
+// Deep health must be reachable from trusted hosting monitors (Vercel/Railway).
+// Mount it before the Cloud/VPS anti-bot layer; the endpoint is read-only,
+// cached for 15s and still protected by the global rate limiter above.
+app.get("/health/deep", deepHealthController);
 app.use(antiBotMiddleware);
 app.use(securityHeaders);
 app.use(cookieParser());
