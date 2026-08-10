@@ -3,6 +3,8 @@ import { createImage } from "./createImage";
 /**
  * Cắt vùng pixels từ file → JPEG.
  * Clamp crop vào biên ảnh để tránh canvas trống trên mobile.
+ * Nếu vùng cắt chính là toàn bộ ảnh và không xoay, trả nguyên file để không
+ * làm giảm chất lượng do encode lại vô ích.
  */
 export const getCroppedImg = async (file, crop, rotation = 0) => {
   if (!file || !crop) throw new Error("Thiếu file hoặc vùng cắt");
@@ -23,8 +25,18 @@ export const getCroppedImg = async (file, crop, rotation = 0) => {
     if (sx + sw > imgW) sw = Math.max(1, imgW - sx);
     if (sy + sh > imgH) sh = Math.max(1, imgH - sy);
 
-    // Output tối đa 1080 (Locket-friendly)
-    const maxOut = 1080;
+    // Square ảnh Locket tải về thường đã đúng 1:1. Nếu user không thay đổi
+    // khung cắt thì giữ nguyên byte thay vì vẽ lại qua canvas.
+    const fullFrame =
+      !rotation &&
+      sx <= 1 &&
+      sy <= 1 &&
+      Math.abs(sw - imgW) <= 1 &&
+      Math.abs(sh - imgH) <= 1;
+    if (fullFrame) return file;
+
+    // Chỉ resize khi ảnh crop thật sự quá lớn. Không ép 1536 -> 1080 nữa.
+    const maxOut = 2048;
     let outW = sw;
     let outH = sh;
     if (outW > maxOut || outH > maxOut) {
@@ -42,11 +54,25 @@ export const getCroppedImg = async (file, crop, rotation = 0) => {
     ctx.fillStyle = "#000";
     ctx.fillRect(0, 0, outW, outH);
 
+    // Ưu tiên nội suy chất lượng cao khi browser hỗ trợ.
+    if ("imageSmoothingEnabled" in ctx) ctx.imageSmoothingEnabled = true;
+    if ("imageSmoothingQuality" in ctx) ctx.imageSmoothingQuality = "high";
+
     if (rotation) {
       ctx.save();
       ctx.translate(outW / 2, outH / 2);
       ctx.rotate((rotation * Math.PI) / 180);
-      ctx.drawImage(image, sx, sy, sw, sh, -outW / 2, -outH / 2, outW, outH);
+      ctx.drawImage(
+        image,
+        sx,
+        sy,
+        sw,
+        sh,
+        -outW / 2,
+        -outH / 2,
+        outW,
+        outH,
+      );
       ctx.restore();
     } else {
       ctx.drawImage(image, sx, sy, sw, sh, 0, 0, outW, outH);
@@ -56,7 +82,7 @@ export const getCroppedImg = async (file, crop, rotation = 0) => {
       canvas.toBlob(
         (b) => (b ? resolve(b) : reject(new Error("toBlob failed"))),
         "image/jpeg",
-        0.94,
+        0.98,
       );
     });
 

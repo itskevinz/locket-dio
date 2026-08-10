@@ -4,7 +4,9 @@ import Cropper from "react-easy-crop";
 import CropLoading from "./CropLoading";
 
 /**
- * Canvas crop 1:1 (Locket). objectFit cover + onMediaLoaded → mượt, không xám.
+ * Canvas crop 1:1 (Locket).
+ * Dùng contain để ảnh không bị phóng theo chiều cao của viewport trước khi
+ * user chủ động zoom; khung crop vẫn cố định 1:1.
  */
 const CropCanvas = ({
   converting,
@@ -21,7 +23,7 @@ const CropCanvas = ({
 }) => {
   const onMediaLoaded = useCallback(
     (mediaSize) => {
-      // cover 1:1 — minZoom 1 lấp khung
+      // zoom=1 là trạng thái vừa ảnh, không tự phóng để cover cả viewport.
       const nextMin = 1;
       setMinZoom?.(nextMin);
       setZoom?.((z) => Math.max(nextMin, Number(z) || 1));
@@ -61,7 +63,7 @@ const CropCanvas = ({
             cropShape="rect"
             showGrid
             zoomWithScroll
-            objectFit="cover"
+            objectFit="contain"
             restrictPosition
             style={{
               containerStyle: {

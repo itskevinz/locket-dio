@@ -1,7 +1,14 @@
 /**
- * Chuẩn hóa ảnh client-side → JPEG hiển thị được trên mọi trình duyệt
- * (tránh HEIC/mislabel jpeg, ảnh xám, crop bị disable).
+ * Chuẩn hóa ảnh client-side khi thật sự cần thiết.
+ * Ảnh web-native hợp lệ và không vượt maxEdge được giữ nguyên byte để tránh
+ * giảm chất lượng do JPEG bị encode lại chỉ vì mở Studio cắt ảnh.
  */
+
+const PASSTHROUGH_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
 
 function loadImageFromUrl(url) {
   return new Promise((resolve, reject) => {
@@ -12,7 +19,7 @@ function loadImageFromUrl(url) {
   });
 }
 
-function canvasToJpegFile(canvas, name = "image.jpg", quality = 0.94) {
+function canvasToJpegFile(canvas, name = "image.jpg", quality = 0.98) {
   return new Promise((resolve, reject) => {
     canvas.toBlob(
       (blob) => {
@@ -35,12 +42,13 @@ function canvasToJpegFile(canvas, name = "image.jpg", quality = 0.94) {
 
 /**
  * @param {File|Blob} file
- * @param {{ maxEdge?: number }} [opts]
- * @returns {Promise<File>}
+ * @param {{ maxEdge?: number, forceJpeg?: boolean }} [opts]
+ * @returns {Promise<File|Blob>}
  */
 export async function prepareImageForCrop(file, opts = {}) {
   if (!file) throw new Error("Thiếu file ảnh");
   const maxEdge = opts.maxEdge ?? 2048;
+  const forceJpeg = opts.forceJpeg === true;
 
   // 1) createImageBitmap (nhanh, hỗ trợ nhiều format trên mobile)
   let source = null;
@@ -68,7 +76,7 @@ export async function prepareImageForCrop(file, opts = {}) {
         source = img;
       }
     } finally {
-      // giữ url nếu source là img element vẫn dùng — revoke sau draw
+      // giữ url nếu source là img element vẫn dùng — revoke sau draw/return
     }
   }
 
@@ -83,6 +91,21 @@ export async function prepareImageForCrop(file, opts = {}) {
     if (source.close) source.close();
     if (objectUrl) URL.revokeObjectURL(objectUrl);
     throw new Error("Ảnh không hợp lệ (kích thước 0)");
+  }
+
+  // JPG/PNG/WebP browser đã decode được và kích thước vẫn an toàn:
+  // dùng nguyên file, không canvas, không resize, không recompress.
+  const inputType = String(file.type || "").toLowerCase();
+  const canPassThrough =
+    !forceJpeg &&
+    PASSTHROUGH_TYPES.has(inputType) &&
+    sw <= maxEdge &&
+    sh <= maxEdge;
+
+  if (canPassThrough) {
+    if (source.close) source.close();
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    return file;
   }
 
   let w = sw;
@@ -111,7 +134,7 @@ export async function prepareImageForCrop(file, opts = {}) {
 
   const baseName =
     (file.name && String(file.name)) || `locket-${Date.now()}.jpg`;
-  return canvasToJpegFile(canvas, baseName, 0.94);
+  return canvasToJpegFile(canvas, baseName, 0.98);
 }
 
 /**
@@ -125,7 +148,10 @@ export function canBrowserRenderImage(file) {
     }
     const url = URL.createObjectURL(file);
     const img = new Image();
+    let settled = false;
     const done = (ok) => {
+      if (settled) return;
+      settled = true;
       URL.revokeObjectURL(url);
       resolve(ok);
     };
