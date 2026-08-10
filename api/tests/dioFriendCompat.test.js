@@ -66,7 +66,7 @@ test("only friend/follow 401 or 403 errors are fallback candidates", () => {
   );
 });
 
-test("Dio success payloads are normalized to the Locket result shape", () => {
+test("Dio success payloads require explicit non-null mutation data", () => {
   const { normalizeDioSuccess } = loadWithEnv("true");
 
   assert.deepEqual(
@@ -76,5 +76,17 @@ test("Dio success payloads are normalized to the Locket result shape", () => {
   assert.deepEqual(normalizeDioSuccess({ success: true, data: { ok: 1 } }), {
     result: { data: { ok: 1 } },
   });
+  assert.deepEqual(normalizeDioSuccess({ result: { data: { ok: 1 } } }), {
+    result: { data: { ok: 1 } },
+  });
+
   assert.equal(normalizeDioSuccess({ success: false }), null);
+  assert.equal(normalizeDioSuccess({ success: true, data: null }), null);
+  assert.equal(normalizeDioSuccess({ success: true }), null);
+  assert.equal(normalizeDioSuccess({ message: "ok" }), null);
+  assert.equal(normalizeDioSuccess({ result: { data: null } }), null);
+  assert.equal(
+    normalizeDioSuccess({ success: true, data: { result: { data: null } } }),
+    null,
+  );
 });
