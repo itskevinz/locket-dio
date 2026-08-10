@@ -309,12 +309,33 @@ async function downloadMedia(req, res) {
   const draft = await metaStore.getDraft(ownerUid, draftId);
   if (!draft) return res.status(404).send("not found");
 
-  const obj = fileStore.readObject(ownerUid, draftId, role);
+  let servedRole = role;
+  let obj = fileStore.readObject(ownerUid, draftId, role);
+
+  // Older/surviving draft metadata can still reference a thumbnail object that
+  // is no longer present on disk. For image drafts the active/original image is
+  // a safe visual fallback, so do not make the UI show a broken thumbnail just
+  // because the smaller derivative is missing. Never substitute a video file
+  // into an image thumbnail response.
+  if (!obj && role === "thumbnail" && draft.mediaType !== "video") {
+    for (const fallbackRole of ["active", "original"]) {
+      const candidate = fileStore.readObject(ownerUid, draftId, fallbackRole);
+      if (candidate?.contentType?.toLowerCase().startsWith("image/")) {
+        obj = candidate;
+        servedRole = fallbackRole;
+        break;
+      }
+    }
+  }
+
   if (!obj) return res.status(404).send("media missing");
 
   res.setHeader("Content-Type", obj.contentType);
   res.setHeader("Cache-Control", "private, no-store");
   res.setHeader("X-Content-Type-Options", "nosniff");
+  if (servedRole !== role) {
+    res.setHeader("X-Draft-Media-Fallback", servedRole);
+  }
   return res.status(200).send(obj.buffer);
 }
 
