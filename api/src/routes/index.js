@@ -25,6 +25,7 @@ const adminRoutes = require("./adminRoutes");
 const celebrityRoutes = require("./celebrityRoutes");
 const activityRoutes = require("./activityRoutes");
 const { sensitiveApiShield } = require("../middlewares/antiBot");
+const { accountLockReasonMiddleware } = require("../middlewares/accountLockReasonMiddleware");
 const {
   generalApiLimit,
   adminLimit,
@@ -62,7 +63,13 @@ module.exports = (app) => {
     sensitiveApiShield,
     slotMonitorAdminRoutes,
   );
-  app.use("/api/admin", adminLimit, sensitiveApiShield, adminRoutes);
+  app.use(
+    "/api/admin",
+    adminLimit,
+    sensitiveApiShield,
+    accountLockReasonMiddleware,
+    adminRoutes,
+  );
   app.use("/api/activity", sensitiveApiShield, activityRoutes);
   app.use("/api/celebrities", celebrityRoutes);
   app.use("/api", musicRoutes);
