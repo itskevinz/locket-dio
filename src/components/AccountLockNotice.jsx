@@ -27,7 +27,12 @@ export default function AccountLockNotice() {
   const lockedAt = formatLockedAt(notice.lockedAt);
 
   return (
-    <div className="fixed inset-0 z-[10050] flex items-center justify-center bg-slate-950/75 backdrop-blur-md p-4">
+    <div
+      className="fixed inset-0 z-[10050] flex items-center justify-center bg-slate-950/75 backdrop-blur-md p-4"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="account-lock-notice-title"
+    >
       <div className="w-full max-w-lg overflow-hidden rounded-[2rem] border border-rose-300/70 bg-base-100 text-base-content shadow-2xl">
         <div className="bg-gradient-to-r from-rose-600 via-red-600 to-orange-500 px-6 py-5 text-white">
           <div className="flex items-center gap-4">
@@ -36,7 +41,7 @@ export default function AccountLockNotice() {
             </div>
             <div>
               <div className="text-xs font-black uppercase tracking-[0.18em] text-rose-100">Huy Locket Security</div>
-              <h2 className="mt-1 text-2xl font-black">Tài khoản đã bị khóa</h2>
+              <h2 id="account-lock-notice-title" className="mt-1 text-2xl font-black">Tài khoản đã bị khóa</h2>
             </div>
           </div>
         </div>
