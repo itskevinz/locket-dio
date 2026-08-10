@@ -129,9 +129,23 @@ function unwrapUserResult(result) {
   return result?.data || result?.result?.data || result || null;
 }
 
+function looksLikeCelebrity(user) {
+  if (!user) return false;
+  const marker = user.celebrity;
+  const friendshipStatus = String(user.friendship_status || "").toLowerCase();
+  return Boolean(
+    marker === true ||
+    marker === 1 ||
+    marker === "1" ||
+    String(marker || "").toLowerCase() === "true" ||
+    user.celebrity_data ||
+    friendshipStatus.includes("follow")
+  );
+}
+
 function hasValidCelebrityCapacity(result) {
   const user = unwrapUserResult(result);
-  if (user?.celebrity !== true) return true;
+  if (!looksLikeCelebrity(user)) return true;
 
   const celebrity = user?.celebrity_data;
   if (!celebrity) return false;
