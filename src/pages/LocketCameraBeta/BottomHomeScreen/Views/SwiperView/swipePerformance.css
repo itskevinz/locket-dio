@@ -29,6 +29,26 @@ html[data-locket-swiping="true"] .moment-skeleton {
 }
 
 /*
+ * Swiper Virtual can recycle/remount a slide exactly when transition-end commits
+ * the new active index. The global motion policy then restarts .moment-enter
+ * from opacity:0 for ~200ms, which looks like the whole post flashes off and
+ * back on. Keep detail slides fully visible; the swipe transform itself is the
+ * transition, so a second per-slide entrance animation is both redundant and
+ * visually wrong. The extra selector specificity intentionally wins over the
+ * global motion-policy !important rule loaded later.
+ */
+html[data-locket-detail="true"][data-animation-enabled]
+  [data-ios-detail-view="true"]
+  .moment-enter,
+html[data-locket-detail="true"][data-animation-enabled]
+  [data-ios-detail-view="true"]
+  .moment-overlay-enter {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+/*
  * Expensive glass blur is disabled for the full lifetime of the mobile detail
  * viewer instead of toggling on every touch. That both lowers GPU cost and keeps
  * the visual surface stable, eliminating the bright blink caused by blur being
