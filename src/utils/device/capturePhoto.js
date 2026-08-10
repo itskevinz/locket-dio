@@ -2,13 +2,17 @@
  * Highest-quality still capture for Huy Locket.
  *
  * Priority:
- *  1) ImageCapture.takePhoto() — keep the browser/camera native still bytes.
- *  2) ImageCapture.grabFrame() — lossless square canvas fallback.
- *  3) <video> → canvas — universal fallback (Safari/iOS included).
+ *  - Android: ImageCapture.grabFrame() first so the saved square uses the exact
+ *    same live camera frame/FOV the user saw before pressing the shutter.
+ *  - Other browsers: ImageCapture.takePhoto() first for native still bytes.
+ *  - Remaining fallbacks: grabFrame() / <video> → canvas.
  *
  * Important:
  * - Never reduce capture quality because a device is classified as low-end.
- * - Rear native stills are not re-encoded in the browser when they already fit
+ * - Android camera HALs can return a takePhoto() still with a different FOV
+ *   from the live preview. That looks like the picture suddenly zooms after
+ *   capture, so Android intentionally prefers the high-resolution live frame.
+ * - Rear native stills on non-Android are not re-encoded when they already fit
  *   the upload transport budget. The API performs the center-square crop.
  * - Canvas fallbacks prefer PNG (lossless). JPEG quality=1 is used only when a
  *   lossless PNG would exceed the safe client upload budget.
@@ -17,6 +21,14 @@
 const JPEG_QUALITY_MAX = 1;
 // API raw endpoint is 25 MB and temp storage has a little safety headroom.
 const SAFE_CLIENT_IMAGE_BYTES = 23 * 1024 * 1024;
+
+function isAndroidBrowser() {
+  try {
+    return /Android/i.test(navigator?.userAgent || "");
+  } catch {
+    return false;
+  }
+}
 
 function getLiveTrack(video) {
   try {
@@ -87,8 +99,8 @@ async function cropSourceToSquareBlob(source, srcW, srcH, opts = {}) {
     nativeSide,
   );
 
-  // Lossless first. Typical 1080p/1440p square frames remain safely below
-  // the transport limit. Very large/noisy photos fall back to max-quality JPEG.
+  // Lossless first. Typical 1080p/1440p/1920p square frames remain safely
+  // below the transport limit. Very large/noisy photos fall back to max JPEG.
   try {
     const png = await canvasToBlob(canvas, "image/png");
     if (png.size <= SAFE_CLIENT_IMAGE_BYTES) return png;
@@ -191,6 +203,7 @@ async function grabFrameBlob(track, opts = {}) {
  * @param {{
  *   mirror?: boolean,
  *   onPreviewUrl?: (url: string) => void,
+ *   preferViewfinderFrame?: boolean,
  * }} [opts]
  * @returns {Promise<{ file: File, blob: Blob, method: string }>}
  */
@@ -199,6 +212,8 @@ export async function captureSharpSquarePhoto(video, opts = {}) {
 
   const mirror = Boolean(opts.mirror);
   const track = getLiveTrack(video);
+  const preferViewfinderFrame =
+    opts.preferViewfinderFrame ?? isAndroidBrowser();
 
   const emitPreview = (blob) => {
     if (typeof opts.onPreviewUrl !== "function" || !blob) return;
@@ -221,7 +236,21 @@ export async function captureSharpSquarePhoto(video, opts = {}) {
     };
   };
 
-  // ── 1) Native still — highest-quality bytes the browser exposes ──
+  // ── Android: lock the final image to the exact live-view framing ──
+  // Some Android OEM camera HALs expose a takePhoto() still with a narrower
+  // field of view than the MediaStream. Swapping that still into the square UI
+  // makes the image visibly "jump/zoom" after the shutter. grabFrame() comes
+  // from this exact track, so its square center crop matches object-cover in the
+  // square viewfinder pixel-for-pixel in framing while keeping full track res.
+  if (preferViewfinderFrame && track?.readyState === "live") {
+    const viewfinderFrame = await grabFrameBlob(track, { mirror });
+    if (viewfinderFrame) {
+      emitPreview(viewfinderFrame);
+      return toResult(viewfinderFrame, "ImageCapture.grabFrame.viewfinder");
+    }
+  }
+
+  // ── Native still — highest-quality bytes where FOV remains stable ──
   if (track?.readyState === "live") {
     const raw = await takeNativePhotoBlob(track);
     if (raw) {
@@ -241,7 +270,7 @@ export async function captureSharpSquarePhoto(video, opts = {}) {
     }
   }
 
-  // ── 2) grabFrame — lossless square fallback ──
+  // ── grabFrame fallback ──
   if (track?.readyState === "live") {
     const grabbed = await grabFrameBlob(track, { mirror });
     if (grabbed) {
@@ -250,7 +279,7 @@ export async function captureSharpSquarePhoto(video, opts = {}) {
     }
   }
 
-  // ── 3) Video frame — universal Safari/iOS fallback ──
+  // ── Video frame — universal Safari/iOS fallback ──
   if (video.videoWidth && video.readyState >= 2) {
     await new Promise((resolve) => requestAnimationFrame(resolve));
     const blob = await cropSourceToSquareBlob(
