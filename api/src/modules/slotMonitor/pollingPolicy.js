@@ -1,14 +1,15 @@
 const DEFAULT_NORMAL_INTERVAL_MS = 30_000;
 const FAST_INTERVAL_MS = 10_000;
+const AUTO_REQUEST_INTERVAL_MS = 2_000;
 const FAST_WINDOW_MS = 3 * 60 * 1000;
-const MIN_WORKER_DELAY_MS = 5_000;
+const MIN_WORKER_DELAY_MS = 1_000;
 const MAX_JITTER_MS = 1_500;
 const RATE_LIMIT_BACKOFF_STEPS_MS = [60_000, 120_000];
 
 function clampNormalIntervalMs(value, fallback = DEFAULT_NORMAL_INTERVAL_MS) {
   const parsed = Number(value);
   const resolved = Number.isFinite(parsed) ? Math.round(parsed) : fallback;
-  return Math.min(3 * 60 * 1000, Math.max(15_000, resolved));
+  return Math.min(3 * 60 * 1000, Math.max(2_000, resolved));
 }
 
 function hasSnapshotChanged(watches = [], snapshot = {}) {
@@ -40,7 +41,7 @@ function jitteredIntervalMs(baseMs, random = Math.random) {
   const safeBase = Math.max(MIN_WORKER_DELAY_MS, Number(baseMs) || DEFAULT_NORMAL_INTERVAL_MS);
   const jitterRange = Math.min(
     MAX_JITTER_MS,
-    Math.max(500, Math.floor(safeBase * 0.08)),
+    Math.max(150, Math.floor(safeBase * 0.08)),
   );
   const sample = Math.min(1, Math.max(0, Number(random()) || 0));
   const jitter = Math.floor((sample * 2 - 1) * jitterRange);
@@ -50,6 +51,7 @@ function jitteredIntervalMs(baseMs, random = Math.random) {
 module.exports = {
   DEFAULT_NORMAL_INTERVAL_MS,
   FAST_INTERVAL_MS,
+  AUTO_REQUEST_INTERVAL_MS,
   FAST_WINDOW_MS,
   MIN_WORKER_DELAY_MS,
   MAX_JITTER_MS,
