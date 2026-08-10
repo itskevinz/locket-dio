@@ -103,8 +103,6 @@ async function createDioMemberSession(idToken) {
 function normalizeDioSuccess(data) {
   if (!data || typeof data !== "object" || data.success === false) return null;
 
-  // Chỉ chấp nhận shape có result.data thật. Trước đây mọi HTTP 2xx không có
-  // success:false đều bị bọc thành result.data và tạo false-positive "đã gửi".
   const nestedResult = data?.data?.result;
   if (nestedResult && nestedResult.data !== null && nestedResult.data !== undefined) {
     return { result: nestedResult };
@@ -115,8 +113,6 @@ function normalizeDioSuccess(data) {
     return { result: directResult };
   }
 
-  // Shape rút gọn của Dio chỉ hợp lệ khi server nói success:true rõ ràng và
-  // data thực sự có giá trị. success:true + data:null tuyệt đối không phải success.
   if (data.success !== true) return null;
   if (!Object.prototype.hasOwnProperty.call(data, "data")) return null;
   if (data.data === null || data.data === undefined) return null;
@@ -233,19 +229,22 @@ function verifiedResult(state, extra = {}) {
   };
 }
 
-async function sendViaDio({ kind, idToken, friendUid }) {
+async function sendViaDio({ kind, idToken, friendUid, skipPreflight = false }) {
   if (!isEnabled()) return null;
   if (!idToken || !friendUid) return null;
 
-  // Trước khi mutation, kiểm tra request/bạn bè đã tồn tại chưa. Việc này vừa
-  // chống gửi trùng, vừa cho phép worker tự phục hồi trạng thái SENT cũ an toàn.
-  const existingState = await safeLookupPersistedRelationship(idToken, friendUid);
-  if (existingState) {
-    console.log("[friends] Dio request already persisted", {
-      kind,
-      relationship: existingState,
-    });
-    return verifiedResult(existingState, { alreadyPersisted: true });
+  // Auto Celeb cần tranh slot theo thời gian thực: mutation phải được bắn trước.
+  // Friend thường vẫn giữ preflight để chống gửi trùng. Sau mutation, tất cả đường
+  // đều phải verify Firestore thật trước khi được phép báo SENT.
+  if (!skipPreflight) {
+    const existingState = await safeLookupPersistedRelationship(idToken, friendUid);
+    if (existingState) {
+      console.log("[friends] Dio request already persisted", {
+        kind,
+        relationship: existingState,
+      });
+      return verifiedResult(existingState, { alreadyPersisted: true });
+    }
   }
 
   const session = await createDioMemberSession(idToken);
@@ -277,8 +276,6 @@ async function sendViaDio({ kind, idToken, friendUid }) {
     throw error;
   }
 
-  // Không tin response mutation một mình. Chỉ trả success khi Firestore của tài
-  // khoản thật sự thấy outgoing request hoặc Celeb đã nằm trong danh sách bạn bè.
   const persistedState = await waitForPersistedRelationship(idToken, friendUid);
   if (!persistedState) {
     const error = new Error(
@@ -332,6 +329,7 @@ async function tryDioFriendFallback(error) {
       kind: isCelebrity ? "celebrity" : "friend",
       idToken: config.meta.idToken,
       friendUid,
+      skipPreflight: isCelebrity,
     });
 
     if (!data) return null;
