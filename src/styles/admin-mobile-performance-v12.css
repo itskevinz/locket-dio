@@ -1,0 +1,122 @@
+/*
+ * Admin mobile performance policy (V12)
+ *
+ * The admin console is intentionally information-dense. On Android/mobile we
+ * keep the same controls and data, but remove paint-heavy decorative effects
+ * that make mid/low-range GPUs repaint large layers while scrolling.
+ */
+
+@media (max-width: 820px) {
+  html.perf-mobile .admin-dashboard-enter {
+    animation: none !important;
+    filter: none !important;
+    background-image: linear-gradient(180deg, #f8fafc 0%, #eff6ff 100%) !important;
+    overscroll-behavior-y: contain;
+  }
+
+  html.perf-mobile .admin-dashboard-enter::before,
+  html.perf-mobile .admin-dashboard-enter::after {
+    display: none !important;
+    animation: none !important;
+  }
+
+  /* Large blurred blobs are among the most expensive elements while scrolling. */
+  html.perf-mobile .admin-dashboard-enter .absolute[class*="blur-"],
+  html.perf-mobile .admin-dashboard-enter [class*="blur-["],
+  html.perf-mobile .admin-vault-glow,
+  html.perf-mobile .admin-vault-handoff__sweep {
+    display: none !important;
+    filter: none !important;
+  }
+
+  /* Replace glass layers with opaque surfaces so Chrome does not re-blur the
+     page behind every card on each scroll frame. */
+  html.perf-mobile .admin-dashboard-enter [class*="backdrop-blur"],
+  html.perf-mobile .admin-vault,
+  html.perf-mobile .admin-vault-card,
+  html.perf-mobile .admin-vault-handoff {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  /* Keep depth, but use one cheap static shadow instead of multiple large
+     animated shadows and glow layers. */
+  html.perf-mobile .admin-dashboard-enter [class*="shadow-"],
+  html.perf-mobile .admin-vault-card,
+  html.perf-mobile .admin-vault-key,
+  html.perf-mobile .admin-vault-submit {
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08) !important;
+  }
+
+  /* Decorative loops are unnecessary in a data-heavy admin screen. Loading
+     spinners are intentionally not included here and continue to animate. */
+  html.perf-mobile .admin-dashboard-enter .animate-ping,
+  html.perf-mobile .admin-dashboard-enter .animate-pulse,
+  html.perf-mobile .admin-dashboard-enter .animate-bounce,
+  html.perf-mobile .admin-dashboard-enter .animate-fade-in,
+  html.perf-mobile .admin-vault-mark__ring,
+  html.perf-mobile .admin-vault-handoff__orbit,
+  html.perf-mobile .admin-vault-handoff__status i {
+    animation: none !important;
+  }
+
+  /* Framer/utility transitions remain responsive, but avoid costly shadow and
+     filter interpolation on every hover/tap. */
+  html.perf-mobile .admin-dashboard-enter [class*="transition-"] {
+    transition-property: transform, opacity, background-color, border-color, color !important;
+    transition-duration: 90ms !important;
+    filter: none;
+  }
+
+  html.perf-mobile .admin-dashboard-enter [class*="drop-shadow"] {
+    filter: none !important;
+  }
+
+  html.perf-mobile .admin-dashboard-enter button,
+  html.perf-mobile .admin-dashboard-enter a,
+  html.perf-mobile .admin-vault button {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Avoid keeping lots of promoted GPU layers alive on a small-memory phone. */
+  html.perf-mobile .admin-dashboard-enter *,
+  html.perf-mobile .admin-vault * {
+    will-change: auto !important;
+  }
+
+  /* The global snow/theme layer is decorative. Hiding it on the admin route
+     removes one full-screen composited layer while preserving it elsewhere. */
+  html.perf-mobile body:has(.admin-dashboard-enter) .snow-layer,
+  html.perf-mobile body:has(.admin-vault) .snow-layer {
+    display: none !important;
+  }
+
+  /* Keep the gate light as well; the security functionality is unchanged. */
+  html.perf-mobile .admin-vault-grid,
+  html.perf-mobile .admin-vault-handoff__grid {
+    opacity: 0.08 !important;
+    background-size: 72px 72px !important;
+  }
+
+  html.perf-mobile .admin-vault-handoff__door {
+    box-shadow: none !important;
+  }
+}
+
+/* Extra aggressive paint reduction on narrow Android screens. */
+@media (max-width: 520px) {
+  html.perf-lite .admin-dashboard-enter {
+    padding-left: 0.65rem !important;
+    padding-right: 0.65rem !important;
+  }
+
+  html.perf-lite .admin-dashboard-enter [class*="rounded-[2.5rem]"],
+  html.perf-lite .admin-dashboard-enter [class*="rounded-[2.2rem]"] {
+    border-radius: 1.35rem !important;
+  }
+
+  html.perf-lite .admin-dashboard-enter [class*="scale-[1.02]"] {
+    transform: none !important;
+  }
+}

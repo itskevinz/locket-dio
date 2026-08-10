@@ -21,6 +21,7 @@ import "./styles/admin-auth-visible-v8.css";
 import "./styles/admin-success-page-transition-v9.css";
 import "./styles/admin-success-page-transition-v10.css";
 import "./styles/admin-security-mobile-v11.css";
+import "./styles/admin-mobile-performance-v12.css";
 import App from "./App.jsx";
 
 import ErrorBoundary from "./components/pages/ErrorBoundary";
@@ -31,18 +32,14 @@ import {
   startUpdateWatcher,
 } from "./utils";
 import { applyPerfClasses } from "./utils/device/perfProfile";
+import { initAdminMobilePerformance } from "./utils/device/adminMobilePerformance";
 import { bootThemeEarly } from "./utils/theme/themeUtils";
 
-// Theme + snow intensity before first paint (localStorage)
 bootThemeEarly();
-
-// Android / mobile: class perf-lite để giảm blur + effect
 applyPerfClasses();
-
-// init chunk recovery flags
+initAdminMobilePerformance();
 initReloadState();
 
-// Capture Chromium's install event as early as possible so Settings can show an Install button later.
 try {
   initPWAInstallPrompt();
 } catch {
@@ -51,14 +48,12 @@ try {
 
 const rootEl = document.getElementById("root");
 if (rootEl) {
-  // Chống Google Translate / extension bọc text → removeChild
   try {
     rootEl.setAttribute("translate", "no");
   } catch {
     /* ignore */
   }
 
-  // KHÔNG StrictMode production — double-mount + DOM manual (cam/snow) hay gây removeChild
   createRoot(rootEl).render(
     <ErrorBoundary>
       <App />
@@ -66,11 +61,6 @@ if (rootEl) {
   );
 }
 
-// PWA: register SW ASAP so offline shell is ready after first visit.
-// Keep this entrypoint touched by production deploys so Vercel and Railway
-// receive the same frontend revision after motion fixes.
-// Deploy sync marker: 2026-08-10 Admin V11 mobile security layout.
-// Update watcher can wait — not needed for offline control.
 try {
   initPWA();
 } catch {
