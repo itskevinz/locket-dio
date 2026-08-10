@@ -20,6 +20,7 @@ import "./styles/admin-verify-input-border-v7.css";
 import "./styles/admin-auth-visible-v8.css";
 import "./styles/admin-success-page-transition-v9.css";
 import "./styles/admin-success-page-transition-v10.css";
+import "./styles/admin-security-mobile-v11.css";
 import App from "./App.jsx";
 
 import ErrorBoundary from "./components/pages/ErrorBoundary";
@@ -68,7 +69,7 @@ if (rootEl) {
 // PWA: register SW ASAP so offline shell is ready after first visit.
 // Keep this entrypoint touched by production deploys so Vercel and Railway
 // receive the same frontend revision after motion fixes.
-// Deploy sync marker: 2026-08-10 Admin V10 stronger successful-auth page transition.
+// Deploy sync marker: 2026-08-10 Admin V11 mobile security layout.
 // Update watcher can wait — not needed for offline control.
 try {
   initPWA();

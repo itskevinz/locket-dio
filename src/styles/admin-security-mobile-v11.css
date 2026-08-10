@@ -1,0 +1,344 @@
+/* Mobile-first overrides for the admin security gate.
+ * Loaded after all existing admin/auth styles so desktop remains unchanged.
+ */
+
+@media (max-width: 759px) {
+  .admin-vault {
+    min-height: 100dvh;
+    place-items: start center;
+    align-items: start;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    padding:
+      max(4.7rem, calc(env(safe-area-inset-top, 0px) + 4rem))
+      0.7rem
+      max(1rem, env(safe-area-inset-bottom, 0px));
+    background-image:
+      radial-gradient(circle at 50% -8%, color-mix(in srgb, var(--vault-primary) 13%, transparent), transparent 35%),
+      linear-gradient(160deg, var(--vault-surface-soft) 0%, var(--vault-surface) 58%, color-mix(in srgb, var(--vault-surface) 90%, var(--vault-primary) 10%) 100%);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-vault-grid {
+    opacity: 0.14;
+    background-size: 34px 34px;
+  }
+
+  .admin-vault-glow {
+    width: 22rem;
+    filter: blur(68px);
+    opacity: 0.09;
+  }
+
+  .admin-vault-card {
+    width: min(100%, 27rem);
+    margin: 0 auto;
+    border-radius: 1.45rem;
+    box-shadow:
+      0 16px 38px color-mix(in srgb, var(--vault-text) 13%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--vault-surface) 70%, transparent) inset;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .admin-vault-card__edge {
+    left: 9%;
+    right: 9%;
+  }
+
+  .admin-vault-header {
+    padding: 1rem 1rem 0.62rem;
+  }
+
+  .admin-vault-badges {
+    margin-bottom: 0.58rem;
+  }
+
+  .admin-vault-badges span,
+  .admin-vault-eyebrow {
+    font-size: 0.5rem;
+    letter-spacing: 0.105em;
+  }
+
+  .admin-vault-mark {
+    width: 3.35rem;
+    height: 3.35rem;
+    margin-bottom: 0.62rem;
+    border-radius: 1.05rem;
+    box-shadow:
+      0 0 22px color-mix(in srgb, var(--vault-primary) 10%, transparent),
+      0 0 0 5px color-mix(in srgb, var(--vault-primary) 3%, transparent);
+  }
+
+  .admin-vault-mark svg {
+    width: 1.45rem;
+    height: 1.45rem;
+  }
+
+  .admin-vault-mark__ring {
+    inset: 0.36rem;
+    border-radius: 0.76rem;
+  }
+
+  .admin-vault-header h1 {
+    margin: 0.2rem 0 0.28rem;
+    font-size: clamp(1.48rem, 7vw, 1.78rem);
+    line-height: 1.02;
+  }
+
+  .admin-vault-header > p {
+    max-width: 20rem;
+    font-size: 0.7rem;
+    line-height: 1.42;
+  }
+
+  .admin-vault-identity {
+    gap: 0.55rem;
+    margin-top: 0.68rem;
+    padding: 0.55rem 0.62rem;
+    border-radius: 0.82rem;
+  }
+
+  .admin-vault-identity > span {
+    width: 1.8rem;
+    height: 1.8rem;
+    border-radius: 0.58rem;
+    font-size: 0.6rem;
+  }
+
+  .admin-vault-identity strong {
+    font-size: 0.67rem;
+  }
+
+  .admin-vault-identity small {
+    margin-top: 0.03rem;
+    font-size: 0.52rem;
+    letter-spacing: 0.08em;
+  }
+
+  .admin-vault-panel {
+    padding: 0.38rem 1rem 0.66rem;
+  }
+
+  .admin-vault-section-label {
+    gap: 0.38rem;
+    margin-bottom: 0.55rem;
+  }
+
+  .admin-vault-section-label span {
+    font-size: 0.6rem;
+    letter-spacing: 0.07em;
+  }
+
+  .admin-vault-section-label i {
+    font-size: 0.5rem;
+    letter-spacing: 0.08em;
+  }
+
+  .admin-vault-label {
+    margin-bottom: 0.34rem;
+    font-size: 0.61rem;
+  }
+
+  .admin-vault-input {
+    height: 3.35rem;
+    border-radius: 0.88rem;
+    font-size: 1rem;
+    letter-spacing: 0.34em;
+  }
+
+  .admin-vault-input--otp {
+    padding-left: 2.2rem;
+    font-size: 1.16rem;
+    letter-spacing: 0.42em;
+  }
+
+  .admin-vault-input-wrap > svg {
+    right: 0.85rem;
+    width: 0.95rem;
+  }
+
+  .admin-vault-keypad {
+    gap: 0.48rem;
+    margin: 0.62rem 0 0.72rem;
+  }
+
+  .admin-vault-key {
+    min-height: 3.1rem;
+    border-radius: 0.82rem;
+    font-size: 1rem;
+    box-shadow: 0 3px 8px color-mix(in srgb, var(--vault-text) 7%, transparent);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .admin-vault-key:hover:not(:disabled) {
+    box-shadow: 0 3px 8px color-mix(in srgb, var(--vault-text) 7%, transparent);
+  }
+
+  .admin-vault-submit {
+    height: 3.2rem;
+    border-radius: 0.9rem;
+    box-shadow: 0 9px 20px color-mix(in srgb, var(--vault-primary) 21%, transparent);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .admin-vault-submit__content {
+    gap: 0.45rem;
+    font-size: 0.71rem;
+  }
+
+  .admin-vault-trust {
+    margin: 0.7rem 0 0.82rem;
+  }
+
+  .admin-vault-trust strong {
+    font-size: 0.66rem;
+  }
+
+  .admin-vault-trust small {
+    font-size: 0.58rem;
+  }
+
+  .admin-vault-error {
+    margin: 0 1rem 0.7rem;
+    padding: 0.62rem 0.68rem;
+    font-size: 0.62rem;
+  }
+
+  .admin-vault-footer {
+    flex-wrap: wrap;
+    gap: 0.55rem;
+    padding: 0.66rem 1rem max(0.76rem, env(safe-area-inset-bottom, 0px));
+  }
+
+  .admin-vault-footer div {
+    min-width: 0;
+    gap: 0.28rem;
+    font-size: 0.44rem;
+    letter-spacing: 0.055em;
+  }
+
+  .admin-vault-footer button {
+    margin-left: auto;
+    min-height: 2rem;
+    padding: 0 0.2rem;
+    font-size: 0.55rem;
+    touch-action: manipulation;
+  }
+
+  .admin-vault-success {
+    min-height: 15.5rem;
+  }
+
+  .admin-vault-handoff {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .admin-vault {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+
+  .admin-vault-card {
+    width: 100%;
+    border-radius: 1.25rem;
+  }
+
+  .admin-vault-header,
+  .admin-vault-panel {
+    padding-left: 0.82rem;
+    padding-right: 0.82rem;
+  }
+
+  .admin-vault-error,
+  .admin-vault-footer {
+    margin-left: 0;
+    margin-right: 0;
+    padding-left: 0.82rem;
+    padding-right: 0.82rem;
+  }
+
+  .admin-vault-header > p {
+    max-width: 18rem;
+  }
+
+  .admin-vault-identity {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .admin-vault-keypad {
+    gap: 0.42rem;
+  }
+
+  .admin-vault-key {
+    min-height: 3rem;
+  }
+
+  .admin-vault-footer div span:nth-of-type(2) {
+    display: none;
+  }
+}
+
+/* Short phones / landscape: prioritize the actual unlock controls. */
+@media (max-width: 759px) and (max-height: 700px) {
+  .admin-vault {
+    padding-top: max(4.15rem, calc(env(safe-area-inset-top, 0px) + 3.7rem));
+  }
+
+  .admin-vault-header {
+    padding-top: 0.72rem;
+  }
+
+  .admin-vault-badges,
+  .admin-vault-mark,
+  .admin-vault-header > p {
+    display: none;
+  }
+
+  .admin-vault-eyebrow {
+    display: block;
+  }
+
+  .admin-vault-header h1 {
+    margin-top: 0.14rem;
+    font-size: 1.3rem;
+  }
+
+  .admin-vault-identity {
+    margin-top: 0.48rem;
+  }
+
+  .admin-vault-panel {
+    padding-top: 0.24rem;
+  }
+
+  .admin-vault-keypad {
+    margin-top: 0.48rem;
+    margin-bottom: 0.55rem;
+  }
+
+  .admin-vault-key {
+    min-height: 2.72rem;
+  }
+
+  .admin-vault-input,
+  .admin-vault-submit {
+    height: 3rem;
+  }
+}
+
+@media (max-width: 759px) and (orientation: landscape) {
+  .admin-vault-card {
+    width: min(100%, 34rem);
+  }
+
+  .admin-vault-key {
+    min-height: 2.55rem;
+  }
+}
