@@ -32,14 +32,34 @@ function sanitizeWatchInput(raw = {}) {
   };
 }
 
+function celebritySnapshotUnavailable() {
+  const error = new Error("Celebrity slot data unavailable");
+  // A partial getUserByUsername response can be session-specific. Mark it as
+  // account-specific so the shared slot worker immediately tries another saved
+  // background session instead of abandoning this celebrity for the whole cycle.
+  error.status = 403;
+  error.code = "CELEB_SNAPSHOT_UNAVAILABLE";
+  return error;
+}
+
 function extractCelebritySnapshot(result) {
   const user = result?.data || result?.result?.data || result;
   const celebrity = user?.celebrity_data;
-  if (!celebrity) return null;
+  if (!celebrity) throw celebritySnapshotUnavailable();
 
-  const friendCount = Math.max(0, Number(celebrity.friend_count) || 0);
-  const maxFriends = Math.max(0, Number(celebrity.max_friends) || 0);
-  if (!maxFriends) return null;
+  const rawFriendCount = Number(celebrity.friend_count);
+  const rawMaxFriends = Number(celebrity.max_friends);
+  if (
+    !Number.isFinite(rawFriendCount) ||
+    rawFriendCount < 0 ||
+    !Number.isFinite(rawMaxFriends) ||
+    rawMaxFriends <= 0
+  ) {
+    throw celebritySnapshotUnavailable();
+  }
+
+  const friendCount = Math.max(0, rawFriendCount);
+  const maxFriends = Math.max(0, rawMaxFriends);
 
   return {
     friendCount,
