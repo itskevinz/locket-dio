@@ -183,10 +183,8 @@ function hasCelebrityCapacity(result) {
 
 function incompleteCelebritySnapshotError() {
   const error = new Error("Celebrity slot data unavailable for this session");
-  // Slot worker treats 401/403 as account-specific and immediately tries another
-  // saved background session. This avoids one partial Locket response blocking the
-  // whole celebrity group.
-  error.status = 403;
+  // This is incomplete upstream data, not an HTTP auth rejection. Leaving the
+  // status unset prevents the shared worker from rotating every saved session.
   error.code = "CELEB_SNAPSHOT_UNAVAILABLE";
   return error;
 }
