@@ -237,22 +237,60 @@ const FindFriend = ({ refreshFriendsData }) => {
     setSearchState("idle");
   };
 
-  const syncAfterConfirmedRequest = async (uid) => {
-    const latest = await FindFriendByUserName(lastSearchRef.current);
-    if (!mountedRef.current) return;
-    if (latest?.success && latest?.data?.uid === uid) {
-      setFoundUser(latest.data);
-      setFriendshipStatus(friendshipStatusFromUser(latest.data));
+  const syncAfterConfirmedRequest = async (
+    uid,
+    { username = lastSearchRef.current, isCelebrity = false } = {},
+  ) => {
+    const optimisticRawStatus = isCelebrity
+      ? "outgoing-follow-request"
+      : "outgoing-request";
+
+    if (mountedRef.current) {
+      setFriendshipStatus(FRIENDSHIP_STATUS.OUTGOING);
+    }
+
+    try {
+      const latest = await FindFriendByUserName(username);
+      if (!mountedRef.current) return;
+      if (latest?.success && latest?.data?.uid === uid) {
+        const latestStatus = friendshipStatusFromUser(latest.data);
+        const isPropagationLag =
+          latestStatus === FRIENDSHIP_STATUS.NONE ||
+          latestStatus === FRIENDSHIP_STATUS.UNKNOWN;
+
+        setFoundUser((current) => ({
+          ...latest.data,
+          ...(isPropagationLag && current?.uid === uid
+            ? { friendship_status: optimisticRawStatus }
+            : {}),
+        }));
+
+        if (!isPropagationLag) {
+          setFriendshipStatus(latestStatus);
+        }
+      }
+    } catch {
+      // Request đã được upstream xác nhận. Sync tìm kiếm chỉ là best-effort.
     }
 
     try {
       const latestStatus = await getFriendshipStatus(uid);
-      if (mountedRef.current) setFriendshipStatus(latestStatus);
+      if (
+        mountedRef.current &&
+        latestStatus !== FRIENDSHIP_STATUS.NONE &&
+        latestStatus !== FRIENDSHIP_STATUS.UNKNOWN
+      ) {
+        setFriendshipStatus(latestStatus);
+      }
     } catch {
-      // Dữ liệu tìm lại từ server ở trên vẫn là nguồn thật gần nhất.
+      // Giữ trạng thái OUTGOING đã xác nhận thay vì kéo UI về "+ Kết bạn".
     }
 
-    await refreshFriendsData?.();
+    try {
+      await refreshFriendsData?.();
+    } catch {
+      // Danh sách bạn bè có thể đồng bộ chậm; không biến request đã gửi thành lỗi UI.
+    }
   };
 
   const handleAddFriend = async () => {
@@ -292,14 +330,21 @@ const FindFriend = ({ refreshFriendsData }) => {
       return;
     }
 
+    const targetUser = foundUser;
+    const targetUsername = lastSearchRef.current;
+    const targetIsCelebrity = Boolean(targetUser.celebrity);
+    const optimisticRawStatus = targetIsCelebrity
+      ? "outgoing-follow-request"
+      : "outgoing-request";
+
     sendingRef.current = true;
     setSending(true);
     let requestConfirmed = false;
 
     try {
-      const sendRequest = foundUser.celebrity
-        ? SendRequestToCelebrity(foundUser.uid)
-        : SendRequestToFriend(foundUser.uid);
+      const sendRequest = targetIsCelebrity
+        ? SendRequestToCelebrity(targetUser.uid)
+        : SendRequestToFriend(targetUser.uid);
       const confirmedSendRequest = sendRequest.then((response) => {
         if (response?.success) return response;
         const rejected = new Error("Friend request rejected");
@@ -317,11 +362,23 @@ const FindFriend = ({ refreshFriendsData }) => {
       });
 
       requestConfirmed = true;
-      await syncAfterConfirmedRequest(foundUser.uid);
+      if (mountedRef.current) {
+        setFriendshipStatus(FRIENDSHIP_STATUS.OUTGOING);
+        setFoundUser((current) =>
+          current?.uid === targetUser.uid
+            ? { ...current, friendship_status: optimisticRawStatus }
+            : current,
+        );
+      }
 
-      if (!foundUser.celebrity && shareHistoryOn) {
+      await syncAfterConfirmedRequest(targetUser.uid, {
+        username: targetUsername,
+        isCelebrity: targetIsCelebrity,
+      });
+
+      if (!targetIsCelebrity && shareHistoryOn) {
         try {
-          await shareHistoryWithFriend(foundUser.uid);
+          await shareHistoryWithFriend(targetUser.uid);
           SonnerInfo(t("friends.find.history_share_info"));
         } catch {
           SonnerWarning(
@@ -332,14 +389,9 @@ const FindFriend = ({ refreshFriendsData }) => {
           );
         }
       }
-    } catch {
+    } catch (error) {
       if (requestConfirmed) {
-        SonnerWarning(
-          t(
-            "friends.find.sync_failed",
-            "Lời mời đã được xác nhận nhưng chưa thể đồng bộ trạng thái mới.",
-          ),
-        );
+        console.warn("[friends] confirmed request background sync failed", error);
       }
     } finally {
       sendingRef.current = false;
