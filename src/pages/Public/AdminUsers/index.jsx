@@ -960,6 +960,39 @@ export default function AdminUsers() {
     }
   };
 
+  const handleSendApologyEmail = async (user) => {
+    const targetEmail = String(user?.email || "").trim();
+    if (!targetEmail) {
+      SonnerWarning("Không thể gửi email", "Tài khoản này chưa có địa chỉ email.");
+      return;
+    }
+    if (user?.disabled || String(user?.accountStatus || "").toLowerCase() === "locked") {
+      SonnerWarning("Hãy mở khóa tài khoản trước", "Sau khi mở khóa, bấm Gửi xin lỗi để hệ thống gửi email khôi phục đúng trạng thái.");
+      return;
+    }
+
+    const loadingKey = `apology-${user.uid}`;
+    setActionLoading(loadingKey);
+    const fn = async () => {
+      const requestId = globalThis.crypto?.randomUUID?.()
+        || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      await adminRequest(`/users/${encodeURIComponent(user.uid)}/apology-email`, {
+        method: "POST",
+        body: JSON.stringify({ requestId }),
+      });
+      SonnerSuccess(
+        "✉️ Đã gửi email xin lỗi",
+        `Email giao diện Duchi Locket đã được gửi tới ${targetEmail}.`,
+      );
+    };
+
+    try {
+      await handleActionWithSessionCheck(fn);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const executeModalAction = async () => {
     if (!actionModal) return;
     const { type, user, newRole, reason } = actionModal;
@@ -1692,6 +1725,19 @@ export default function AdminUsers() {
                                         title={user.disabled ? "Mở khóa web" : "Khóa truy cập web"}
                                       >
                                         {user.disabled ? <Unlock size={14} /> : <Lock size={14} />}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={actionLoading === `apology-${user.uid}` || user.disabled || !user.email}
+                                        className={`btn btn-xs rounded-xl font-extrabold h-8 px-3 transition-all ${user.disabled || !user.email ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed" : "bg-violet-50 hover:bg-violet-600 text-violet-700 hover:text-white border border-violet-200"}`}
+                                        onClick={() => handleSendApologyEmail(user)}
+                                        title={user.disabled ? "Mở khóa tài khoản trước khi gửi email xin lỗi" : user.email ? `Gửi email xin lỗi tới ${user.email}` : "Tài khoản chưa có email"}
+                                      >
+                                        {actionLoading === `apology-${user.uid}` ? (
+                                          <span className="loading loading-spinner loading-xs" />
+                                        ) : (
+                                          <span>✉️ Gửi xin lỗi</span>
+                                        )}
                                       </button>
                                       <button
                                         type="button"
