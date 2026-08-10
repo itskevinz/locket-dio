@@ -775,6 +775,12 @@ export default function AdminUsers() {
     return { adminTeam: admins, normalUsers: regulars };
   }, [search, users]);
 
+  useEffect(() => {
+    const refreshAfterUndo = () => fetchUsers("", { silent: true, live: true });
+    window.addEventListener("locket_admin_users_refresh", refreshAfterUndo);
+    return () => window.removeEventListener("locket_admin_users_refresh", refreshAfterUndo);
+  }, [fetchUsers]);
+
   const isOnline = useCallback((user) => {
     if (!user.lastSeenAt || Number(user.activeSessions || 0) < 1) return false;
     return Date.now() - new Date(user.lastSeenAt).getTime() <= onlineWindowSeconds * 1000;
@@ -971,10 +977,6 @@ export default function AdminUsers() {
       SonnerWarning("Không thể gửi thư", "Tài khoản này chưa có địa chỉ email.");
       return;
     }
-    if (user?.disabled || String(user?.accountStatus || "").toLowerCase() === "locked") {
-      SonnerWarning("Hãy mở khóa tài khoản trước", "Sau khi mở khóa, bạn có thể chọn mẫu thư và gửi cho người dùng.");
-      return;
-    }
     setMailTemplate("apology");
     setMailComposer({ mode: "user", user, email: targetEmail });
   };
@@ -1011,9 +1013,15 @@ export default function AdminUsers() {
         });
       }
 
-      const templateLabel = mailTemplate === "restored"
-        ? "Xác nhận đã mở khóa"
-        : "Xin lỗi khóa nhầm";
+      const templateLabel = ({
+        apology: "Xin lỗi khóa nhầm",
+        restored: "Xác nhận đã mở khóa",
+        warning: "Cảnh báo tài khoản",
+        maintenance: "Thông báo bảo trì",
+        incident: "Thông báo sự cố",
+        welcome: "Chào mừng người dùng",
+        feature: "Thông báo tính năng mới",
+      })[mailTemplate] || "Thư quản trị";
       SonnerSuccess(
         "✉️ Đã gửi thư",
         `${templateLabel} đã được gửi tới ${result?.email || targetEmail}.`,
@@ -1037,13 +1045,32 @@ export default function AdminUsers() {
       return;
     }
 
+    if (["lock", "revoke", "role", "nuke"].includes(type)) {
+      const safety = window.__adminSafetyConfirmation;
+      const expected = String(safety?.target || "").trim();
+      const entered = String(safety?.value || "").trim();
+      if (!safety || safety.actionType !== type || !expected || entered.toLowerCase() !== expected.toLowerCase()) {
+        SonnerWarning("🛡️ Safety Mode chưa xác nhận", `Hãy nhập chính xác ${expected || "đối tượng hiển thị trong khung xác nhận"} trước khi tiếp tục.`);
+        return;
+      }
+    }
+
     setActionLoading(`${type}-${user.uid}`);
     const fn = async () => {
       if (type === "lock" || type === "unlock") {
-        await adminRequest(`/users/${encodeURIComponent(user.uid)}/${type}`, {
+        const actionResult = await adminRequest(`/users/${encodeURIComponent(user.uid)}/${type}`, {
           method: "POST",
           body: JSON.stringify({ reason: reason.trim() }),
         });
+        if (actionResult?.undoToken && actionResult?.undoUntil) {
+          window.dispatchEvent(new CustomEvent("admin_action_undo_available", { detail: {
+            undoToken: actionResult.undoToken,
+            undoUntil: actionResult.undoUntil,
+            uid: user.uid,
+            actionType: type,
+            message: actionResult.message || (type === "lock" ? `Đã khóa ${user.email || user.uid}` : `Đã mở khóa ${user.email || user.uid}`),
+          } }));
+        }
         const nextDisabled = type === "lock";
         const update = (entry) => entry.uid === user.uid
           ? { ...entry, disabled: nextDisabled, accountStatus: nextDisabled ? "locked" : "active" }
@@ -1059,10 +1086,19 @@ export default function AdminUsers() {
         SonnerInfo(`Đã thu hồi thành công ${res.revokedSessions || "toàn bộ"} phiên làm việc của user`);
         fetchUsers("", { silent: true });
       } else if (type === "role") {
-        await adminRequest(`/users/${encodeURIComponent(user.uid)}/role`, {
+        const roleResult = await adminRequest(`/users/${encodeURIComponent(user.uid)}/role`, {
           method: "POST",
           body: JSON.stringify({ role: newRole, reason: reason.trim() }),
         });
+        if (roleResult?.undoToken && roleResult?.undoUntil) {
+          window.dispatchEvent(new CustomEvent("admin_action_undo_available", { detail: {
+            undoToken: roleResult.undoToken,
+            undoUntil: roleResult.undoUntil,
+            uid: user.uid,
+            actionType: "role",
+            message: roleResult.message || `Đã đổi vai trò của ${user.email || user.uid} thành ${newRole}`,
+          } }));
+        }
         SonnerInfo(`Đã gán thành công vai trò ${newRole.toUpperCase()} cho user`);
         const update = (entry) => entry.uid === user.uid
           ? { ...entry, role: newRole, isAdmin: newRole !== "user" }
@@ -3762,7 +3798,7 @@ export default function AdminUsers() {
               <AlertTriangle className="text-error" size={22} /> Xác nhận Thao tác Quản trị
             </h3>
             <p className="text-sm text-base-content/80 mb-5 font-medium leading-relaxed">
-              Bạn đang thực hiện thao tác <strong className="uppercase text-primary font-bold">{actionModal.type}</strong> đối với tài khoản <strong>{userName(actionModal.user)}</strong>. Hành động này sẽ được ghi nhận vào nhật ký Audit Log vĩnh viễn.
+              Bạn đang thực hiện thao tác <strong className="uppercase text-primary font-bold">{actionModal.type}</strong> đối với tài khoản <strong>{userName(actionModal.user)}</strong> — <strong>{actionModal.user?.email || "không có email"}</strong> — UID: <strong>{actionModal.user?.uid}</strong>. Hành động này sẽ được ghi nhận vào nhật ký Audit Log vĩnh viễn.
             </p>
 
             {actionModal.type === "role" && (

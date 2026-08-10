@@ -70,9 +70,23 @@ const {
   removeWhitelist,
 } = require("../services/userActivityStore");
 const { getRequestContext, lookupPublicIpLocation } = require("../services/userActivityContext");
-const { sendAdminApologyEmail } = require("../services/adminApologyMailer");
+const { sendAdminApologyEmail, buildAdminEmail, getMailTemplates, normalizeTemplate } = require("../services/adminApologyMailer");
+const { getRecentDeployments, rollbackMainToCommit } = require("../services/adminDeployments");
 
 const router = express.Router();
+
+const ADMIN_UNDO_WINDOW_MS = 30_000;
+const adminUndoActions = new Map();
+
+function createUndoAction({ adminUid, type, uid, previous }) {
+  const undoToken = crypto.randomBytes(24).toString("hex");
+  const undoUntil = Date.now() + ADMIN_UNDO_WINDOW_MS;
+  adminUndoActions.set(undoToken, { adminUid, type, uid, previous, undoUntil });
+  const timer = setTimeout(() => adminUndoActions.delete(undoToken), ADMIN_UNDO_WINDOW_MS + 5_000);
+  timer.unref?.();
+  return { undoToken, undoUntil };
+}
+
 
 async function requireAdmin(req, res, next) {
   const allowedUids = getAdminLocketUids();
@@ -649,10 +663,17 @@ router.post("/users/:uid/lock", requireActivityDatabase, requireActiveAdminSessi
     if (!reason) {
       return res.status(400).json({ success: false, error: "Bắt buộc phải nhập lý do khi khóa tài khoản" });
     }
+    const previousUser = await getWebUser(req.params.uid);
+    const previousStatus = String(
+      previousUser?.account_status || previousUser?.accountStatus || (previousUser?.disabled ? "locked" : "active"),
+    ).trim().toLowerCase() === "locked" ? "locked" : "active";
     const updated = await setAccountStatus(req.params.uid, "locked");
     if (!updated) return res.status(404).json({ success: false, code: "USER_NOT_FOUND", error: "User not found" });
+    const undo = previousStatus !== "locked"
+      ? createUndoAction({ adminUid: req.adminUid, type: "account_status", uid: req.params.uid, previous: previousStatus })
+      : {};
     await audit(req, "LOCK_WEB_USER", req.params.uid, `Locked account. Reason: ${reason}`);
-    return res.status(200).json({ success: true });
+    return res.status(200).json({ success: true, ...undo, message: "Đã khóa tài khoản. Có thể hoàn tác trong 30 giây." });
   } catch (error) {
     console.error("Failed to lock website user:", error?.code || error?.name || "unknown");
     return res.status(500).json({ success: false, code: "LOCK_FAILED", error: "Unable to lock user" });
@@ -666,10 +687,17 @@ router.post("/users/:uid/unlock", requireActivityDatabase, requireActiveAdminSes
   }
   try {
     const reason = String(req.body?.reason || "Mở khóa bởi quản trị viên").trim();
+    const previousUser = await getWebUser(req.params.uid);
+    const previousStatus = String(
+      previousUser?.account_status || previousUser?.accountStatus || (previousUser?.disabled ? "locked" : "active"),
+    ).trim().toLowerCase() === "locked" ? "locked" : "active";
     const updated = await setAccountStatus(req.params.uid, "active");
     if (!updated) return res.status(404).json({ success: false, code: "USER_NOT_FOUND", error: "User not found" });
+    const undo = previousStatus !== "active"
+      ? createUndoAction({ adminUid: req.adminUid, type: "account_status", uid: req.params.uid, previous: previousStatus })
+      : {};
     await audit(req, "UNLOCK_WEB_USER", req.params.uid, `Unlocked account. Reason: ${reason}`);
-    return res.status(200).json({ success: true });
+    return res.status(200).json({ success: true, ...undo, message: "Đã mở khóa tài khoản. Có thể hoàn tác trong 30 giây." });
   } catch (error) {
     console.error("Failed to unlock website user:", error?.code || error?.name || "unknown");
     return res.status(500).json({ success: false, code: "UNLOCK_FAILED", error: "Unable to unlock user" });
@@ -719,9 +747,14 @@ router.post("/users/:uid/role", requireActivityDatabase, requireActiveAdminSessi
     if (!reason && newRole !== "user") {
       return res.status(400).json({ success: false, error: "Bắt buộc nhập lý do khi thay đổi vai trò quản trị" });
     }
+    const roleUser = await getWebUser(req.params.uid);
+    const previousRole = String(await getUserRole(req.params.uid, roleUser?.email) || "user").trim().toLowerCase();
     await setUserRole(req.params.uid, newRole, req.adminUid);
+    const undo = previousRole !== newRole
+      ? createUndoAction({ adminUid: req.adminUid, type: "role", uid: req.params.uid, previous: previousRole })
+      : {};
     await audit(req, "ASSIGN_ROLE", req.params.uid, `Assigned role '${newRole}'. Reason: ${reason || "Revoked to standard user"}`);
-    return res.status(200).json({ success: true, role: newRole });
+    return res.status(200).json({ success: true, role: newRole, ...undo, message: "Đã đổi vai trò. Có thể hoàn tác trong 30 giây." });
   } catch (error) {
     console.error("Failed to assign role:", error?.message || "unknown");
     return res.status(500).json({ success: false, error: "Không thể gán vai trò người dùng" });
@@ -894,9 +927,8 @@ router.post("/apology-email", requireActivityDatabase, requireActiveAdminSession
   }
 
   const targetEmail = String(req.body?.email || "").trim().toLowerCase();
-  const template = ["apology", "restored"].includes(String(req.body?.template || "").trim().toLowerCase())
-    ? String(req.body.template).trim().toLowerCase()
-    : "apology";
+  const template = normalizeTemplate(req.body?.template);
+  const customMessage = String(req.body?.customMessage || "").trim().slice(0, 2500);
   if (!targetEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(targetEmail)) {
     return res.status(400).json({
       success: false,
@@ -928,7 +960,7 @@ router.post("/apology-email", requireActivityDatabase, requireActiveAdminSession
     }
 
     const accountStatus = String(user.account_status || user.accountStatus || "active").trim().toLowerCase();
-    if (accountStatus === "locked" || user.disabled === true) {
+    if ((template === "apology" || template === "restored") && (accountStatus === "locked" || user.disabled === true)) {
       return res.status(409).json({
         success: false,
         code: "ACCOUNT_STILL_LOCKED",
@@ -942,6 +974,7 @@ router.post("/apology-email", requireActivityDatabase, requireActiveAdminSession
       displayName: user.display_name || user.displayName || user.username || "",
       uid: user.uid || "",
       template,
+      customMessage,
       idempotencyKey: `admin-general-mail:${template}:${user.uid || targetEmail}:${requestId}`,
     });
 
@@ -985,9 +1018,8 @@ router.post("/users/:uid/apology-email", requireActivityDatabase, requireActiveA
   }
 
   const targetUid = String(req.params.uid || "").trim();
-  const template = ["apology", "restored"].includes(String(req.body?.template || "").trim().toLowerCase())
-    ? String(req.body.template).trim().toLowerCase()
-    : "apology";
+  const template = normalizeTemplate(req.body?.template);
+  const customMessage = String(req.body?.customMessage || "").trim().slice(0, 2500);
   if (!targetUid) {
     return res.status(400).json({ success: false, code: "USER_UID_REQUIRED", error: "Thiếu UID người dùng" });
   }
@@ -1008,7 +1040,7 @@ router.post("/users/:uid/apology-email", requireActivityDatabase, requireActiveA
     }
 
     const accountStatus = String(user.account_status || user.accountStatus || "active").trim().toLowerCase();
-    if (accountStatus === "locked" || user.disabled === true) {
+    if ((template === "apology" || template === "restored") && (accountStatus === "locked" || user.disabled === true)) {
       return res.status(409).json({
         success: false,
         code: "ACCOUNT_STILL_LOCKED",
@@ -1022,6 +1054,7 @@ router.post("/users/:uid/apology-email", requireActivityDatabase, requireActiveA
       displayName: user.display_name || user.displayName || user.username || "",
       uid: user.uid || targetUid,
       template,
+      customMessage,
       idempotencyKey: `admin-user-mail:${template}:${targetUid}:${requestId}`,
     });
 
@@ -1082,6 +1115,127 @@ router.delete("/users/:uid/auth", requireActiveAdminSession, async (req, res) =>
     }
     console.error("Failed to delete admin identity:", error?.code || error?.name || "unknown");
     return res.status(500).json({ success: false, code: "DELETE_FAILED", error: "Unable to delete admin identity" });
+  }
+});
+
+
+router.get("/mail-templates", async (_req, res) => {
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+  return res.status(200).json({ success: true, templates: getMailTemplates() });
+});
+
+router.post("/mail-preview", async (req, res) => {
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+  const email = String(req.body?.email || req.adminEmail || "preview@example.com").trim().toLowerCase();
+  const preview = buildAdminEmail({
+    email,
+    displayName: String(req.body?.displayName || "Người dùng").trim(),
+    uid: String(req.body?.uid || "").trim(),
+    template: normalizeTemplate(req.body?.template),
+    customMessage: String(req.body?.customMessage || "").trim().slice(0, 2500),
+  });
+  return res.status(200).json({ success: true, preview: {
+    template: preview.template,
+    label: preview.label,
+    subject: preview.subject,
+    title: preview.title,
+    badge: preview.badge,
+    statusLabel: preview.statusLabel,
+    html: preview.html,
+  } });
+});
+
+router.get("/mail-history", requireActivityDatabase, async (req, res) => {
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+  if (req.adminRole !== "super_admin" && req.adminRole !== "admin") {
+    return res.status(403).json({ success: false, error: "Chỉ Admin hoặc Super Admin mới được xem lịch sử thư" });
+  }
+  try {
+    const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 100, 1), 200);
+    const result = await listAuditLogs({ limit: 200, offset: 0 });
+    const items = (result.logs || [])
+      .filter((entry) => ["SEND_ADMIN_MAIL", "SEND_ACCOUNT_APOLOGY_EMAIL", "TEST_ADMIN_EMAIL"].includes(entry.action))
+      .slice(0, limit);
+    return res.status(200).json({ success: true, items });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: "Không thể tải lịch sử thư quản trị" });
+  }
+});
+
+router.post("/system/test-email", requireActivityDatabase, requireActiveAdminSession, async (req, res) => {
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+  if (!req.adminEmail) return res.status(400).json({ success: false, error: "Admin chưa có email để test Gmail" });
+  try {
+    const result = await sendAdminApologyEmail({
+      email: String(req.adminEmail).trim().toLowerCase(),
+      displayName: "Admin",
+      uid: req.adminUid,
+      template: "feature",
+      customMessage: `Đây là email kiểm tra Gmail relay từ Admin Operations Suite lúc ${new Date().toISOString()}.`,
+      idempotencyKey: `admin-gmail-self-test:${req.adminUid}:${Date.now()}`,
+    });
+    await audit(req, "TEST_ADMIN_EMAIL", req.adminUid, `Gmail relay self-test to ${req.adminEmail}`);
+    return res.status(200).json({ success: true, email: req.adminEmail, provider: result.provider });
+  } catch (error) {
+    await audit(req, "TEST_ADMIN_EMAIL", req.adminUid, `Gmail relay self-test failed: ${error?.code || error?.message || "unknown"}`, "failure");
+    return res.status(Number(error?.status) || 502).json({ success: false, code: error?.code || "EMAIL_SEND_FAILED", error: error?.message || "Gmail test thất bại" });
+  }
+});
+
+router.get("/deployments", async (req, res) => {
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+  if (req.adminRole !== "super_admin" && req.adminRole !== "admin") {
+    return res.status(403).json({ success: false, error: "Không có quyền xem lịch sử deployment" });
+  }
+  try {
+    const data = await getRecentDeployments();
+    return res.status(200).json({ success: true, ...data });
+  } catch (error) {
+    return res.status(Number(error?.status) || 502).json({ success: false, code: error?.code || "DEPLOYMENTS_FAILED", error: error?.message || "Không tải được deployment" });
+  }
+});
+
+router.post("/deployments/rollback", requireActivityDatabase, requireActiveAdminSession, async (req, res) => {
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+  if (req.adminRole !== "super_admin") return res.status(403).json({ success: false, error: "Chỉ Super Admin mới được rollback production" });
+  if (String(req.body?.confirmation || "").trim().toUpperCase() !== "ROLLBACK") {
+    return res.status(400).json({ success: false, code: "ROLLBACK_CONFIRMATION_REQUIRED", error: "Cần nhập ROLLBACK để xác nhận" });
+  }
+  try {
+    const result = await rollbackMainToCommit({ sha: req.body?.sha, requestedBy: req.adminUid });
+    await audit(req, "ROLLBACK_PRODUCTION", null, `Rollback main from ${result.previousSha} to ${result.targetSha}; backup=${result.backupBranch || "none"}`);
+    return res.status(200).json({ success: true, ...result });
+  } catch (error) {
+    await audit(req, "ROLLBACK_PRODUCTION", null, `Rollback failed: ${error?.code || error?.message || "unknown"}`, "failure");
+    return res.status(Number(error?.status) || 502).json({ success: false, code: error?.code || "ROLLBACK_FAILED", error: error?.message || "Rollback thất bại" });
+  }
+});
+
+router.post("/undo/:token", requireActivityDatabase, requireActiveAdminSession, async (req, res) => {
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+  const token = String(req.params.token || "").trim();
+  const undo = adminUndoActions.get(token);
+  if (!undo) return res.status(404).json({ success: false, code: "UNDO_NOT_FOUND", error: "Thao tác không còn khả năng hoàn tác" });
+  if (Date.now() > undo.undoUntil) {
+    adminUndoActions.delete(token);
+    return res.status(410).json({ success: false, code: "UNDO_EXPIRED", error: "Đã hết 30 giây hoàn tác" });
+  }
+  if (undo.adminUid !== req.adminUid && req.adminRole !== "super_admin") {
+    return res.status(403).json({ success: false, code: "UNDO_OWNER_REQUIRED", error: "Chỉ Admin đã thực hiện hoặc Super Admin mới được hoàn tác" });
+  }
+  try {
+    if (undo.type === "account_status") {
+      await setAccountStatus(undo.uid, undo.previous === "locked" ? "locked" : "active");
+    } else if (undo.type === "role") {
+      await setUserRole(undo.uid, undo.previous || "user", req.adminUid);
+    } else {
+      return res.status(400).json({ success: false, error: "Loại thao tác không hỗ trợ hoàn tác" });
+    }
+    adminUndoActions.delete(token);
+    await audit(req, "UNDO_ADMIN_ACTION", undo.uid, `Undid ${undo.type}; restored previous=${undo.previous}`);
+    return res.status(200).json({ success: true, message: "Đã hoàn tác và khôi phục trạng thái trước đó." });
+  } catch (error) {
+    return res.status(500).json({ success: false, code: "UNDO_FAILED", error: "Không thể khôi phục trạng thái trước đó" });
   }
 });
 

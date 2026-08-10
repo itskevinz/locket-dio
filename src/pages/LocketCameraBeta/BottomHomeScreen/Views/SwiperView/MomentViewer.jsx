@@ -2,6 +2,7 @@ import { ImageOff, RefreshCw, X } from "lucide-react";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { OverlayRenderer } from "@/components/Overlay";
 import { GetAllMoments } from "@/services";
+import { logWebUserAction } from "@/services/UserActivityService";
 import { applyLocalOverlayToMoment } from "@/utils/overlay/reconcilePostedOverlay";
 import {
   useAuthStore,
@@ -363,6 +364,11 @@ const MomentViewer = ({ moment, handleClose, isActive = true }) => {
       return;
     }
 
+    void logWebUserAction({
+      actionType: "MEDIA_ERROR",
+      actionTitle: "Ảnh Moment không tải được sau self-heal",
+      details: { kind: "image", momentId, ownerUid, url: imageSrc, alternateHostTried: true },
+    });
     setImageFailed(true);
   };
 
@@ -382,6 +388,11 @@ const MomentViewer = ({ moment, handleClose, isActive = true }) => {
       return;
     }
 
+    void logWebUserAction({
+      actionType: "MEDIA_ERROR",
+      actionTitle: "Video Moment không tải được sau self-heal",
+      details: { kind: "video", momentId, ownerUid, url: videoSrc, alternateHostTried: true },
+    });
     setVideoFailed(true);
   };
 
