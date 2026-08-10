@@ -71,27 +71,35 @@
   animation: app-update-dot-pulse 1.15s ease-out infinite;
 }
 
+/*
+ * Status belongs below the update button. The old desktop placement pushed the
+ * bubble to the left, so it ran through the avatar and could be clipped by the
+ * viewport on narrow desktop/PWA windows.
+ */
 .app-update-button__status {
   position: absolute;
-  right: calc(100% + 9px);
-  top: 50%;
-  z-index: 6;
-  transform: translateY(-50%);
+  left: 0;
+  right: auto;
+  top: calc(100% + 8px);
+  z-index: 60;
+  transform: none;
   width: max-content;
-  max-width: min(220px, 68vw);
+  max-width: min(240px, calc(100vw - 24px));
   padding: 6px 9px;
   border-radius: 10px;
   border: 1px solid color-mix(in srgb, var(--update-primary) 30%, transparent);
-  background: color-mix(in srgb, var(--update-base) 92%, transparent);
+  background: color-mix(in srgb, var(--update-base) 94%, transparent);
   color: var(--update-content);
   box-shadow: 0 8px 24px color-mix(in srgb, var(--update-content) 16%, transparent);
   backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  pointer-events: none;
   font-size: 11px;
   font-weight: 800;
-  line-height: 1;
+  line-height: 1.15;
   letter-spacing: .02em;
   white-space: nowrap;
-  animation: app-update-status-in 240ms cubic-bezier(.2,.9,.25,1.2) both;
+  animation: app-update-status-in 220ms cubic-bezier(.2,.9,.25,1.15) both;
 }
 
 .app-update-button[data-update-phase="checking"] {
@@ -237,8 +245,8 @@
 }
 
 @keyframes app-update-status-in {
-  from { opacity: 0; transform: translate(8px, -50%) scale(.88); }
-  to { opacity: 1; transform: translate(0, -50%) scale(1); }
+  from { opacity: 0; transform: translateY(-5px) scale(.92); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 /* Keep this control visibly animated even when the global lite mode trims decoration. */
@@ -253,16 +261,8 @@ html[data-animation-enabled="false"] .app-update-button[data-update-phase="reloa
 
 @media (max-width: 520px) {
   .app-update-button__status {
-    right: auto;
-    left: 50%;
-    top: calc(100% + 8px);
-    transform: translateX(-50%);
+    max-width: min(220px, calc(100vw - 20px));
     font-size: 10px;
-    animation-name: app-update-status-in-mobile;
+    white-space: normal;
   }
-}
-
-@keyframes app-update-status-in-mobile {
-  from { opacity: 0; transform: translate(-50%, -5px) scale(.9); }
-  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
 }
