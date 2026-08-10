@@ -883,6 +883,92 @@ router.post("/content/reports/:id/resolve", requireActivityDatabase, requireActi
   }
 });
 
+router.post("/apology-email", requireActivityDatabase, requireActiveAdminSession, async (req, res) => {
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+  if (req.adminRole !== "super_admin" && req.adminRole !== "admin") {
+    return res.status(403).json({
+      success: false,
+      code: "ADMIN_PERMISSION_REQUIRED",
+      error: "Chỉ Admin hoặc Super Admin mới được gửi email xin lỗi cho người dùng",
+    });
+  }
+
+  const targetEmail = String(req.body?.email || "").trim().toLowerCase();
+  if (!targetEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(targetEmail)) {
+    return res.status(400).json({
+      success: false,
+      code: "EMAIL_ADDRESS_INVALID",
+      error: "Vui lòng nhập địa chỉ email người dùng hợp lệ",
+    });
+  }
+
+  try {
+    const result = await listWebUsers({ search: targetEmail, limit: 20, offset: 0 });
+    const user = (result.users || []).find(
+      (entry) => String(entry.email || "").trim().toLowerCase() === targetEmail,
+    );
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        code: "USER_NOT_FOUND",
+        error: "Không tìm thấy email này trong danh sách người dùng Huy Locket",
+      });
+    }
+
+    const targetRole = String(user.role || "user").trim().toLowerCase();
+    if (targetRole !== "user" || isAdminIdentity(user.uid, targetEmail)) {
+      return res.status(403).json({
+        success: false,
+        code: "PROTECTED_ADMIN",
+        error: "Không gửi email xin lỗi khóa nhầm cho tài khoản quản trị",
+      });
+    }
+
+    const accountStatus = String(user.account_status || user.accountStatus || "active").trim().toLowerCase();
+    if (accountStatus === "locked" || user.disabled === true) {
+      return res.status(409).json({
+        success: false,
+        code: "ACCOUNT_STILL_LOCKED",
+        error: "Tài khoản này vẫn đang bị khóa. Hãy mở khóa trước khi gửi email xin lỗi.",
+      });
+    }
+
+    const requestId = String(req.body?.requestId || crypto.randomUUID()).trim().slice(0, 120);
+    const sendResult = await sendAdminApologyEmail({
+      email: targetEmail,
+      displayName: user.display_name || user.displayName || user.username || "",
+      uid: user.uid || "",
+      idempotencyKey: `admin-general-apology:${user.uid || targetEmail}:${requestId}`,
+    });
+
+    await audit(req, "SEND_ACCOUNT_APOLOGY_EMAIL", user.uid || null, `Sent general account apology email to ${targetEmail}`);
+    return res.status(200).json({
+      success: true,
+      message: "Đã gửi email xin lỗi tới người dùng.",
+      uid: user.uid || null,
+      email: targetEmail,
+      provider: sendResult.provider,
+      messageId: sendResult.messageId || null,
+      deduped: Boolean(sendResult.deduped),
+    });
+  } catch (error) {
+    console.error("Failed to send general admin apology email:", error?.code || error?.message || "unknown");
+    await audit(
+      req,
+      "SEND_ACCOUNT_APOLOGY_EMAIL",
+      null,
+      `Failed to send general apology email to ${targetEmail}: ${error?.code || error?.message || "unknown"}`,
+      "failure",
+    );
+    const status = Number(error?.status) || 502;
+    return res.status(status >= 400 && status < 600 ? status : 502).json({
+      success: false,
+      code: error?.code || "EMAIL_SEND_FAILED",
+      error: error?.message || "Không thể gửi email xin lỗi tới người dùng",
+    });
+  }
+});
+
 router.post("/users/:uid/apology-email", requireActivityDatabase, requireActiveAdminSession, async (req, res) => {
   res.setHeader("Cache-Control", "no-store, max-age=0");
   if (req.adminRole !== "super_admin" && req.adminRole !== "admin") {

@@ -480,6 +480,8 @@ export default function AdminUsers() {
   const [reauthLoading, setReauthLoading] = useState(false);
   const [reauthError, setReauthError] = useState(null);
   const [pendingCallback, setPendingCallback] = useState(null);
+  const [generalApologyEmail, setGeneralApologyEmail] = useState("");
+  const [generalApologyLoading, setGeneralApologyLoading] = useState(false);
 
   const fetchUsers = useCallback(async (token = "", { silent = false, live = false } = {}) => {
     const isRootRefresh = !token;
@@ -993,6 +995,35 @@ export default function AdminUsers() {
     }
   };
 
+  const handleSendGeneralApologyEmail = async () => {
+    const targetEmail = generalApologyEmail.trim().toLowerCase();
+    if (!targetEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(targetEmail)) {
+      SonnerWarning("Email không hợp lệ", "Nhập đúng email của người dùng cần gửi lời xin lỗi.");
+      return;
+    }
+
+    setGeneralApologyLoading(true);
+    const fn = async () => {
+      const requestId = globalThis.crypto?.randomUUID?.()
+        || `1786375571960-594h3ydv`;
+      const result = await adminRequest("/apology-email", {
+        method: "POST",
+        body: JSON.stringify({ email: targetEmail, requestId }),
+      });
+      SonnerSuccess(
+        "✉️ Đã gửi email xin lỗi",
+        `Email giao diện Duchi Locket đã được gửi tới ${result?.email || targetEmail}.`,
+      );
+      setGeneralApologyEmail("");
+    };
+
+    try {
+      await handleActionWithSessionCheck(fn);
+    } finally {
+      setGeneralApologyLoading(false);
+    }
+  };
+
   const executeModalAction = async () => {
     if (!actionModal) return;
     const { type, user, newRole, reason } = actionModal;
@@ -1389,6 +1420,43 @@ export default function AdminUsers() {
               </button>
             </div>
           </div>
+
+          {(currentRole === "super_admin" || currentRole === "admin") && (
+            <div className="bg-white/95 p-4 sm:p-5 rounded-3xl border border-violet-200/80 shadow-md">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="text-xs font-black uppercase tracking-wider text-violet-700">✉️ Gửi email xin lỗi chung</div>
+                  <div className="text-sm font-bold text-slate-900 mt-1">Nhập email người dùng rồi gửi trực tiếp</div>
+                  <div className="text-xs text-slate-500 mt-1">Hệ thống tự kiểm tra email thuộc user Huy Locket, tài khoản đã mở khóa và gửi đúng mẫu email Duchi Locket.</div>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto lg:min-w-[520px]">
+                  <input
+                    type="email"
+                    value={generalApologyEmail}
+                    onChange={(event) => setGeneralApologyEmail(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !generalApologyLoading) handleSendGeneralApologyEmail();
+                    }}
+                    placeholder="Nhập email người dùng..."
+                    className="input input-bordered flex-1 h-11 rounded-2xl bg-slate-50 border-slate-200 focus:border-violet-500 text-sm font-medium"
+                    disabled={generalApologyLoading}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSendGeneralApologyEmail}
+                    disabled={generalApologyLoading || !generalApologyEmail.trim()}
+                    className="btn h-11 px-5 rounded-2xl bg-violet-600 hover:bg-violet-700 text-white border-0 font-black shadow-sm disabled:bg-slate-200 disabled:text-slate-400"
+                  >
+                    {generalApologyLoading ? (
+                      <span className="loading loading-spinner loading-xs" />
+                    ) : (
+                      <span>✉️ Gửi xin lỗi</span>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* SECTION A: BAN QUẢN TRỊ HUY LOCKET */}
           <div>
