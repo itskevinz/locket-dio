@@ -1,11 +1,17 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Virtual } from "swiper/modules";
 import "swiper/css";
+import "./swipePerformance.css";
 
 import { useMomentsStoreV2, useSelectedStore } from "@/stores";
 import QueueViewer from "./QueueViewer";
 import MomentViewer from "./MomentViewer";
+
+// Only the current post and its immediate neighbours need the full viewer.
+// Keeping every MomentViewer mounted makes Android decode media, subscribe to
+// stores and build overlays for posts that are nowhere near the viewport.
+const VIEWER_RADIUS = 1;
 
 const SwiperView = () => {
   const [swiperRef, setSwiperRef] = useState(null);
@@ -27,6 +33,20 @@ const SwiperView = () => {
   const momentActive = typeof selectedMoment === "number";
   const queueActive = typeof selectedQueue === "number";
 
+  const setSwipePerformanceMode = useCallback((active) => {
+    if (typeof document === "undefined") return;
+    const root = document.documentElement;
+    if (active) root.dataset.locketSwiping = "true";
+    else delete root.dataset.locketSwiping;
+  }, []);
+
+  useEffect(
+    () => () => {
+      setSwipePerformanceMode(false);
+    },
+    [setSwipePerformanceMode],
+  );
+
   useEffect(() => {
     if (!swiperRef || selectedMomentId == null) return;
 
@@ -39,10 +59,11 @@ const SwiperView = () => {
     }
   }, [moments, selectedMomentId, swiperRef, selectedMoment, setSelectedMoment]);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
+    setSwipePerformanceMode(false);
     setSelectedMoment(null);
     setSelectedMomentId(null);
-  };
+  }, [setSelectedMoment, setSelectedMomentId, setSwipePerformanceMode]);
 
   if (!momentActive && !queueActive) return null;
 
@@ -60,7 +81,21 @@ const SwiperView = () => {
         onSwiper={setSwiperRef}
         slidesPerView={1}
         initialSlide={selectedMoment}
-        virtual
+        // Explicitly keep Swiper's own virtual window tight as well. The
+        // adjacent slides stay ready so the finger never swipes into a blank.
+        virtual={{ addSlidesBefore: 1, addSlidesAfter: 1 }}
+        speed={300}
+        threshold={5}
+        resistanceRatio={0.72}
+        onTouchStart={() => setSwipePerformanceMode(true)}
+        onSliderFirstMove={() => setSwipePerformanceMode(true)}
+        onTransitionStart={() => setSwipePerformanceMode(true)}
+        onTouchEnd={(swiper) => {
+          // Touch can end before momentum/transition finishes. Keep the cheap
+          // paint mode until Swiper reports that animation has actually ended.
+          if (!swiper?.animating) setSwipePerformanceMode(false);
+        }}
+        onTransitionEnd={() => setSwipePerformanceMode(false)}
         onSlideChange={(swiper) => {
           const newIndex = swiper.activeIndex;
 
@@ -71,17 +106,31 @@ const SwiperView = () => {
           setSelectedMomentId(moments[newIndex]?.id);
         }}
       >
-        {moments.map((slideContent, index) => (
-          <SwiperSlide
-            key={slideContent.id}
-            virtualIndex={index}
-            className="flex h-full items-center justify-center"
-          >
-            <div className="flex h-full w-full items-center justify-center pb-26">
-              <MomentViewer moment={slideContent} handleClose={handleClose} />
-            </div>
-          </SwiperSlide>
-        ))}
+        {moments.map((slideContent, index) => {
+          const distance = Math.abs(index - selectedMoment);
+          const shouldHydrateViewer = distance <= VIEWER_RADIUS;
+          const isActive = index === selectedMoment;
+
+          return (
+            <SwiperSlide
+              key={slideContent.id}
+              virtualIndex={index}
+              className="flex h-full items-center justify-center"
+            >
+              <div className="flex h-full w-full items-center justify-center pb-26">
+                {shouldHydrateViewer ? (
+                  <MomentViewer
+                    moment={slideContent}
+                    handleClose={handleClose}
+                    isActive={isActive}
+                  />
+                ) : (
+                  <div className="h-full w-full" aria-hidden="true" />
+                )}
+              </div>
+            </SwiperSlide>
+          );
+        })}
       </Swiper>
     </div>
   );

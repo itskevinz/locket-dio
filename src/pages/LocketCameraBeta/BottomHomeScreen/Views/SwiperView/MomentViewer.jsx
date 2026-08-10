@@ -1,5 +1,5 @@
 import { ImageOff, RefreshCw, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { OverlayRenderer } from "@/components/Overlay";
 import { GetAllMoments } from "@/services";
 import { applyLocalOverlayToMoment } from "@/utils/overlay/reconcilePostedOverlay";
@@ -193,7 +193,7 @@ function resolveMomentOverlay(moment) {
   };
 }
 
-const MomentViewer = ({ moment, handleClose }) => {
+const MomentViewer = ({ moment, handleClose, isActive = true }) => {
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [isImageReady, setIsImageReady] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
@@ -205,6 +205,7 @@ const MomentViewer = ({ moment, handleClose }) => {
   const repairedGhostRef = useRef(null);
   const attemptedImageUrlsRef = useRef(new Set());
   const attemptedVideoUrlsRef = useRef(new Set());
+  const videoRef = useRef(null);
 
   const { user } = useAuthStore();
   const myUid = resolveMyUid(user);
@@ -290,6 +291,27 @@ const MomentViewer = ({ moment, handleClose }) => {
     );
     attemptedVideoUrlsRef.current = new Set(videoUrl ? [videoUrl] : []);
   }, [momentId, thumbnailUrl, videoUrl]);
+
+  // A video decoder is one of the most expensive things on this screen. Keep
+  // only the active slide's decoder alive; neighbours keep their image poster
+  // so finger-following remains instant without hidden videos playing behind it.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!isActive) {
+      setIsVideoReady(false);
+      try {
+        video?.pause();
+      } catch {
+        /* best effort */
+      }
+      return;
+    }
+
+    if (video) {
+      const playPromise = video.play?.();
+      if (playPromise?.catch) playPromise.catch(() => {});
+    }
+  }, [isActive, videoSrc]);
 
   const hasMediaUrl = Boolean(thumbnailUrl || videoUrl);
   const mediaUnavailable =
@@ -439,25 +461,30 @@ const MomentViewer = ({ moment, handleClose }) => {
         </button>
 
         <div className="h-full w-full border-t border-b border-base-300 sm:max-w-sm max-w-md aspect-square flex items-center justify-center relative bg-base-300 rounded-[64px] overflow-hidden">
-          {hasMediaUrl && !isImageReady && !isVideoReady && !mediaUnavailable && (
-            <div className="moment-skeleton absolute inset-0 w-full h-full skeleton rounded-[64px] z-0" />
-          )}
+          {hasMediaUrl &&
+            !isImageReady &&
+            !(isActive && isVideoReady) &&
+            !mediaUnavailable && (
+              <div className="moment-skeleton absolute inset-0 w-full h-full skeleton rounded-[64px] z-0" />
+            )}
 
           {imageSrc && !imageFailed && (
             <img
               src={imageSrc}
               alt={resolvedMoment?.caption || "Moment"}
               className={`moment-media-fade absolute inset-0 w-full h-full object-cover rounded-[64px] transition-opacity duration-300 z-10 ${
-                isVideoReady ? "opacity-0" : "opacity-100"
+                isActive && isVideoReady ? "opacity-0" : "opacity-100"
               }`}
               onLoad={() => setIsImageReady(true)}
               onError={handleImageError}
               referrerPolicy="no-referrer"
+              decoding="async"
             />
           )}
 
-          {videoSrc && !videoFailed && (
+          {isActive && videoSrc && !videoFailed && (
             <video
+              ref={videoRef}
               src={videoSrc}
               className={`moment-media-fade absolute inset-0 w-full h-full object-cover rounded-[64px] transition-opacity duration-300 z-20 ${
                 isVideoReady ? "opacity-100" : "opacity-0"
@@ -514,4 +541,4 @@ const MomentViewer = ({ moment, handleClose }) => {
   );
 };
 
-export default MomentViewer;
+export default memo(MomentViewer);

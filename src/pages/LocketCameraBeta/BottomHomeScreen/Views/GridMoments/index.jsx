@@ -19,8 +19,8 @@ const GridMoments = ({ selectedAnimate }) => {
     <div
       className={`w-full transition-all duration-300 ${
         selectedAnimate
-          ? "pointer-events-none select-none opacity-0"
-          : "opacity-100"
+          ? "pointer-events-none select-none invisible opacity-0"
+          : "visible opacity-100"
       }`}
     >
       <UploadingQueue />

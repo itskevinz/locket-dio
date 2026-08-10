@@ -1,0 +1,53 @@
+/*
+ * Moment-detail swipe fast path.
+ *
+ * The visual design stays unchanged at rest. While the finger is dragging we
+ * temporarily remove a few expensive paint effects so Android can spend its
+ * frame budget on Swiper's translate transform instead of repeatedly blurring
+ * and shadowing full-screen layers.
+ */
+
+[data-ios-detail-view="true"] .swiper-wrapper {
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+[data-ios-detail-view="true"] .swiper-slide {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  contain: paint;
+}
+
+/* Do not run per-post entrance/shimmer work while Swiper is following a finger. */
+html[data-locket-swiping="true"] .moment-enter,
+html[data-locket-swiping="true"] .moment-overlay-enter {
+  animation: none !important;
+}
+
+html[data-locket-swiping="true"] .moment-skeleton {
+  animation-play-state: paused !important;
+}
+
+@media (max-width: 767px) {
+  html.theme-ios[data-locket-swiping="true"] :where(
+      [data-header-profile="true"],
+      #hamburger-menu-trigger,
+      [data-friends-pill="true"],
+      .iosCameraBottomNav,
+      .iosBottomSideButton,
+      .iosBottomNavPill
+    ) {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: none !important;
+  }
+
+  html.theme-ios[data-locket-swiping="true"]
+    [data-ios-detail-view="true"]
+    .moment-enter
+    > div
+    > div:first-of-type {
+    box-shadow: none !important;
+  }
+}

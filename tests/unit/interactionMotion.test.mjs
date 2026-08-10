@@ -87,3 +87,32 @@ test("turning the site animation switch off disables functional motion", () => {
     /data-animation-enabled="false"[\s\S]*animation:\s*none\s*!important/,
   );
 });
+
+test("moment swipe hydrates only nearby viewers and keeps one video decoder active", () => {
+  const swiper = read(
+    "src/pages/LocketCameraBeta/BottomHomeScreen/Views/SwiperView/index.jsx",
+  );
+  const viewer = read(
+    "src/pages/LocketCameraBeta/BottomHomeScreen/Views/SwiperView/MomentViewer.jsx",
+  );
+  const grid = read(
+    "src/pages/LocketCameraBeta/BottomHomeScreen/Views/GridMoments/index.jsx",
+  );
+  const swipeCss = read(
+    "src/pages/LocketCameraBeta/BottomHomeScreen/Views/SwiperView/swipePerformance.css",
+  );
+
+  assert.match(swiper, /const VIEWER_RADIUS = 1/);
+  assert.match(
+    swiper,
+    /virtual=\{\{ addSlidesBefore: 1, addSlidesAfter: 1 \}\}/,
+  );
+  assert.match(swiper, /dataset\.locketSwiping/);
+  assert.match(swiper, /isActive=\{isActive\}/);
+  assert.match(viewer, /isActive && videoSrc && !videoFailed/);
+  assert.match(viewer, /export default memo\(MomentViewer\)/);
+  assert.match(grid, /invisible opacity-0/);
+  assert.match(swipeCss, /data-locket-swiping="true"/);
+  assert.match(swipeCss, /backdrop-filter:\s*none\s*!important/);
+  assert.match(swipeCss, /animation-play-state:\s*paused\s*!important/);
+});
