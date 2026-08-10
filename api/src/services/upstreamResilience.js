@@ -33,6 +33,20 @@ function isSafeReadRequest(config = {}) {
   return SAFE_READ_POST_PREFIX.test(lastSegment);
 }
 
+function belongsToInstanceOrigin(instance, config = {}) {
+  const rawUrl = String(config.url || "");
+  if (!/^https?:\/\//i.test(rawUrl)) return true;
+
+  const baseUrl = String(config.baseURL || instance?.defaults?.baseURL || "");
+  if (!baseUrl) return false;
+
+  try {
+    return new URL(rawUrl).origin === new URL(baseUrl).origin;
+  } catch {
+    return false;
+  }
+}
+
 function isTransientUpstreamError(error) {
   if (!error) return false;
   if (TRANSIENT_NETWORK_CODES.has(String(error.code || ""))) return true;
@@ -167,7 +181,8 @@ function attachAxiosResilience(
   instance.interceptors.request.use((config) => {
     if (config?.meta?.skipResilience) return config;
 
-    const safeRead = isSafeReadRequest(config);
+    const sameOrigin = belongsToInstanceOrigin(instance, config);
+    const safeRead = sameOrigin && isSafeReadRequest(config);
     config.__huySafeRead = safeRead;
     if (!safeRead) return config;
 
@@ -223,6 +238,7 @@ function attachAxiosResilience(
 module.exports = {
   CircuitBreaker,
   attachAxiosResilience,
+  belongsToInstanceOrigin,
   isSafeReadRequest,
   isTransientUpstreamError,
 };
