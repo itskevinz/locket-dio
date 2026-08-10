@@ -34,10 +34,9 @@ function sanitizeWatchInput(raw = {}) {
 
 function celebritySnapshotUnavailable() {
   const error = new Error("Celebrity slot data unavailable");
-  // A partial getUserByUsername response can be session-specific. Mark it as
-  // account-specific so the shared slot worker immediately tries another saved
-  // background session instead of abandoning this celebrity for the whole cycle.
-  error.status = 403;
+  // Missing capacity is an upstream data-state, not an authentication failure.
+  // Keep it status-less so the worker does not rotate through every saved user
+  // session as if Locket had returned a real HTTP 401/403.
   error.code = "CELEB_SNAPSHOT_UNAVAILABLE";
   return error;
 }
