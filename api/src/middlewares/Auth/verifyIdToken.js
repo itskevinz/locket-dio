@@ -7,6 +7,7 @@ const {
 const { getPlanFromCookie } = require("../../utils/tokenUtils/setPlanToken");
 const { tokenUltils } = require("../../utils");
 const { recordServerUserActivity, getAccountStatus } = require("../../services/userActivityStore");
+const { getAccountLock } = require("../../services/accountLockStore");
 
 const verifyIdToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -52,8 +53,20 @@ const verifyIdToken = async (req, res, next) => {
     if (req.user.uid) {
       const status = await getAccountStatus(req.user.uid).catch(() => "active");
       if (status === "locked") {
+        let lock = null;
+        try {
+          lock = await getAccountLock(req.user.uid);
+        } catch (lockError) {
+          console.warn("Unable to load account lock reason:", lockError?.message || lockError);
+        }
         logError("verifyIdToken", `⛔ Account is locked: ${req.user.uid}`);
-        return res.status(403).json({ success: false, code: "ACCOUNT_LOCKED", error: "Tài khoản Locket Web của bạn đã bị Khóa bởi Quản Trị Viên." });
+        return res.status(403).json({
+          success: false,
+          code: "ACCOUNT_LOCKED",
+          error: "Tài khoản Locket Web của bạn đã bị khóa bởi Quản Trị Viên.",
+          reason: lock?.reason || null,
+          lockedAt: lock?.locked_at || null,
+        });
       }
     }
 
@@ -82,61 +95,53 @@ const verifyplanAuth = (req, res, next) => {
   }
 
   req.plan = planData;
-  logInfo(
-    "verifyplanAuth",
-    `✅ Plan cookie xác thực thành công (${planData.plan_id})`,
-  );
-
-  // 🧾 Log toàn bộ thông tin planData dưới dạng bảng
-  logTable("verifyplanAuth", planData, "PLAN COOKIE DATA");
-  next();
-};
-
-const verifyPlanAuthOrGuest = async (req, res, next) => {
-  const user = await verifyIdTokenAsync(req);
-  if (user) {
-    req.user = user;
-    req.isGuest = false;
-    console.log(`✅ User xác thực thành công: ${user.uid}`);
-    recordServerUserActivity({ user, req, eventType: "touch" }).catch(() => {});
-  } else {
-    req.user = null;
-    req.isGuest = true;
-    console.log("⚠️ Guest (chưa login) gọi API");
-  }
+  logSuccess("verifyplanAuth", "✅ Plan token verified");
+  logTable(planData);
   next();
 };
 
 const verifyIdTokenAsync = async (req) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
-
   const idToken = authHeader.split(" ")[1];
   const { valid } = tokenUltils.checkTokenValid(idToken);
   if (!valid) return null;
-
   const payloadBase64 = idToken.split(".")[1];
-  const decodedPayload = JSON.parse(
-    Buffer.from(payloadBase64, "base64").toString("utf-8"),
-  );
+  const decodedPayload = JSON.parse(Buffer.from(payloadBase64, "base64").toString("utf-8"));
   return {
-    uid: decodedPayload.user_id || decodedPayload.uid,
-    localId: decodedPayload.user_id || decodedPayload.uid,
     idToken,
-    email: decodedPayload.email,
+    localId: decodedPayload.user_id || decodedPayload.uid,
+    uid: decodedPayload.user_id || decodedPayload.uid,
+    email: decodedPayload?.email,
+    phone: decodedPayload?.phone_number,
     name: decodedPayload.name,
+    picture: decodedPayload.picture,
+    exp: decodedPayload.exp,
+    iat: decodedPayload.iat,
   };
 };
 
-/**
- * Parse a bearer token when present, but keep signed-public routes usable when
- * the token is missing or stale. The route handler must still validate its own
- * short-lived signature before returning private data.
- */
-const verifyIdTokenOptional = async (req, _res, next) => {
+const verifyPlanAuthOrGuest = async (req, res, next) => {
   try {
     const user = await verifyIdTokenAsync(req);
-    if (user) req.user = user;
+    if (user) {
+      req.user = user;
+      req.isGuest = false;
+    } else {
+      req.user = null;
+      req.isGuest = true;
+    }
+    next();
+  } catch (error) {
+    req.user = null;
+    req.isGuest = true;
+    next();
+  }
+};
+
+const verifyIdTokenOptional = async (req, res, next) => {
+  try {
+    req.user = await verifyIdTokenAsync(req);
   } catch {
     req.user = null;
   }
@@ -145,7 +150,8 @@ const verifyIdTokenOptional = async (req, _res, next) => {
 
 module.exports = {
   verifyIdToken,
-  verifyIdTokenOptional,
   verifyplanAuth,
   verifyPlanAuthOrGuest,
+  verifyIdTokenAsync,
+  verifyIdTokenOptional,
 };
