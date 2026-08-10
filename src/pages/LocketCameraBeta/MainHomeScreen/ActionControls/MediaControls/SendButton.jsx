@@ -145,7 +145,7 @@ const SendButton = () => {
               reloadUser();
             },
           },
-        );
+        });
         return;
       }
       if (isSizeMedia > maxFileSize) {
