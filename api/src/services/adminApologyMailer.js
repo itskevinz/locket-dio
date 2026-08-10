@@ -1,4 +1,5 @@
 const EMAIL_BRAND = "Duchi Locket";
+const ALLOWED_MAIL_TEMPLATES = new Set(["apology", "restored"]);
 
 const clean = (value, max = 1000) => String(value || "").trim().slice(0, max);
 
@@ -29,30 +30,61 @@ async function parseResponse(response) {
   return { data, raw };
 }
 
-function buildAdminApologyEmail({ email, displayName, uid }) {
+function normalizeTemplate(template) {
+  const value = clean(template, 40).toLowerCase();
+  return ALLOWED_MAIL_TEMPLATES.has(value) ? value : "apology";
+}
+
+function buildAdminApologyEmail({ email, displayName, uid, template = "apology" }) {
   const targetEmail = clean(email, 320).toLowerCase();
   const name = clean(displayName, 120) || "bạn";
   const safeUid = clean(uid, 180);
   const appUrl = publicAppUrl();
-  const subject = `${EMAIL_BRAND} | Xin lỗi về việc tài khoản bị khóa nhầm`;
+  const selectedTemplate = normalizeTemplate(template);
+  const isRestored = selectedTemplate === "restored";
+
+  const subject = isRestored
+    ? `${EMAIL_BRAND} | Tài khoản của bạn đã được mở khóa`
+    : `${EMAIL_BRAND} | Xin lỗi về việc tài khoản bị khóa nhầm`;
+  const badge = isRestored ? "KHÔI PHỤC TÀI KHOẢN" : "XIN LỖI";
+  const title = isRestored
+    ? "Tài khoản của bạn đã được mở khóa"
+    : "Tài khoản của bạn đã bị khóa nhầm";
+  const introText = isRestored
+    ? `Tài khoản ${targetEmail} đã được bộ phận quản trị kiểm tra và khôi phục quyền truy cập.`
+    : `Chúng tôi thành thật xin lỗi vì tài khoản ${targetEmail} đã bị khóa nhầm trong quá trình quản trị.`;
+  const followupText = isRestored
+    ? "Bạn có thể đăng nhập và tiếp tục sử dụng Duchi Locket bình thường."
+    : "Sau khi kiểm tra, quyền truy cập của tài khoản đã được khôi phục và bạn có thể tiếp tục sử dụng Duchi Locket bình thường.";
+  const closingText = isRestored
+    ? "Cảm ơn bạn đã sử dụng Duchi Locket."
+    : "Rất xin lỗi vì sự bất tiện này và cảm ơn bạn đã thông cảm.";
+  const detailText = isRestored
+    ? "Đây là email xác nhận từ bộ phận quản trị Duchi Locket sau khi quyền truy cập tài khoản được khôi phục."
+    : "Đây là email được gửi trực tiếp từ bộ phận quản trị Duchi Locket sau khi tài khoản được kiểm tra và khôi phục.";
+
   const text = [
     EMAIL_BRAND,
     "Thông báo từ hệ thống",
     "",
     `Chào ${name},`,
     "",
-    `Chúng tôi thành thật xin lỗi vì tài khoản ${targetEmail} đã bị khóa nhầm trong quá trình quản trị.`,
-    "Sau khi kiểm tra, quyền truy cập của tài khoản đã được khôi phục và bạn có thể tiếp tục sử dụng Duchi Locket bình thường.",
+    introText,
+    followupText,
     "",
     "Trạng thái tài khoản: Đã mở khóa - Hoạt động bình thường",
     safeUid ? `UID: ${safeUid}` : "",
     "",
     `Mở Duchi Locket: ${appUrl}`,
     "",
-    "Rất xin lỗi vì sự bất tiện này và cảm ơn bạn đã thông cảm.",
+    closingText,
     "",
     "Email tự động từ Duchi Locket. Bạn không cần phản hồi email này.",
   ].filter(Boolean).join("\n");
+
+  const introHtml = isRestored
+    ? `Chào <strong style="color:#0f172a;">${escapeHtml(name)}</strong>, tài khoản <strong style="color:#0f172a;">${escapeHtml(targetEmail)}</strong> đã được bộ phận quản trị kiểm tra và khôi phục quyền truy cập. Bạn có thể tiếp tục sử dụng Duchi Locket bình thường.`
+    : `Chào <strong style="color:#0f172a;">${escapeHtml(name)}</strong>, chúng tôi thành thật xin lỗi vì tài khoản <strong style="color:#0f172a;">${escapeHtml(targetEmail)}</strong> đã bị khóa nhầm trong quá trình quản trị. Sau khi kiểm tra, quyền truy cập của bạn đã được khôi phục.`;
 
   const html = `<!doctype html>
 <html lang="vi">
@@ -63,7 +95,7 @@ function buildAdminApologyEmail({ email, displayName, uid }) {
   <title>${escapeHtml(subject)}</title>
 </head>
 <body style="margin:0;padding:0;background:#f4f7fb;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
-  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">Tài khoản của bạn đã được khôi phục. Duchi Locket thành thật xin lỗi vì sự bất tiện.</div>
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${escapeHtml(title)} — Duchi Locket.</div>
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f4f7fb;padding:28px 12px;">
     <tr>
       <td align="center">
@@ -76,9 +108,9 @@ function buildAdminApologyEmail({ email, displayName, uid }) {
           </tr>
           <tr>
             <td style="padding:30px 28px 24px;">
-              <div style="font-size:13px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.7px;">XIN LỖI</div>
-              <h1 style="margin:8px 0 12px;font-size:24px;line-height:1.3;color:#0f172a;">Tài khoản của bạn đã bị khóa nhầm</h1>
-              <p style="margin:0;color:#475569;font-size:15px;line-height:1.7;">Chào <strong style="color:#0f172a;">${escapeHtml(name)}</strong>, chúng tôi thành thật xin lỗi vì tài khoản <strong style="color:#0f172a;">${escapeHtml(targetEmail)}</strong> đã bị khóa nhầm trong quá trình quản trị. Sau khi kiểm tra, quyền truy cập của bạn đã được khôi phục.</p>
+              <div style="font-size:13px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.7px;">${escapeHtml(badge)}</div>
+              <h1 style="margin:8px 0 12px;font-size:24px;line-height:1.3;color:#0f172a;">${escapeHtml(title)}</h1>
+              <p style="margin:0;color:#475569;font-size:15px;line-height:1.7;">${introHtml}</p>
 
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top:20px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;">
                 <tr>
@@ -98,8 +130,8 @@ function buildAdminApologyEmail({ email, displayName, uid }) {
                 </tr>
               </table>
 
-              <p style="margin:24px 0 0;color:#475569;font-size:14px;line-height:1.7;">Rất xin lỗi vì sự bất tiện này và cảm ơn bạn đã thông cảm.</p>
-              <p style="margin:14px 0 0;color:#64748b;font-size:12px;line-height:1.6;">Đây là email được gửi trực tiếp từ bộ phận quản trị Duchi Locket sau khi tài khoản được kiểm tra và khôi phục.</p>
+              <p style="margin:24px 0 0;color:#475569;font-size:14px;line-height:1.7;">${escapeHtml(closingText)}</p>
+              <p style="margin:14px 0 0;color:#64748b;font-size:12px;line-height:1.6;">${escapeHtml(detailText)}</p>
             </td>
           </tr>
           <tr>
@@ -114,10 +146,16 @@ function buildAdminApologyEmail({ email, displayName, uid }) {
 </body>
 </html>`.trim();
 
-  return { subject, text, html, appUrl };
+  return { subject, text, html, appUrl, template: selectedTemplate };
 }
 
-async function sendAdminApologyEmail({ email, displayName = "", uid = "", idempotencyKey = "" } = {}) {
+async function sendAdminApologyEmail({
+  email,
+  displayName = "",
+  uid = "",
+  idempotencyKey = "",
+  template = "apology",
+} = {}) {
   const endpoint = clean(process.env.GMAIL_APPS_SCRIPT_URL, 1000);
   const secret = clean(process.env.GMAIL_APPS_SCRIPT_SECRET, 500);
   const fromName = clean(process.env.GMAIL_FROM_NAME, 120) || EMAIL_BRAND;
@@ -136,19 +174,19 @@ async function sendAdminApologyEmail({ email, displayName = "", uid = "", idempo
     throw error;
   }
   if (!target || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target)) {
-    const error = new Error("Tài khoản không có địa chỉ email hợp lệ để gửi lời xin lỗi.");
+    const error = new Error("Tài khoản không có địa chỉ email hợp lệ để gửi thư.");
     error.code = "EMAIL_ADDRESS_INVALID";
     error.status = 400;
     throw error;
   }
 
-  const message = buildAdminApologyEmail({ email: target, displayName, uid });
+  const message = buildAdminApologyEmail({ email: target, displayName, uid, template });
   try {
     const response = await fetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "text/plain;charset=utf-8",
-        "User-Agent": "Duchi-Locket-Admin-Mail/1.0",
+        "User-Agent": "Duchi-Locket-Admin-Mail/1.1",
       },
       body: JSON.stringify({
         secret,
@@ -163,7 +201,7 @@ async function sendAdminApologyEmail({ email, displayName = "", uid = "", idempo
     });
     const { data } = await parseResponse(response);
     if (!response.ok || data?.ok !== true) {
-      const error = new Error(data?.message || "Gmail relay từ chối gửi email xin lỗi.");
+      const error = new Error(data?.message || "Gmail relay từ chối gửi thư.");
       error.code = data?.code || "EMAIL_RELAY_REJECTED";
       error.status = response.status || 502;
       throw error;
@@ -173,10 +211,11 @@ async function sendAdminApologyEmail({ email, displayName = "", uid = "", idempo
       provider: "gmail-apps-script",
       messageId: data?.messageId || null,
       deduped: Boolean(data?.deduped),
+      template: message.template,
     };
   } catch (cause) {
     if (String(cause?.code || "").startsWith("EMAIL_")) throw cause;
-    const error = new Error("Gmail gửi email xin lỗi thất bại.");
+    const error = new Error("Gmail gửi thư thất bại.");
     error.code = "EMAIL_SEND_FAILED";
     error.status = 502;
     error.cause = cause;
