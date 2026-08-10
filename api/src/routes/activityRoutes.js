@@ -15,6 +15,7 @@ const {
   upsertSession,
   getGlobalBroadcast,
 } = require("../services/userActivityStore");
+const { getAccountLock } = require("../services/accountLockStore");
 
 const router = express.Router();
 const SESSION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -64,6 +65,31 @@ function getSessionId(req, res) {
   }
   return sessionId;
 }
+
+async function accessDeniedPayload(req, error) {
+  const payload = {
+    success: false,
+    code: error.code,
+    error: error.code === "ACCOUNT_LOCKED"
+      ? "Tài khoản Locket Web của bạn đã bị khóa bởi Quản Trị Viên."
+      : error.message,
+  };
+  if (error.code !== "ACCOUNT_LOCKED") return payload;
+
+  const uid = req.verifiedLocketUser?.uid || req.verifiedLocketUser?.user_id;
+  if (!uid) return payload;
+  try {
+    const lock = await getAccountLock(uid);
+    if (lock) {
+      payload.reason = lock.reason || null;
+      payload.lockedAt = lock.locked_at || null;
+    }
+  } catch (lockError) {
+    console.warn("[activity] unable to read account lock reason:", lockError?.message || lockError);
+  }
+  return payload;
+}
+
 router.get("/broadcast", activityLimiter, async (req, res) => {
   try {
     const data = await getGlobalBroadcast();
@@ -104,7 +130,7 @@ router.post("/session", async (req, res) => {
     return res.status(200).json({ success: true, accountStatus: result.accountStatus });
   } catch (error) {
     if (error.code === "ACCOUNT_LOCKED" || error.code === "SESSION_REVOKED") {
-      return res.status(403).json({ success: false, code: error.code, error: error.message });
+      return res.status(403).json(await accessDeniedPayload(req, error));
     }
     console.error("User activity session write failed:", error?.code || error?.name || "unknown");
     return res.status(500).json({ success: false, code: "ACTIVITY_WRITE_FAILED", error: "Unable to record user activity" });
@@ -125,7 +151,7 @@ router.post("/heartbeat", async (req, res) => {
     return res.status(200).json({ success: true });
   } catch (error) {
     if (error.code === "ACCOUNT_LOCKED" || error.code === "SESSION_REVOKED") {
-      return res.status(403).json({ success: false, code: error.code, error: error.message });
+      return res.status(403).json(await accessDeniedPayload(req, error));
     }
     console.error("User activity heartbeat failed:", error?.code || error?.name || "unknown");
     return res.status(500).json({ success: false, code: "HEARTBEAT_FAILED", error: "Unable to update activity" });
