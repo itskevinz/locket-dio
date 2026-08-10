@@ -1,10 +1,31 @@
 import { createImage } from "./createImage";
 
+function markMaterialized(file) {
+  try {
+    file.__prepared = true;
+    file.__materialized = true;
+  } catch {
+    /* marker optional */
+  }
+  return file;
+}
+
+async function cloneOwnedFile(file) {
+  const bytes = await file.arrayBuffer();
+  if (!bytes?.byteLength) throw new Error("File buffer rỗng");
+  return markMaterialized(
+    new File([bytes], file.name || "cropped-image.jpg", {
+      type: file.type || "image/jpeg",
+      lastModified: Number(file.lastModified) || Date.now(),
+    }),
+  );
+}
+
 /**
  * Cắt vùng pixels từ file → JPEG.
  * Clamp crop vào biên ảnh để tránh canvas trống trên mobile.
- * Nếu vùng cắt chính là toàn bộ ảnh và không xoay, trả nguyên file để không
- * làm giảm chất lượng do encode lại vô ích.
+ * Nếu vùng cắt chính là toàn bộ ảnh và không xoay, giữ nguyên bytes nhưng
+ * vẫn clone sang File memory-backed để Android không mất quyền đọc file picker.
  */
 export const getCroppedImg = async (file, crop, rotation = 0) => {
   if (!file || !crop) throw new Error("Thiếu file hoặc vùng cắt");
@@ -26,14 +47,21 @@ export const getCroppedImg = async (file, crop, rotation = 0) => {
     if (sy + sh > imgH) sh = Math.max(1, imgH - sy);
 
     // Square ảnh Locket tải về thường đã đúng 1:1. Nếu user không thay đổi
-    // khung cắt thì giữ nguyên byte thay vì vẽ lại qua canvas.
+    // khung cắt thì không recompress; chỉ detach khỏi file handle của Android.
     const fullFrame =
       !rotation &&
       sx <= 1 &&
       sy <= 1 &&
       Math.abs(sw - imgW) <= 1 &&
       Math.abs(sh - imgH) <= 1;
-    if (fullFrame) return file;
+    if (fullFrame) {
+      try {
+        return await cloneOwnedFile(file);
+      } catch (e) {
+        // Bitmap đã load thì vẫn cứu được bằng canvas ở phía dưới.
+        console.warn("[crop] full-frame materialize failed, fallback canvas", e);
+      }
+    }
 
     // Chỉ resize khi ảnh crop thật sự quá lớn. Không ép 1536 -> 1080 nữa.
     const maxOut = 2048;
@@ -86,10 +114,12 @@ export const getCroppedImg = async (file, crop, rotation = 0) => {
       );
     });
 
-    return new File([blob], "cropped-image.jpg", {
-      type: "image/jpeg",
-      lastModified: Date.now(),
-    });
+    return markMaterialized(
+      new File([blob], "cropped-image.jpg", {
+        type: "image/jpeg",
+        lastModified: Date.now(),
+      }),
+    );
   } finally {
     URL.revokeObjectURL(imageUrl);
   }

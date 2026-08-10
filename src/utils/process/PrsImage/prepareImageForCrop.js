@@ -2,6 +2,10 @@
  * Chuẩn hóa ảnh client-side khi thật sự cần thiết.
  * Ảnh web-native hợp lệ và không vượt maxEdge được giữ nguyên byte để tránh
  * giảm chất lượng do JPEG bị encode lại chỉ vì mở Studio cắt ảnh.
+ *
+ * Lưu ý Android: File do picker trả về có thể là handle tạm thời. Vì vậy kể
+ * cả khi pass-through vẫn phải đọc bytes ngay và tạo File mới do trang sở hữu,
+ * nếu không vài giây sau IndexedDB / upload có thể lỗi InvalidBlob / NotReadableError.
  */
 
 const PASSTHROUGH_TYPES = new Set([
@@ -19,6 +23,31 @@ function loadImageFromUrl(url) {
   });
 }
 
+function markMaterialized(file) {
+  try {
+    file.__prepared = true;
+    file.__materialized = true;
+  } catch {
+    /* custom marker is optional */
+  }
+  return file;
+}
+
+async function cloneFileBytes(file) {
+  const bytes = await file.arrayBuffer();
+  if (!bytes?.byteLength) throw new Error("File buffer rỗng");
+  return markMaterialized(
+    new File(
+      [bytes],
+      (file.name && String(file.name)) || `locket-${Date.now()}.jpg`,
+      {
+        type: file.type || "application/octet-stream",
+        lastModified: Number(file.lastModified) || Date.now(),
+      },
+    ),
+  );
+}
+
 function canvasToJpegFile(canvas, name = "image.jpg", quality = 0.98) {
   return new Promise((resolve, reject) => {
     canvas.toBlob(
@@ -31,8 +60,7 @@ function canvasToJpegFile(canvas, name = "image.jpg", quality = 0.98) {
           type: "image/jpeg",
           lastModified: Date.now(),
         });
-        file.__prepared = true;
-        resolve(file);
+        resolve(markMaterialized(file));
       },
       "image/jpeg",
       quality,
@@ -94,7 +122,8 @@ export async function prepareImageForCrop(file, opts = {}) {
   }
 
   // JPG/PNG/WebP browser đã decode được và kích thước vẫn an toàn:
-  // dùng nguyên file, không canvas, không resize, không recompress.
+  // giữ NGUYÊN bytes nhưng clone sang File memory-backed do trang sở hữu.
+  // Không return thẳng File picker của Android vì handle có thể hết quyền sau đó.
   const inputType = String(file.type || "").toLowerCase();
   const canPassThrough =
     !forceJpeg &&
@@ -103,9 +132,16 @@ export async function prepareImageForCrop(file, opts = {}) {
     sh <= maxEdge;
 
   if (canPassThrough) {
-    if (source.close) source.close();
-    if (objectUrl) URL.revokeObjectURL(objectUrl);
-    return file;
+    try {
+      const safeFile = await cloneFileBytes(file);
+      if (source.close) source.close();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      return safeFile;
+    } catch (e) {
+      // Nếu Android đã thu hồi handle nhưng bitmap đã decode xong, vẫn có thể
+      // cứu ảnh bằng cách vẽ source sang canvas phía dưới.
+      console.warn("[crop] materialize pass-through failed, fallback canvas", e);
+    }
   }
 
   let w = sw;
@@ -127,6 +163,8 @@ export async function prepareImageForCrop(file, opts = {}) {
   }
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, w, h);
+  if ("imageSmoothingEnabled" in ctx) ctx.imageSmoothingEnabled = true;
+  if ("imageSmoothingQuality" in ctx) ctx.imageSmoothingQuality = "high";
   ctx.drawImage(source, 0, 0, w, h);
 
   if (source.close) source.close();
