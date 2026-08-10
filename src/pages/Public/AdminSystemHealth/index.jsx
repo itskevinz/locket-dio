@@ -1,5 +1,8 @@
 import React, { lazy, Suspense, useState } from "react";
 
+const AdminOpsSuite = lazy(
+  () => import("@/features/AdminOps/AdminOpsSuite"),
+);
 const AdminOpsDashboard = lazy(
   () => import("@/features/AdminOps/AdminOpsDashboard"),
 );
@@ -22,7 +25,7 @@ export default function AdminSystemHealth({
   showAccountHealth = true,
   showSystemStatus = true,
 }) {
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState("ops");
 
   return (
     <div className="w-full">
@@ -30,6 +33,15 @@ export default function AdminSystemHealth({
         role="tablist"
         className="tabs tabs-boxed flex-wrap gap-1 bg-base-200/50 p-1 mb-4"
       >
+        <button
+          type="button"
+          role="tab"
+          className={`tab font-black ${activeTab === "ops" ? "tab-active !bg-primary !text-white" : ""}`}
+          onClick={() => setActiveTab("ops")}
+        >
+          Ops Suite · 7 nâng cấp
+        </button>
+
         <button
           type="button"
           role="tab"
@@ -99,6 +111,7 @@ export default function AdminSystemHealth({
             </div>
           }
         >
+          {activeTab === "ops" && <AdminOpsSuite />}
           {activeTab === "overview" && <AdminOpsDashboard />}
           {activeTab === "celeb" && showCelebCenter && <AdminCelebCenter />}
           {activeTab === "usage" && <AdminFeatureUsage />}
