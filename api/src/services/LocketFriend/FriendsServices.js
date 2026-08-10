@@ -129,6 +129,13 @@ function unwrapUserResult(result) {
   return result?.data || result?.result?.data || result || null;
 }
 
+function userUidFromResult(result) {
+  const user = unwrapUserResult(result);
+  return String(
+    user?.uid || user?.user_uid || user?.userUid || user?.id || "",
+  ).trim();
+}
+
 function looksLikeCelebrity(user) {
   if (!user) return false;
   const marker = user.celebrity;
@@ -160,6 +167,20 @@ function hasValidCelebrityCapacity(result) {
   );
 }
 
+function hasCelebrityCapacity(result) {
+  const user = unwrapUserResult(result);
+  const celebrity = user?.celebrity_data;
+  if (!celebrity) return false;
+  const friendCount = Number(celebrity.friend_count);
+  const maxFriends = Number(celebrity.max_friends);
+  return (
+    Number.isFinite(friendCount) &&
+    friendCount >= 0 &&
+    Number.isFinite(maxFriends) &&
+    maxFriends > 0
+  );
+}
+
 function incompleteCelebritySnapshotError() {
   const error = new Error("Celebrity slot data unavailable for this session");
   // Slot worker treats 401/403 as account-specific and immediately tries another
@@ -168,6 +189,37 @@ function incompleteCelebritySnapshotError() {
   error.status = 403;
   error.code = "CELEB_SNAPSHOT_UNAVAILABLE";
   return error;
+}
+
+async function fetchUserByUidForCapacity(idToken, uid) {
+  if (!idToken || !uid) return null;
+  try {
+    const response = await instanceLocketV2.post(
+      "fetchUserV2",
+      { data: { user_uid: uid } },
+      { meta: { idToken } },
+    );
+    return response.data?.result || null;
+  } catch (error) {
+    console.warn("[friends] fetchUserV2 capacity fallback failed", {
+      status: error?.response?.status || error?.status || null,
+      code: error?.code || null,
+    });
+    return null;
+  }
+}
+
+async function recoverCelebrityCapacity(idToken, result) {
+  if (hasCelebrityCapacity(result)) return result;
+  const uid = userUidFromResult(result);
+  if (!uid) return result;
+
+  const fetched = await fetchUserByUidForCapacity(idToken, uid);
+  if (hasCelebrityCapacity(fetched)) {
+    console.log("[friends] celebrity snapshot recovered via fetchUserV2", { uid });
+    return fetched;
+  }
+  return result;
 }
 
 // Hàm tìm bạn qua username
@@ -240,7 +292,8 @@ const FindFriendByUserName = async (idToken, username) => {
       const response = await instanceLocketV2.post("getUserByUsername", body, {
         meta: { idToken },
       });
-      const result = response.data?.result;
+      let result = response.data?.result;
+      result = await recoverCelebrityCapacity(idToken, result);
 
       if (hasValidCelebrityCapacity(result)) return result;
 
