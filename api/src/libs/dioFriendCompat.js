@@ -6,6 +6,11 @@ const DEFAULT_DIO_PUBLIC_API_KEY =
   "LKD-LOCKETDIO-AB02F55KYM55DD02MM03YY25-LKD";
 
 const DIO_TIMEOUT_MS = 12000;
+const FIRESTORE_USERS_BASE =
+  "https://firestore.googleapis.com/v1/projects/locket-4252a/databases/(default)/documents/users";
+const VERIFY_DELAYS_MS = [250, 700, 1400, 2200];
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function isEnabled() {
   const value = String(process.env.DIO_FRIEND_FALLBACK_ENABLED || "")
@@ -52,6 +57,17 @@ function cookieHeaderFromResponse(headers) {
     .join("; ");
 }
 
+function decodeFirebaseUid(idToken) {
+  try {
+    const payload = String(idToken || "").split(".")[1];
+    if (!payload) return "";
+    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    return String(parsed.user_id || parsed.uid || parsed.sub || "").trim();
+  } catch {
+    return "";
+  }
+}
+
 async function createDioMemberSession(idToken) {
   const response = await axios.get(`${dioBaseUrl()}/api/cn`, {
     headers: commonHeaders(idToken),
@@ -85,17 +101,134 @@ async function createDioMemberSession(idToken) {
 }
 
 function normalizeDioSuccess(data) {
-  if (!data || data.success === false) return null;
+  if (!data || typeof data !== "object" || data.success === false) return null;
 
-  // Dio's current client expects the beta endpoint to return the original
-  // Locket result nested under data. Preserve that shape for RequestServices.
-  if (data?.data?.result) return data.data;
-  if (data?.result) return data;
+  // Chỉ chấp nhận shape có result.data thật. Trước đây mọi HTTP 2xx không có
+  // success:false đều bị bọc thành result.data và tạo false-positive "đã gửi".
+  const nestedResult = data?.data?.result;
+  if (nestedResult && nestedResult.data !== null && nestedResult.data !== undefined) {
+    return { result: nestedResult };
+  }
 
-  const value = data?.data ?? data;
+  const directResult = data?.result;
+  if (directResult && directResult.data !== null && directResult.data !== undefined) {
+    return { result: directResult };
+  }
+
+  // Shape rút gọn của Dio chỉ hợp lệ khi server nói success:true rõ ràng và
+  // data thực sự có giá trị. success:true + data:null tuyệt đối không phải success.
+  if (data.success !== true) return null;
+  if (!Object.prototype.hasOwnProperty.call(data, "data")) return null;
+  if (data.data === null || data.data === undefined) return null;
+
   return {
     result: {
-      data: value ?? {},
+      data: data.data,
+    },
+  };
+}
+
+function fieldString(document, field) {
+  return String(document?.fields?.[field]?.stringValue || "").trim();
+}
+
+async function collectionContainsTarget({
+  idToken,
+  localId,
+  collection,
+  targetUid,
+  fields,
+}) {
+  let pageToken = null;
+  let page = 0;
+  const url = `${FIRESTORE_USERS_BASE}/${encodeURIComponent(localId)}/${collection}`;
+
+  do {
+    const response = await axios.get(url, {
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+        Accept: "application/json",
+      },
+      params: {
+        pageSize: 100,
+        ...(pageToken ? { pageToken } : {}),
+      },
+      timeout: 8000,
+    });
+
+    const documents = Array.isArray(response.data?.documents)
+      ? response.data.documents
+      : [];
+    if (
+      documents.some((document) =>
+        fields.some((field) => fieldString(document, field) === String(targetUid)),
+      )
+    ) {
+      return true;
+    }
+
+    pageToken = String(response.data?.nextPageToken || "").trim() || null;
+    page += 1;
+  } while (pageToken && page < 20);
+
+  return false;
+}
+
+async function lookupPersistedRelationship(idToken, targetUid) {
+  const localId = decodeFirebaseUid(idToken);
+  if (!localId || !targetUid) return "";
+
+  const [isFriend, hasOutgoing] = await Promise.all([
+    collectionContainsTarget({
+      idToken,
+      localId,
+      collection: "friends",
+      targetUid,
+      fields: ["user", "user_uid"],
+    }),
+    collectionContainsTarget({
+      idToken,
+      localId,
+      collection: "outgoing_friend_requests",
+      targetUid,
+      fields: ["requested_user", "user", "user_uid"],
+    }),
+  ]);
+
+  if (isFriend) return "FRIEND";
+  if (hasOutgoing) return "OUTGOING_REQUEST";
+  return "";
+}
+
+async function safeLookupPersistedRelationship(idToken, targetUid) {
+  try {
+    return await lookupPersistedRelationship(idToken, targetUid);
+  } catch (error) {
+    console.warn("[friends] request verification read failed", {
+      status: error?.response?.status || error?.status || null,
+      code: error?.code || null,
+    });
+    return "";
+  }
+}
+
+async function waitForPersistedRelationship(idToken, targetUid) {
+  for (const delayMs of VERIFY_DELAYS_MS) {
+    await sleep(delayMs);
+    const state = await safeLookupPersistedRelationship(idToken, targetUid);
+    if (state) return state;
+  }
+  return "";
+}
+
+function verifiedResult(state, extra = {}) {
+  return {
+    result: {
+      data: {
+        verified: true,
+        relationship: state,
+        ...extra,
+      },
     },
   };
 }
@@ -103,6 +236,17 @@ function normalizeDioSuccess(data) {
 async function sendViaDio({ kind, idToken, friendUid }) {
   if (!isEnabled()) return null;
   if (!idToken || !friendUid) return null;
+
+  // Trước khi mutation, kiểm tra request/bạn bè đã tồn tại chưa. Việc này vừa
+  // chống gửi trùng, vừa cho phép worker tự phục hồi trạng thái SENT cũ an toàn.
+  const existingState = await safeLookupPersistedRelationship(idToken, friendUid);
+  if (existingState) {
+    console.log("[friends] Dio request already persisted", {
+      kind,
+      relationship: existingState,
+    });
+    return verifiedResult(existingState, { alreadyPersisted: true });
+  }
 
   const session = await createDioMemberSession(idToken);
   const isCelebrity = kind === "celebrity";
@@ -126,14 +270,28 @@ async function sendViaDio({ kind, idToken, friendUid }) {
   });
 
   const normalized = normalizeDioSuccess(response.data);
-  if (response.status >= 200 && response.status < 300 && normalized) {
-    return normalized;
+  if (response.status < 200 || response.status >= 300 || !normalized) {
+    const error = new Error("Dio compatibility friend request failed");
+    error.status = response.status || 502;
+    error.code = "DIO_FRIEND_FALLBACK_FAILED";
+    throw error;
   }
 
-  const error = new Error("Dio compatibility friend request failed");
-  error.status = response.status || 502;
-  error.code = "DIO_FRIEND_FALLBACK_FAILED";
-  throw error;
+  // Không tin response mutation một mình. Chỉ trả success khi Firestore của tài
+  // khoản thật sự thấy outgoing request hoặc Celeb đã nằm trong danh sách bạn bè.
+  const persistedState = await waitForPersistedRelationship(idToken, friendUid);
+  if (!persistedState) {
+    const error = new Error(
+      "Dio returned success but Locket did not persist the friend request",
+    );
+    error.status = 502;
+    error.code = "DIO_REQUEST_NOT_CONFIRMED";
+    throw error;
+  }
+
+  return verifiedResult(persistedState, {
+    upstreamData: normalized?.result?.data || null,
+  });
 }
 
 function isFriendFallbackCandidate(error) {
@@ -178,8 +336,9 @@ async function tryDioFriendFallback(error) {
 
     if (!data) return null;
 
-    console.log("[friends] Dio compatibility fallback succeeded", {
+    console.log("[friends] Dio compatibility fallback verified", {
       kind: isCelebrity ? "celebrity" : "friend",
+      relationship: data?.result?.data?.relationship || null,
     });
 
     return {
@@ -203,6 +362,8 @@ async function tryDioFriendFallback(error) {
 module.exports = {
   isEnabled,
   normalizeDioSuccess,
+  decodeFirebaseUid,
+  lookupPersistedRelationship,
   isFriendFallbackCandidate,
   tryDioFriendFallback,
 };
