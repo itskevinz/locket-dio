@@ -3,6 +3,7 @@ const { HttpsProxyAgent } = require("https-proxy-agent");
 const { locketServices } = require("../config/app.config");
 const { proxy } = require("../config/app.config");
 const { tryDioFriendFallback } = require("./dioFriendCompat");
+const { attachAxiosResilience } = require("../services/upstreamResilience");
 
 const proxyUrl = proxy.locketProxy;
 
@@ -82,4 +83,21 @@ instanceLocketV2.interceptors.response.use(
   },
 );
 
-module.exports = { instanceLocketV2 };
+// Stability policy:
+// - Chỉ request đọc an toàn (GET/HEAD/OPTIONS hoặc POST tên get/list/search/...)
+//   mới được retry.
+// - Request ghi như send/react/delete/accept tuyệt đối không tự retry để tránh
+//   gửi trùng khi upstream đã xử lý nhưng kết nối bị rớt.
+// - Sau nhiều lỗi mạng/502/503/504 liên tiếp, circuit mở ngắn để chặn request storm.
+const locketResilience = attachAxiosResilience(instanceLocketV2, {
+  name: "locket",
+  failureThreshold: 4,
+  openMs: 12_000,
+  maxRetries: 2,
+  retryDelaysMs: [350, 900],
+});
+
+module.exports = {
+  instanceLocketV2,
+  getLocketCircuitState: locketResilience.snapshot,
+};
