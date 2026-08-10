@@ -20,6 +20,7 @@ const {
 const {
   DEFAULT_NORMAL_INTERVAL_MS,
   FAST_INTERVAL_MS,
+  AUTO_REQUEST_INTERVAL_MS,
   FAST_WINDOW_MS,
   MIN_WORKER_DELAY_MS,
   clampNormalIntervalMs,
@@ -33,9 +34,10 @@ const POLL_INTERVAL_MS = clampNormalIntervalMs(
   process.env.SLOT_POLL_INTERVAL_MS,
   DEFAULT_NORMAL_INTERVAL_MS,
 );
-const CELEB_BATCH_SIZE = 2;
-const USER_ACTION_BATCH_SIZE = 2;
-const BATCH_DELAY_MS = 150;
+const CELEB_BATCH_SIZE = 4;
+const USER_ACTION_BATCH_SIZE = 4;
+const BATCH_DELAY_MS = 50;
+const AUTO_REQUEST_RETRY_COOLDOWN_MS = 5_000;
 const ID_TOKEN_CACHE_MS = 45 * 60 * 1000;
 const VAPID_CONFIG_KEY = "slot_monitor_vapid_v1";
 let vapidPromise = null;
@@ -49,6 +51,40 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function errorStatus(error) {
   const value = Number(error?.status || error?.response?.status || 0);
   return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function autoRequestAlreadySent(watch) {
+  return String(watch?.last_auto_request_status || "").toUpperCase() === "SENT";
+}
+
+function autoRequestLastAttemptMs(watch) {
+  const parsed = watch?.last_auto_request_at
+    ? new Date(watch.last_auto_request_at).getTime()
+    : 0;
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function shouldAttemptAutoRequest(watch, availableSlots, now = Date.now()) {
+  if (!watch?.auto_request_enabled || Number(availableSlots) <= 0) return false;
+  if (autoRequestAlreadySent(watch)) return false;
+
+  const lastStatus = String(watch?.last_auto_request_status || "").toUpperCase();
+  const lastAttemptAt = autoRequestLastAttemptMs(watch);
+  if (
+    lastStatus === "FAILED" &&
+    lastAttemptAt > 0 &&
+    Number(now) - lastAttemptAt < AUTO_REQUEST_RETRY_COOLDOWN_MS
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function hasPendingAutoRequest(watches = []) {
+  return watches.some(
+    (watch) => Boolean(watch?.auto_request_enabled) && !autoRequestAlreadySent(watch),
+  );
 }
 
 function cacheUserIdToken(userUid, idToken) {
@@ -122,6 +158,7 @@ async function getPublicConfig() {
       vapidPublicKey: null,
       pollIntervalMs: POLL_INTERVAL_MS,
       fastPollIntervalMs: FAST_INTERVAL_MS,
+      autoRequestPollIntervalMs: AUTO_REQUEST_INTERVAL_MS,
       adaptivePolling: true,
     };
   }
@@ -132,6 +169,7 @@ async function getPublicConfig() {
     vapidPublicKey: keys.publicKey,
     pollIntervalMs: POLL_INTERVAL_MS,
     fastPollIntervalMs: FAST_INTERVAL_MS,
+    autoRequestPollIntervalMs: AUTO_REQUEST_INTERVAL_MS,
     adaptivePolling: true,
   };
 }
@@ -416,30 +454,36 @@ async function processWatchSnapshot(
     await store.updateWatchSnapshot(userUid, watch.celeb_uid, transition);
 
     let autoRequest = {
-      enabled: false,
+      enabled: Boolean(watch?.auto_request_enabled),
       attempted: false,
       success: null,
       code: null,
       message: null,
     };
 
-    if (notify && transition.shouldNotify) {
-      const count = transition.availableSlots;
-
-      if (watch.auto_request_enabled) {
-        let requestIdToken = idToken;
-        if (!requestIdToken) {
-          try {
-            requestIdToken = await refreshUserSession(userUid);
-          } catch (error) {
-            autoRequest = await markAutoRequestSessionFailure(userUid, watch, error);
-          }
-        }
-        if (requestIdToken) {
-          autoRequest = await sendRealCelebrityRequest(userUid, requestIdToken, watch);
+    // Auto-request chạy độc lập với notification transition: chỉ cần còn >= 1 slot,
+    // auto được bật và request chưa từng SENT thì Railway gửi request Celeb thật.
+    // Nếu lỗi tạm thời, DB đánh dấu FAILED và worker sẽ thử lại sau cooldown ngắn.
+    if (shouldAttemptAutoRequest(watch, transition.availableSlots)) {
+      let requestIdToken = idToken;
+      if (!requestIdToken) {
+        try {
+          requestIdToken = await refreshUserSession(userUid);
+        } catch (error) {
+          autoRequest = await markAutoRequestSessionFailure(userUid, watch, error);
         }
       }
+      if (requestIdToken) {
+        autoRequest = await sendRealCelebrityRequest(userUid, requestIdToken, watch);
+      }
+    }
 
+    const shouldNotifyNow = Boolean(
+      notify && (transition.shouldNotify || autoRequest.success === true),
+    );
+
+    if (shouldNotifyNow) {
+      const count = transition.availableSlots;
       let body = `@${watch.username} hiện còn ${count.toLocaleString("vi-VN")} slot trống. Nhấn để kết bạn ngay!`;
       let title = "🔥 Slot vừa mở!";
 
@@ -448,7 +492,7 @@ async function processWatchSnapshot(
         body = `@${watch.username} còn ${count.toLocaleString("vi-VN")} slot. Railway đã gửi yêu cầu kết bạn Celeb thật và Locket đã xác nhận.`;
       } else if (autoRequest.enabled && autoRequest.success === false) {
         title = "⚠️ Có slot nhưng tự kết bạn chưa thành công";
-        body = `@${watch.username} còn ${count.toLocaleString("vi-VN")} slot. Locket chưa xác nhận request tự động; mở Duchi Locket để thử ngay.`;
+        body = `@${watch.username} còn ${count.toLocaleString("vi-VN")} slot. Locket chưa xác nhận request tự động; hệ thống nền sẽ tiếp tục xử lý theo chính sách retry.`;
       }
 
       const payload = {
@@ -473,6 +517,7 @@ async function processWatchSnapshot(
         watch.celeb_uid,
         transition.friendCount,
         transition.maxFriends,
+        autoRequest.success === true ? "auto-sent" : "slot-open",
       ].join("-");
 
       await Promise.allSettled([
@@ -585,6 +630,7 @@ async function fetchSharedCelebritySnapshot(watches) {
 }
 
 async function checkCelebrityGroup(celebUid, watches) {
+  const turboPolling = hasPendingAutoRequest(watches);
   const lookup = await fetchSharedCelebritySnapshot(watches);
   if (!lookup.ok) {
     return {
@@ -593,6 +639,7 @@ async function checkCelebrityGroup(celebUid, watches) {
       error: lookup.error,
       status: errorStatus(lookup.error),
       rateLimited: errorStatus(lookup.error) === 429,
+      turboPolling,
     };
   }
 
@@ -625,6 +672,7 @@ async function checkCelebrityGroup(celebUid, watches) {
     snapshot: lookup.snapshot,
     changed,
     rateLimited,
+    turboPolling,
   };
 }
 
@@ -657,7 +705,10 @@ function scheduleStateAfterResult(state, result, now = Date.now()) {
     state.rateLimitLevel = 0;
     state.backoffUntil = 0;
     state.fastUntil = 0;
-    state.nextCheckAt = now + jitteredIntervalMs(POLL_INTERVAL_MS);
+    const retryIntervalMs = result?.turboPolling
+      ? Math.max(5_000, AUTO_REQUEST_INTERVAL_MS)
+      : POLL_INTERVAL_MS;
+    state.nextCheckAt = now + jitteredIntervalMs(retryIntervalMs);
     return;
   }
 
@@ -667,11 +718,13 @@ function scheduleStateAfterResult(state, result, now = Date.now()) {
     state.fastUntil = Math.max(Number(state.fastUntil || 0), now + FAST_WINDOW_MS);
   }
 
-  const intervalMs = pollIntervalForState({
-    fastUntil: state.fastUntil,
-    now,
-    normalIntervalMs: POLL_INTERVAL_MS,
-  });
+  const intervalMs = result.turboPolling
+    ? AUTO_REQUEST_INTERVAL_MS
+    : pollIntervalForState({
+        fastUntil: state.fastUntil,
+        now,
+        normalIntervalMs: POLL_INTERVAL_MS,
+      });
   state.nextCheckAt = now + jitteredIntervalMs(intervalMs);
 }
 
@@ -723,7 +776,12 @@ async function runWorkerCycle() {
         const state = getCelebPollingState(result.celebUid);
         scheduleStateAfterResult(state, result, completedAt);
 
-        if (result.changed) {
+        if (result.turboPolling && !result.rateLimited) {
+          console.log("[slot-monitor] auto-request turbo polling active", {
+            celebUid: result.celebUid,
+            intervalSeconds: AUTO_REQUEST_INTERVAL_MS / 1000,
+          });
+        } else if (result.changed) {
           console.log("[slot-monitor] celeb activity detected; fast polling enabled", {
             celebUid: result.celebUid,
             intervalSeconds: FAST_INTERVAL_MS / 1000,
@@ -775,14 +833,14 @@ function startSlotMonitorWorker() {
   }
 
   console.log(
-    `[slot-monitor] adaptive 24/7 worker enabled (normal ${(POLL_INTERVAL_MS / 1000).toFixed(0)}s, fast ${(FAST_INTERVAL_MS / 1000).toFixed(0)}s, shared celeb checks)`,
+    `[slot-monitor] adaptive 24/7 worker enabled (normal ${(POLL_INTERVAL_MS / 1000).toFixed(0)}s, fast ${(FAST_INTERVAL_MS / 1000).toFixed(0)}s, auto-request ${(AUTO_REQUEST_INTERVAL_MS / 1000).toFixed(0)}s, shared celeb checks)`,
   );
 
   workerTimer = setTimeout(async () => {
     workerTimer = null;
     const nextDelay = await runWorkerCycle();
     scheduleWorker(nextDelay);
-  }, 2_000);
+  }, 1_000);
   workerTimer.unref?.();
   return true;
 }
