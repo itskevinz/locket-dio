@@ -45,7 +45,12 @@
 /* Unlock -> dashboard: strong page reveal from the right. */
 .admin-dashboard-enter {
   animation: admin-dashboard-page-slide-in 480ms cubic-bezier(.22, 1, .36, 1) both !important;
-  will-change: opacity, transform;
+  /* Do not keep transform/will-change alive after the entrance animation.
+     A persistent transformed ancestor becomes the containing block for fixed
+     DaisyUI modals, which made admin action dialogs appear near the page top
+     and underneath the sticky site header instead of centered in the viewport. */
+  animation-fill-mode: backwards !important;
+  will-change: auto;
   backface-visibility: hidden;
 }
 
