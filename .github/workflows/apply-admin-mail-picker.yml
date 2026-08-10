@@ -1,0 +1,247 @@
+name: Apply admin mail picker
+
+on:
+  push:
+    branches:
+      - admin-mail-picker-20260810
+    paths:
+      - ".github/workflows/apply-admin-mail-picker.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: admin-mail-picker-20260810
+          fetch-depth: 0
+
+      - name: Patch admin routes and UI
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          def rep(text, old, new, label):
+              if old not in text:
+                  raise RuntimeError(f"Patch anchor not found: {label}")
+              return text.replace(old, new, 1)
+
+          routes_path = Path("api/src/routes/adminRoutes.js")
+          routes = routes_path.read_text()
+          routes = rep(
+              routes,
+              '  const targetEmail = String(req.body?.email || "").trim().toLowerCase();\n',
+              '  const targetEmail = String(req.body?.email || "").trim().toLowerCase();\n  const template = ["apology", "restored"].includes(String(req.body?.template || "").trim().toLowerCase())\n    ? String(req.body.template).trim().toLowerCase()\n    : "apology";\n',
+              "general template input",
+          )
+          routes = rep(
+              routes,
+              '      uid: user.uid || "",\n      idempotencyKey: `admin-general-apology:${user.uid || targetEmail}:${requestId}`,',
+              '      uid: user.uid || "",\n      template,\n      idempotencyKey: `admin-general-mail:${template}:${user.uid || targetEmail}:${requestId}`,',
+              "general template send",
+          )
+          routes = rep(
+              routes,
+              '    await audit(req, "SEND_ACCOUNT_APOLOGY_EMAIL", user.uid || null, `Sent general account apology email to ${targetEmail}`);',
+              '    await audit(req, "SEND_ACCOUNT_APOLOGY_EMAIL", user.uid || null, `Sent admin mail template ${template} to ${targetEmail}`);',
+              "general audit",
+          )
+          routes = rep(
+              routes,
+              '      message: "Đã gửi email xin lỗi tới người dùng.",\n      uid: user.uid || null,',
+              '      message: "Đã gửi thư tới người dùng.",\n      template: sendResult.template || template,\n      uid: user.uid || null,',
+              "general response",
+          )
+          routes = rep(
+              routes,
+              '  const targetUid = String(req.params.uid || "").trim();\n',
+              '  const targetUid = String(req.params.uid || "").trim();\n  const template = ["apology", "restored"].includes(String(req.body?.template || "").trim().toLowerCase())\n    ? String(req.body.template).trim().toLowerCase()\n    : "apology";\n',
+              "user template input",
+          )
+          routes = rep(
+              routes,
+              '      uid: user.uid || targetUid,\n      idempotencyKey: `admin-apology:${targetUid}:${requestId}`,',
+              '      uid: user.uid || targetUid,\n      template,\n      idempotencyKey: `admin-user-mail:${template}:${targetUid}:${requestId}`,',
+              "user template send",
+          )
+          routes = rep(
+              routes,
+              '    await audit(req, "SEND_ACCOUNT_APOLOGY_EMAIL", targetUid, `Sent account lock apology email to ${targetEmail}`);',
+              '    await audit(req, "SEND_ACCOUNT_APOLOGY_EMAIL", targetUid, `Sent admin mail template ${template} to ${targetEmail}`);',
+              "user audit",
+          )
+          routes = rep(
+              routes,
+              '      message: "Đã gửi email xin lỗi tới người dùng.",\n      provider: result.provider,',
+              '      message: "Đã gửi thư tới người dùng.",\n      template: result.template || template,\n      provider: result.provider,',
+              "user response",
+          )
+          routes_path.write_text(routes)
+
+          page_path = Path("src/pages/Public/AdminUsers/index.jsx")
+          page = page_path.read_text()
+          page = rep(
+              page,
+              'import AdminSecurityGate, { AdminRouteLoading, AdminSecurityHandoff } from "./AdminSecurityGate";\n',
+              'import AdminSecurityGate, { AdminRouteLoading, AdminSecurityHandoff } from "./AdminSecurityGate";\nimport AdminMailComposer from "./AdminMailComposer";\n',
+              "mail composer import",
+          )
+          page = rep(
+              page,
+              '  const [generalApologyEmail, setGeneralApologyEmail] = useState("");\n  const [generalApologyLoading, setGeneralApologyLoading] = useState(false);',
+              '  const [generalApologyEmail, setGeneralApologyEmail] = useState("");\n  const [mailComposer, setMailComposer] = useState(null);\n  const [mailTemplate, setMailTemplate] = useState("apology");\n  const [mailSending, setMailSending] = useState(false);',
+              "mail composer states",
+          )
+
+          start = page.index('  const handleSendApologyEmail = async (user) => {')
+          end = page.index('  const executeModalAction = async () => {')
+          if start < 0 or end < 0 or end <= start:
+              raise RuntimeError("Mail handlers not found")
+          handlers = r'''  const openUserMailComposer = (user) => {
+            const targetEmail = String(user?.email || "").trim();
+            if (!targetEmail) {
+              SonnerWarning("Không thể gửi thư", "Tài khoản này chưa có địa chỉ email.");
+              return;
+            }
+            if (user?.disabled || String(user?.accountStatus || "").toLowerCase() === "locked") {
+              SonnerWarning("Hãy mở khóa tài khoản trước", "Sau khi mở khóa, bạn có thể chọn mẫu thư và gửi cho người dùng.");
+              return;
+            }
+            setMailTemplate("apology");
+            setMailComposer({ mode: "user", user, email: targetEmail });
+          };
+
+          const openGeneralMailComposer = () => {
+            const targetEmail = generalApologyEmail.trim().toLowerCase();
+            if (!targetEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(targetEmail)) {
+              SonnerWarning("Email không hợp lệ", "Nhập đúng email của người dùng cần gửi thư.");
+              return;
+            }
+            setMailTemplate("apology");
+            setMailComposer({ mode: "general", email: targetEmail });
+          };
+
+          const handleSendSelectedMail = async () => {
+            if (!mailComposer || mailSending) return;
+            const targetEmail = String(mailComposer.email || "").trim().toLowerCase();
+            if (!targetEmail) return;
+
+            setMailSending(true);
+            const fn = async () => {
+              const requestId = globalThis.crypto?.randomUUID?.()
+                || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+              let result;
+              if (mailComposer.mode === "user" && mailComposer.user?.uid) {
+                result = await adminRequest(`/users/${encodeURIComponent(mailComposer.user.uid)}/apology-email`, {
+                  method: "POST",
+                  body: JSON.stringify({ requestId, template: mailTemplate }),
+                });
+              } else {
+                result = await adminRequest("/apology-email", {
+                  method: "POST",
+                  body: JSON.stringify({ email: targetEmail, requestId, template: mailTemplate }),
+                });
+              }
+
+              const templateLabel = mailTemplate === "restored" ? "Xác nhận đã mở khóa" : "Xin lỗi khóa nhầm";
+              SonnerSuccess("✉️ Đã gửi thư", `${templateLabel} đã được gửi tới ${result?.email || targetEmail}.`);
+              if (mailComposer.mode === "general") setGeneralApologyEmail("");
+              setMailComposer(null);
+            };
+
+            try {
+              await handleActionWithSessionCheck(fn);
+            } finally {
+              setMailSending(false);
+            }
+          };
+
+          '''
+          page = page[:start] + handlers + page[end:]
+
+          page = rep(page, '✉️ Gửi email xin lỗi chung', '✉️ Gửi thư chung', "general heading")
+          page = rep(page, 'Nhập email người dùng rồi gửi trực tiếp', 'Nhập email người dùng rồi chọn mẫu thư cần gửi', "general title")
+          page = rep(page, 'Hệ thống tự kiểm tra email thuộc user Huy Locket, tài khoản đã mở khóa và gửi đúng mẫu email Duchi Locket.', 'Bạn có thể chọn thư Xin lỗi khóa nhầm hoặc Xác nhận đã mở khóa trước khi gửi.', "general description")
+          page = rep(page, 'if (event.key === "Enter" && !generalApologyLoading) handleSendGeneralApologyEmail();', 'if (event.key === "Enter") openGeneralMailComposer();', "general enter")
+          page = rep(page, '                    disabled={generalApologyLoading}\n', '                    disabled={mailSending}\n', "general input disabled")
+          page = rep(page, '                    onClick={handleSendGeneralApologyEmail}\n', '                    onClick={openGeneralMailComposer}\n', "general click")
+          page = rep(page, '                    disabled={generalApologyLoading || !generalApologyEmail.trim()}\n', '                    disabled={!generalApologyEmail.trim()}\n', "general disabled")
+          page = rep(
+              page,
+              '''                    {generalApologyLoading ? (
+                      <span className="loading loading-spinner loading-xs" />
+                    ) : (
+                      <span>✉️ Gửi xin lỗi</span>
+                    )}''',
+              '                    <span>✉️ Chọn thư</span>',
+              "general button",
+          )
+
+          page = rep(
+              page,
+              '<td className="text-right pr-6">\n                            <div className="flex items-center justify-end gap-2">',
+              '<td className="text-right pr-6 min-w-[350px] whitespace-nowrap">\n                            <div className="flex items-center justify-end gap-1.5 flex-nowrap">',
+              "action width",
+          )
+          page = rep(page, 'disabled={actionLoading === `apology-${user.uid}` || user.disabled || !user.email}', 'disabled={user.disabled || !user.email}', "row disabled")
+          page = rep(page, 'h-8 px-3 transition-all ${user.disabled || !user.email', 'h-8 px-2.5 shrink-0 transition-all ${user.disabled || !user.email', "row compact")
+          page = rep(page, 'onClick={() => handleSendApologyEmail(user)}', 'onClick={() => openUserMailComposer(user)}', "row click")
+          page = rep(page, 'title={user.disabled ? "Mở khóa tài khoản trước khi gửi email xin lỗi" : user.email ? `Gửi email xin lỗi tới ${user.email}` : "Tài khoản chưa có email"}', 'title={user.disabled ? "Mở khóa tài khoản trước khi gửi thư" : user.email ? `Chọn thư gửi tới ${user.email}` : "Tài khoản chưa có email"}', "row title")
+          page = rep(
+              page,
+              '''                                        {actionLoading === `apology-${user.uid}` ? (
+                                          <span className="loading loading-spinner loading-xs" />
+                                        ) : (
+                                          <span>✉️ Gửi xin lỗi</span>
+                                        )}''',
+              '                                        <span>✉️ Gửi thư</span>',
+              "row label",
+          )
+
+          final_anchor = '''  return (
+            <>
+              <AdminSecurityHandoff active={gateVerified} />
+              <div className="admin-dashboard-enter'''
+          final_replacement = '''  return (
+            <>
+              <AdminSecurityHandoff active={gateVerified} />
+              <AdminMailComposer
+                open={Boolean(mailComposer)}
+                email={mailComposer?.email || ""}
+                template={mailTemplate}
+                sending={mailSending}
+                onTemplateChange={setMailTemplate}
+                onClose={() => setMailComposer(null)}
+                onSend={handleSendSelectedMail}
+              />
+              <div className="admin-dashboard-enter'''
+          page = rep(page, final_anchor, final_replacement, "composer mount")
+          page_path.write_text(page)
+          PY
+
+      - name: Validate backend syntax
+        run: |
+          node --check api/src/services/adminApologyMailer.js
+          node --check api/src/routes/adminRoutes.js
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify frontend production build
+        run: npx vite build
+
+      - name: Commit final feature to main
+        run: |
+          rm -rf dist
+          git rm -f .github/workflows/apply-admin-mail-picker.yml
+          git add api/src/services/adminApologyMailer.js api/src/routes/adminRoutes.js src/pages/Public/AdminUsers/index.jsx src/pages/Public/AdminUsers/AdminMailComposer.jsx
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "feat(admin): add mail picker and fix action overlap"
+          git push origin HEAD:main
