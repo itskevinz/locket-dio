@@ -2,6 +2,10 @@ const { neon } = require("@neondatabase/serverless");
 const store = require("./store");
 const notificationHistoryStore = require("./notificationHistoryStore");
 const {
+  claimNotification,
+  releaseNotificationClaim,
+} = require("./notificationClaimStore");
+const {
   getProviderConfig,
   sendTelegram,
   sendEmail,
@@ -280,7 +284,30 @@ async function sendConfiguredNotifications(userUid, payload, { eventId = "" } = 
   if (settings.telegramEnabled && settings.telegramChatId) {
     tasks.push([
       "telegram",
-      () => sendTelegram(settings.telegramChatId, deliveryPayload),
+      async () => {
+        const claimed = await claimNotification(
+          "telegram",
+          settings.telegramChatId,
+          eventId,
+        );
+        if (!claimed) {
+          console.log("[slot-monitor] telegram duplicate suppressed", {
+            eventId,
+          });
+          return { ok: true, provider: "telegram", deduped: true };
+        }
+
+        try {
+          return await sendTelegram(settings.telegramChatId, deliveryPayload);
+        } catch (error) {
+          await releaseNotificationClaim(
+            "telegram",
+            settings.telegramChatId,
+            eventId,
+          );
+          throw error;
+        }
+      },
     ]);
   }
   if (settings.emailEnabled && settings.emailAddress) {
