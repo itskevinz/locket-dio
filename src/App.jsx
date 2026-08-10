@@ -43,6 +43,8 @@ import DraftLibrary from "./components/MomentDraft/DraftLibrary";
 import { useConnectivityStore } from "./stores/useConnectivityStore";
 import { useUserActivityLifecycle } from "./hooks/useUserActivityLifecycle";
 import GlobalBroadcastBanner from "./components/GlobalBroadcastBanner";
+import AccountLockNotice from "./components/AccountLockNotice";
+import AdminLockReasonEnhancer from "./components/AdminLockReasonEnhancer";
 import { SlotMonitorProvider } from "./features/SlotMonitor/SlotMonitorProvider";
 import {
   MAX_RECOVERY_GROUP_THREADS,
@@ -62,6 +64,8 @@ function App() {
                 <GlobalThemeEffects />
                 <OfflineBanner />
                 <GlobalBroadcastBanner />
+                <AccountLockNotice />
+                <AdminLockReasonEnhancer />
                 <AppContent />
                 {/* RestoreDraftModal disabled — library only via draft badge */}
                 <RestoreDraftModal />
