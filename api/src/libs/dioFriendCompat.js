@@ -8,7 +8,15 @@ const DEFAULT_DIO_PUBLIC_API_KEY =
 const DIO_TIMEOUT_MS = 12000;
 const FIRESTORE_USERS_BASE =
   "https://firestore.googleapis.com/v1/projects/locket-4252a/databases/(default)/documents/users";
+const LOCKET_API_BASE = "https://api.locketcamera.com";
 const VERIFY_DELAYS_MS = [250, 700, 1400, 2200];
+const CELEB_VERIFY_DELAYS_MS = [0, 150, 350, 700];
+const CELEB_RELATIONSHIP_STATES = new Set([
+  "friends",
+  "outgoing-request",
+  "outgoing-follow-request",
+  "follower-waitlist",
+]);
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -217,6 +225,97 @@ async function waitForPersistedRelationship(idToken, targetUid) {
   return "";
 }
 
+function normalizeCelebrityRelationship(user) {
+  const status = String(user?.friendship_status || "").trim().toLowerCase();
+  return CELEB_RELATIONSHIP_STATES.has(status) ? status : "";
+}
+
+function unwrapUser(data) {
+  return (
+    data?.data?.result?.data ||
+    data?.result?.data ||
+    data?.data ||
+    data ||
+    null
+  );
+}
+
+function dioSessionHeaders(idToken, session) {
+  const headers = {
+    ...commonHeaders(idToken),
+    [session.memberHeader]: session.memberToken,
+  };
+  if (session.cookieHeader) headers.Cookie = session.cookieHeader;
+  return headers;
+}
+
+async function lookupCelebrityRelationship({ idToken, targetUid, session }) {
+  let username = "";
+
+  // fetchUserV2 is a read endpoint and remains usable without App Check. It can
+  // provide both the relationship directly and the username needed by Dio's
+  // getUserByData endpoint.
+  try {
+    const response = await axios.post(
+      `${LOCKET_API_BASE}/fetchUserV2`,
+      { data: { user_uid: targetUid } },
+      {
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        timeout: 8000,
+      },
+    );
+    const user = unwrapUser(response.data);
+    const relationship = normalizeCelebrityRelationship(user);
+    if (relationship) return relationship;
+    username = String(user?.username || "").trim();
+  } catch (error) {
+    console.warn("[friends] celebrity relationship fetchUserV2 verify failed", {
+      status: error?.response?.status || error?.status || null,
+      code: error?.code || null,
+    });
+  }
+
+  if (!username) return "";
+
+  // Dio's current client resolves Celeb friendship_status through this endpoint.
+  try {
+    const response = await axios.post(
+      `${dioBetaUrl()}/locket/getUserByData`,
+      { username },
+      {
+        headers: dioSessionHeaders(idToken, session),
+        timeout: 8000,
+        validateStatus: () => true,
+      },
+    );
+    if (response.status < 200 || response.status >= 300) return "";
+    return normalizeCelebrityRelationship(unwrapUser(response.data));
+  } catch (error) {
+    console.warn("[friends] celebrity relationship Dio verify failed", {
+      status: error?.response?.status || error?.status || null,
+      code: error?.code || null,
+    });
+    return "";
+  }
+}
+
+async function waitForCelebrityRelationship({ idToken, targetUid, session }) {
+  for (const delayMs of CELEB_VERIFY_DELAYS_MS) {
+    if (delayMs > 0) await sleep(delayMs);
+    const state = await lookupCelebrityRelationship({
+      idToken,
+      targetUid,
+      session,
+    });
+    if (state) return state;
+  }
+  return "";
+}
+
 function verifiedResult(state, extra = {}) {
   return {
     result: {
@@ -235,7 +334,7 @@ async function sendViaDio({ kind, idToken, friendUid, skipPreflight = false }) {
 
   // Auto Celeb cần tranh slot theo thời gian thực: mutation phải được bắn trước.
   // Friend thường vẫn giữ preflight để chống gửi trùng. Sau mutation, tất cả đường
-  // đều phải verify Firestore thật trước khi được phép báo SENT.
+  // đều phải verify dữ liệu Locket thật trước khi được phép báo SENT.
   if (!skipPreflight) {
     const existingState = await safeLookupPersistedRelationship(idToken, friendUid);
     if (existingState) {
@@ -256,11 +355,7 @@ async function sendViaDio({ kind, idToken, friendUid, skipPreflight = false }) {
     ? { friendUid }
     : { data: { friendUid } };
 
-  const headers = {
-    ...commonHeaders(idToken),
-    [session.memberHeader]: session.memberToken,
-  };
-  if (session.cookieHeader) headers.Cookie = session.cookieHeader;
+  const headers = dioSessionHeaders(idToken, session);
 
   const response = await axios.post(`${dioBetaUrl()}${path}`, body, {
     headers,
@@ -276,7 +371,14 @@ async function sendViaDio({ kind, idToken, friendUid, skipPreflight = false }) {
     throw error;
   }
 
-  const persistedState = await waitForPersistedRelationship(idToken, friendUid);
+  const persistedState = isCelebrity
+    ? await waitForCelebrityRelationship({
+        idToken,
+        targetUid: friendUid,
+        session,
+      })
+    : await waitForPersistedRelationship(idToken, friendUid);
+
   if (!persistedState) {
     const error = new Error(
       "Dio returned success but Locket did not persist the friend request",
