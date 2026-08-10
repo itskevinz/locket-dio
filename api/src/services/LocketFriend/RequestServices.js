@@ -380,7 +380,92 @@ const AcceptToFriendRequest = async (idToken, friend_uid) => {
   }
 };
 
+const CELEB_GOAL_STATES = new Set([
+  "friends",
+  "outgoing-request",
+  "outgoing-follow-request",
+  "follower-waitlist",
+]);
+
+function normalizeRelationshipStatus(user) {
+  const status = String(user?.friendship_status || "").trim().toLowerCase();
+  return CELEB_GOAL_STATES.has(status) ? status : "";
+}
+
+async function getCelebrityRelationshipStatus(idToken, friendUid) {
+  if (!idToken || !friendUid) return "";
+
+  let username = "";
+  try {
+    const fetched = await instanceLocketV2.post(
+      "fetchUserV2",
+      { data: { user_uid: friendUid } },
+      { meta: { idToken } },
+    );
+    const user = fetched?.data?.result?.data || null;
+    const directStatus = normalizeRelationshipStatus(user);
+    if (directStatus) return directStatus;
+    username = String(user?.username || "").trim();
+  } catch (error) {
+    console.warn("[friends] celeb relationship fetchUserV2 check failed", {
+      status: error?.response?.status || null,
+      code: error?.code || null,
+    });
+  }
+
+  if (!username) return "";
+
+  try {
+    const found = await instanceLocketV2.post(
+      "getUserByUsername",
+      {
+        data: {
+          username,
+          analytics: createAnalytics(),
+        },
+      },
+      { meta: { idToken } },
+    );
+    return normalizeRelationshipStatus(found?.data?.result?.data);
+  } catch (error) {
+    console.warn("[friends] celeb relationship username check failed", {
+      status: error?.response?.status || null,
+      code: error?.code || null,
+    });
+    return "";
+  }
+}
+
+async function verifiedCelebrityRelationship(idToken, friendUid) {
+  const relationship = await getCelebrityRelationshipStatus(idToken, friendUid);
+  if (!relationship) return null;
+  return {
+    success: true,
+    data: {
+      verified: true,
+      relationship,
+    },
+    uid: friendUid,
+    relationship,
+  };
+}
+
 const SendAddCelebrity = async (idToken, friend_uid, token) => {
+  // Celeb follow uses a different relationship model from normal friend requests.
+  // If a request is already pending/friends, do not spam another mutation just
+  // because the slot monitor DB has not yet recorded SENT.
+  const existing = await verifiedCelebrityRelationship(idToken, friend_uid);
+  if (existing) {
+    console.log("[friends] celebrity relationship already persisted", {
+      uid: friend_uid,
+      relationship: existing.relationship,
+    });
+    return {
+      ...existing,
+      alreadyPersisted: true,
+    };
+  }
+
   const body = {
     data: {
       celebrity_uid: friend_uid,
@@ -395,6 +480,8 @@ const SendAddCelebrity = async (idToken, friend_uid, token) => {
     });
     const result = response.data?.result;
     if (result?.data === null || result?.data === undefined) {
+      const persisted = await verifiedCelebrityRelationship(idToken, friend_uid);
+      if (persisted) return persisted;
       return {
         success: false,
         status: 400,
@@ -412,6 +499,21 @@ const SendAddCelebrity = async (idToken, friend_uid, token) => {
     console.error("[friends] upstream sendFollowRequest failed", {
       status: error?.response?.status || null,
     });
+
+    // The Axios interceptor may have already sent the mutation through Dio after
+    // Locket rejected the direct call for missing App Check. Celeb follows are
+    // represented by friendship_status, not necessarily by the normal
+    // outgoing_friend_requests collection, so verify the real Locket relationship
+    // before reporting a false failure.
+    const persisted = await verifiedCelebrityRelationship(idToken, friend_uid);
+    if (persisted) {
+      console.log("[friends] celebrity request verified after upstream auth fallback", {
+        uid: friend_uid,
+        relationship: persisted.relationship,
+      });
+      return persisted;
+    }
+
     return normalizeUpstreamFailure(
       error,
       "Không thể gửi yêu cầu theo dõi qua Locket.",
