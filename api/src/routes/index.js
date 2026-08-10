@@ -14,7 +14,10 @@ const { slotMonitorRoutes } = require("../modules/slotMonitor");
 const slotMonitorAdminRoutes = require("../modules/slotMonitor/adminRoutes");
 const adminOpsDashboardRoutes = require("../modules/adminOps/dashboardRoutes");
 const { requestTelemetryMiddleware } = require("../services/requestTelemetry");
-const { healthController } = require("../controllers");
+const {
+  healthController,
+  deepHealthController,
+} = require("../controllers/systemController");
 const adminRoutes = require("./adminRoutes");
 const celebrityRoutes = require("./celebrityRoutes");
 const activityRoutes = require("./activityRoutes");
@@ -38,6 +41,7 @@ module.exports = (app) => {
   });
 
   app.get("/health", healthController);
+  app.get("/health/deep", deepHealthController);
 
   // Routes có limiter riêng phải mount trước generalApiLimit.
   app.use("/locket", authRoutes);
