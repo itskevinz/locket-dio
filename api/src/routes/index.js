@@ -1,4 +1,7 @@
 const express = require("express");
+// Compatibility fix: patch IP-location healing before any admin route destructures
+// userActivityStore. login_history owns location metadata; user_sessions does not.
+require("../services/userActivityLocationHealPatch");
 const authRoutes = require("./authRoutes");
 const locketRoutes = require("./locketRoutes");
 const { rpgcRoutes } = require("../modules/grpc");
