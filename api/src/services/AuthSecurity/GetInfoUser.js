@@ -43,6 +43,11 @@ const getUserInfoV2 = async (idToken, localId) => {
       // Trạng thái Gold phải lấy từ hồ sơ Locket thật, không suy ra từ gói web.
       badge: userDataV2?.fields?.badge?.stringValue || null,
       celebrity: userDataV2?.fields?.celebrity?.booleanValue || false,
+      // Đây là field thật mà changeProfileInfo của Locket cập nhật.
+      usernameDiscoverabilityDisabled:
+        userDataV2?.fields?.username_discoverability_disabled?.booleanValue ??
+        userDataV2?.fields?.username_discoverability_disable?.booleanValue ??
+        false,
       profilePicture:
         userDataV2?.fields?.profile_picture_url?.stringValue || null,
       inviteToken: userDataV2?.fields?.invite_token?.stringValue || null,
@@ -109,8 +114,13 @@ const getUserInfoV3 = async (idToken) => {
       lastName: userDataV2?.fields?.last_name?.stringValue || null,
       badge: userDataV2?.fields?.badge?.stringValue || null,
       celebrity: userDataV2?.fields?.celebrity?.booleanValue || false,
+      usernameDiscoverabilityDisabled:
+        userDataV2?.fields?.username_discoverability_disabled?.booleanValue ??
+        userDataV2?.fields?.username_discoverability_disable?.booleanValue ??
+        false,
       displayName: userData.displayName || null,
       email: userData.email || null,
+      phoneNumber: userData.phoneNumber || null,
       profilePicture:
         userDataV2?.fields?.profile_picture_url?.stringValue || null,
       inviteToken: userDataV2?.fields?.invite_token?.stringValue || null,
