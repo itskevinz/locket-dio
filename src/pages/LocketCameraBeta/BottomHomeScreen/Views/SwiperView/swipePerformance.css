@@ -1,8 +1,8 @@
 /*
  * Moment-detail swipe fast path.
  *
- * Keep the transform on its own compositor path, but avoid backface-visibility
- * and contain:paint on every slide. Those aggressive layer flags caused a
+ * Keep the transform on its own compositor path, but avoid reverse-face layer
+ * and paint containment on every slide. Those aggressive layer flags caused a
  * one-frame white flash on some Android/Chrome GPUs when the active slide
  * changed.
  */
