@@ -3,18 +3,35 @@ const {
   createCelebrityCatalogSource,
 } = require("./celebrityCatalogSource");
 
+const DEFAULT_UPSTREAM_SYNC_INTERVAL_MS = 5 * 60 * 1000;
+
+function getUpstreamSyncIntervalMs() {
+  const configured = Number(process.env.CELEBRITY_SYNC_INTERVAL_MS);
+  return Number.isFinite(configured) && configured >= 10_000
+    ? configured
+    : DEFAULT_UPSTREAM_SYNC_INTERVAL_MS;
+}
+
 function getCelebrityDatabaseUrl() {
   const candidates = [process.env.DATABASE_URL, process.env.NEON_DATABASE_URL];
   return candidates.find((value) => value?.trim())?.trim() || null;
 }
 
-function createCelebrityCatalogStore(sql, { catalogSource = null } = {}) {
+function createCelebrityCatalogStore(
+  sql,
+  {
+    catalogSource = null,
+    syncIntervalMs = getUpstreamSyncIntervalMs(),
+    now = Date.now,
+  } = {},
+) {
   if (typeof sql !== "function") {
     throw new TypeError("Celebrity catalog requires a database client");
   }
 
   let schemaPromise = null;
   let upstreamSyncPromise = null;
+  let lastSuccessfulSyncAt = 0;
 
   async function ensureSchema() {
     if (!schemaPromise) {
@@ -76,13 +93,23 @@ function createCelebrityCatalogStore(sql, { catalogSource = null } = {}) {
     return schemaPromise;
   }
 
-  async function importVerifiedUpstreamCatalog() {
+  async function importVerifiedUpstreamCatalog({ force = false } = {}) {
     if (!catalogSource) return 0;
+    if (
+      !force &&
+      lastSuccessfulSyncAt > 0 &&
+      now() - lastSuccessfulSyncAt < syncIntervalMs
+    ) {
+      return 0;
+    }
 
     if (!upstreamSyncPromise) {
       upstreamSyncPromise = (async () => {
         const profiles = await catalogSource.fetchVerified();
-        if (profiles.length === 0) return 0;
+        if (profiles.length === 0) {
+          lastSuccessfulSyncAt = now();
+          return 0;
+        }
 
         const inserted = await sql`
           INSERT INTO celebrity_profiles (
@@ -105,10 +132,10 @@ function createCelebrityCatalogStore(sql, { catalogSource = null } = {}) {
           RETURNING id
         `;
 
+        lastSuccessfulSyncAt = now();
         return inserted.length;
-      })().catch((error) => {
+      })().finally(() => {
         upstreamSyncPromise = null;
-        throw error;
       });
     }
 
@@ -125,13 +152,21 @@ function createCelebrityCatalogStore(sql, { catalogSource = null } = {}) {
     `;
   }
 
-  async function listEnabled() {
+  async function listEnabled({ forceSync = false } = {}) {
     await ensureSchema();
     const rows = await selectEnabled();
-    if (rows.length > 0 || !catalogSource) return rows;
+    if (!catalogSource) return rows;
 
-    await importVerifiedUpstreamCatalog();
-    return selectEnabled();
+    try {
+      const inserted = await importVerifiedUpstreamCatalog({
+        force: forceSync || rows.length === 0,
+      });
+      return inserted > 0 || rows.length === 0 ? selectEnabled() : rows;
+    } catch (error) {
+      // A temporary source outage must not hide the last verified catalog.
+      if (rows.length > 0) return rows;
+      throw error;
+    }
   }
 
   return { ensureSchema, importVerifiedUpstreamCatalog, listEnabled };
@@ -149,5 +184,6 @@ function createDefaultCelebrityCatalogStore() {
 module.exports = {
   createCelebrityCatalogStore,
   createDefaultCelebrityCatalogStore,
+  getUpstreamSyncIntervalMs,
   getCelebrityDatabaseUrl,
 };

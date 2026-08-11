@@ -91,7 +91,14 @@ export const getListCelebrity = async () => {
 
 export const getListCelebrityV2 = async (config = {}) => {
   try {
-    const res = await instanceMain.get("api/celebrities", config);
+    const { refresh = false, ...requestConfig } = config;
+    const res = await instanceMain.get("api/celebrities", {
+      ...requestConfig,
+      params: {
+        ...requestConfig.params,
+        ...(refresh ? { refresh: 1 } : {}),
+      },
+    });
     if (!res.data?.success || !Array.isArray(res.data?.data)) {
       const error = new Error("INVALID_CELEBRITY_RESPONSE");
       error.code = "INVALID_CELEBRITY_RESPONSE";

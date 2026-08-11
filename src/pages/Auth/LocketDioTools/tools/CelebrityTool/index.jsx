@@ -86,7 +86,7 @@ export default function CelebrateTool() {
     localStorage.setItem("celebrate_country", countryCode);
   }, [countryCode]);
 
-  const loadCatalog = useCallback(() => {
+  const loadCatalog = useCallback(({ forceRefresh = false } = {}) => {
     if (catalogRequestRef.current) {
       return catalogRequestRef.current.promise;
     }
@@ -96,7 +96,10 @@ export default function CelebrateTool() {
     setLoadState("loading");
     setLoadError("");
 
-    const promise = getListCelebrityV2({ signal: controller.signal })
+    const promise = getListCelebrityV2({
+      signal: controller.signal,
+      refresh: forceRefresh,
+    })
       .then((response) => {
         const records = normalizeCelebrityRecords(response);
         if (!mountedRef.current || sequence !== catalogSequenceRef.current) {
@@ -216,7 +219,7 @@ export default function CelebrateTool() {
   const handleRefresh = () => {
     if (refreshToastRef.current) return;
 
-    const refreshPromise = loadCatalog().then((records) => ({
+    const refreshPromise = loadCatalog({ forceRefresh: true }).then((records) => ({
       total: records.length,
       country: countryCode,
     }));

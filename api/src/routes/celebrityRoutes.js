@@ -32,7 +32,10 @@ router.get("/", celebrityReadLimiter, verifyIdToken, async (req, res) => {
   }
 
   try {
-    const rows = await catalogStore.listEnabled();
+    const refreshValue = String(req.query.refresh || "").toLowerCase();
+    const rows = await catalogStore.listEnabled({
+      forceSync: refreshValue === "1" || refreshValue === "true",
+    });
 
     return res.status(200).json({
       success: true,

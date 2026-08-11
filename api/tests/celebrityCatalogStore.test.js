@@ -130,3 +130,74 @@ test("Celebrity catalog restores an empty table from the verified upstream sourc
     ),
   );
 });
+
+test("Celebrity catalog incrementally imports newly joined profiles", async () => {
+  const existing = [{ id: 1, uid: "existing-uid", username: "existing" }];
+  const mock = createSqlMock({ catalogRows: existing });
+  let sourceCalls = 0;
+  const catalogSource = {
+    async fetchVerified() {
+      sourceCalls += 1;
+      return [
+        {
+          uid: "new-uid",
+          username: "new_celebrity",
+          display_name: "New Celebrity",
+          avatar_url: null,
+          locket_url: "https://locket.cam/new_celebrity",
+          country_code: "VN",
+          sort_order: 90,
+        },
+      ];
+    },
+  };
+  const store = createCelebrityCatalogStore(mock.sql, {
+    catalogSource,
+    syncIntervalMs: 60_000,
+  });
+
+  await store.listEnabled();
+  await store.listEnabled();
+
+  assert.equal(sourceCalls, 1);
+  assert.ok(
+    mock.values.some((queryValues) =>
+      queryValues.some((value) => String(value).includes("new_celebrity")),
+    ),
+  );
+});
+
+test("forced Celebrity refresh bypasses the sync interval", async () => {
+  const existing = [{ id: 1, uid: "existing-uid", username: "existing" }];
+  const mock = createSqlMock({ catalogRows: existing });
+  let sourceCalls = 0;
+  const catalogSource = {
+    async fetchVerified() {
+      sourceCalls += 1;
+      return [];
+    },
+  };
+  const store = createCelebrityCatalogStore(mock.sql, {
+    catalogSource,
+    syncIntervalMs: 60_000,
+  });
+
+  await store.listEnabled();
+  await store.listEnabled({ forceSync: true });
+
+  assert.equal(sourceCalls, 2);
+});
+
+test("Celebrity source outage keeps the last verified catalog available", async () => {
+  const existing = [{ id: 1, uid: "existing-uid", username: "existing" }];
+  const mock = createSqlMock({ catalogRows: existing });
+  const store = createCelebrityCatalogStore(mock.sql, {
+    catalogSource: {
+      async fetchVerified() {
+        throw new Error("temporary upstream outage");
+      },
+    },
+  });
+
+  assert.deepEqual(await store.listEnabled(), existing);
+});
