@@ -202,17 +202,17 @@ test("Celebrity source outage keeps the last verified catalog available", async 
   assert.deepEqual(await store.listEnabled(), existing);
 });
 
-test("Celebrity catalog hides upstream TEST fixtures from public reads", async () => {
+test("Celebrity catalog reads every enabled country group", async () => {
   const mock = createSqlMock();
   const store = createCelebrityCatalogStore(mock.sql);
 
   await store.listEnabled();
 
-  assert.ok(
-    mock.queries.some(
-      (query) =>
-        query.includes("WHERE enabled = TRUE") &&
-        query.includes("country_code <> 'TEST'"),
-    ),
+  const publicRead = mock.queries.find(
+    (query) =>
+      query.includes("FROM celebrity_profiles") &&
+      query.includes("WHERE enabled = TRUE"),
   );
+  assert.ok(publicRead);
+  assert.equal(publicRead.includes("country_code <> 'TEST'"), false);
 });

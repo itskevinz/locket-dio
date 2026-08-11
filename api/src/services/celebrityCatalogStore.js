@@ -155,7 +155,7 @@ function createCelebrityCatalogStore(
       SELECT id, uid, username, display_name, avatar_url, locket_url,
              country_code
       FROM celebrity_profiles
-      WHERE enabled = TRUE AND country_code <> 'TEST'
+      WHERE enabled = TRUE
       ORDER BY sort_order ASC, display_name ASC, id ASC
     `;
   }

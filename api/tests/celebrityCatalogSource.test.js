@@ -67,7 +67,7 @@ test("Celebrity source uses server-side headers without a browser Origin", async
   assert.equal("Origin" in request.options.headers, false);
 });
 
-test("Celebrity source accepts the grouped V2 catalog and removes TEST fixtures", () => {
+test("Celebrity source accepts every active group from the V2 catalog", () => {
   const records = normalizeUpstreamCatalog({
     VN: [
       {
@@ -98,6 +98,7 @@ test("Celebrity source accepts the grouped V2 catalog and removes TEST fixtures"
     [
       { uid: "vn-uid", country_code: "VN" },
       { uid: "se-uid", country_code: "SE" },
+      { uid: "test-uid", country_code: "TEST" },
     ],
   );
 });

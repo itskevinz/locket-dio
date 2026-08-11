@@ -59,9 +59,6 @@ function normalizeUpstreamCatalog(payload) {
       .toUpperCase()
       .slice(0, 8);
 
-    // TEST rows are upstream fixtures, not real public Celebrity profiles.
-    if (countryCode === "TEST") continue;
-
     seenUids.add(uid);
     seenUsernames.add(usernameKey);
     normalized.push({
