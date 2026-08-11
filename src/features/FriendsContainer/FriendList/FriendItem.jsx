@@ -7,10 +7,37 @@ import {
   Info,
   Eye,
   CircleEllipsis,
+  Heart,
 } from "lucide-react";
 import { SonnerInfo } from "@/components/uikit/SonnerToast";
 import ConfirmPoup from "@/features/PoupScreen/ConfirmPoup";
 import { useTranslation } from "react-i18next";
+
+function formatFriendDate(value) {
+  if (!value) return "";
+
+  const numericValue = Number(value);
+  const normalizedValue = Number.isFinite(numericValue)
+    ? numericValue < 1e12
+      ? numericValue * 1000
+      : numericValue
+    : value;
+  const date = new Date(normalizedValue);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const pad = (number) => String(number).padStart(2, "0");
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(
+    date.getSeconds(),
+  )} ${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
+}
+
+const AccountLabel = memo(function AccountLabel({ children }) {
+  return (
+    <span className="inline-flex items-center rounded-full border border-warning/40 bg-warning/10 px-2.5 py-0.5 text-[11px] font-semibold text-warning">
+      {children}
+    </span>
+  );
+});
 
 // memo tránh re-render khi parent re-render nhưng props không đổi
 const FriendItem = memo(function FriendItem({ friend, onDelete, onHidden }) {
@@ -25,10 +52,13 @@ const FriendItem = memo(function FriendItem({ friend, onDelete, onHidden }) {
   const menuRefs = useRef({});
   const infoRefs = useRef({});
 
-  const relation = friend.relation;
+  const relation = friend.relation || {};
   const isHidden = relation.hidden;
   const sharedHistoryOn = relation.sharedHistoryOn;
   const createdAt = relation.createdAt;
+  const friendDate = formatFriendDate(createdAt);
+  const isGold = friend.badge === "locket_gold";
+  const isCelebrity = Boolean(friend.isCelebrity);
 
   const toggleMenu = useCallback(
     (uid) => setOpenMenuUid((prev) => (prev === uid ? null : uid)),
@@ -71,24 +101,36 @@ const FriendItem = memo(function FriendItem({ friend, onDelete, onHidden }) {
 
   const handleBlock = useCallback(() => {
     SonnerInfo(t("friends.item.slow_down"), t("friends.item.feature_developing"));
-  }, []);
+  }, [t]);
 
   return (
     <>
       <div className="flex items-center justify-between py-2">
         {/* LEFT */}
-        <div className={`flex items-center gap-3 ${isHidden && "opacity-60"}`}>
+        <div
+          className={`flex min-w-0 items-center gap-3 ${isHidden ? "opacity-60" : ""}`}
+        >
           <Avatar friend={friend} />
 
-          <div>
+          <div className="min-w-0">
             <h2
-              className={`font-medium truncate max-w-[180px] ${isHidden && "text-gray-400"}`}
+              className={`font-medium truncate max-w-[52vw] sm:max-w-[360px] lg:max-w-[560px] ${
+                isHidden ? "text-gray-400" : ""
+              }`}
             >
               {friend.firstName} {friend.lastName}
             </h2>
-            <p className="text-sm text-gray-500 truncate max-w-[180px]">
+            <p className="text-sm text-gray-500 truncate max-w-[52vw] sm:max-w-[430px] lg:max-w-[650px]">
               @{friend.username || "Không có username"}
+              {friendDate ? ` • Ngày kết bạn: ${friendDate}` : ""}
             </p>
+
+            {(isCelebrity || isGold) && (
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {isCelebrity && <AccountLabel>Celebrity</AccountLabel>}
+                {isGold && <AccountLabel>Locket Gold</AccountLabel>}
+              </div>
+            )}
           </div>
 
           {isHidden && (
@@ -165,7 +207,9 @@ const FriendItem = memo(function FriendItem({ friend, onDelete, onHidden }) {
         open={openDeleteModal}
         onClose={() => setOpenDeleteModal(false)}
         onConfirm={handleDelete}
-        title={t("friends.item.delete_confirm.title", { name: `${friend?.firstName} ${friend?.lastName}` })}
+        title={t("friends.item.delete_confirm.title", {
+          name: `${friend?.firstName} ${friend?.lastName}`,
+        })}
         icon={<X size={28} className="text-gray-600" />}
         labelConfirm={t("friends.item.delete_confirm.confirm_btn")}
       >
@@ -179,8 +223,12 @@ const FriendItem = memo(function FriendItem({ friend, onDelete, onHidden }) {
         onConfirm={handleHidden}
         title={
           isHidden
-            ? t("friends.item.hidden_confirm.unhide_title", { name: `${friend?.firstName} ${friend?.lastName}` })
-            : t("friends.item.hidden_confirm.hide_title", { name: `${friend?.firstName} ${friend?.lastName}` })
+            ? t("friends.item.hidden_confirm.unhide_title", {
+                name: `${friend?.firstName} ${friend?.lastName}`,
+              })
+            : t("friends.item.hidden_confirm.hide_title", {
+                name: `${friend?.firstName} ${friend?.lastName}`,
+              })
         }
         icon={
           isHidden ? (
@@ -189,7 +237,11 @@ const FriendItem = memo(function FriendItem({ friend, onDelete, onHidden }) {
             <EyeOff size={28} className="text-gray-500" />
           )
         }
-        labelConfirm={isHidden ? t("friends.item.hidden_confirm.unhide_btn") : t("friends.item.hidden_confirm.hide_btn")}
+        labelConfirm={
+          isHidden
+            ? t("friends.item.hidden_confirm.unhide_btn")
+            : t("friends.item.hidden_confirm.hide_btn")
+        }
       >
         {isHidden
           ? t("friends.item.hidden_confirm.unhide_content")
@@ -201,7 +253,9 @@ const FriendItem = memo(function FriendItem({ friend, onDelete, onHidden }) {
         open={openBlockModal}
         onClose={() => setOpenBlockModal(false)}
         onConfirm={handleBlock}
-        title={t("friends.item.block_confirm.title", { name: `${friend?.firstName} ${friend?.lastName}` })}
+        title={t("friends.item.block_confirm.title", {
+          name: `${friend?.firstName} ${friend?.lastName}`,
+        })}
         icon={<Ban size={28} className="text-gray-600" />}
         labelConfirm={t("friends.item.block_confirm.confirm_btn")}
       >
@@ -217,7 +271,7 @@ export default FriendItem;
 
 const Avatar = memo(function Avatar({ friend }) {
   return (
-    <div className="relative w-16 h-16">
+    <div className="relative w-16 h-16 flex-shrink-0">
       <img
         src={friend.profilePic || "/images/default_profile.png"}
         alt={`${friend.firstName} ${friend.lastName}`}
@@ -231,13 +285,18 @@ const Avatar = memo(function Avatar({ friend }) {
       />
 
       {friend.badge === "locket_gold" ? (
-        <img
-          src="https://cdn.locket-dio.com/v1/caption/caption-icon/locket_gold_badge.png"
-          alt="Gold Badge"
-          className="absolute bottom-0 right-0 w-6 h-6 p-0.5 bg-base-100 rounded-full"
-          loading="lazy"
-          decoding="async"
-        />
+        <span
+          className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-full border-2 border-base-100 bg-amber-400 shadow-sm"
+          aria-label="Locket Gold"
+          title="Locket Gold"
+        >
+          <Heart
+            size={13}
+            className="text-white"
+            fill="currentColor"
+            strokeWidth={0}
+          />
+        </span>
       ) : friend.isCelebrity ? (
         <img
           src="https://cdn.locket-dio.com/v1/caption/caption-icon/celebrity_badge.png"
@@ -261,18 +320,26 @@ const InfoDropdown = memo(function InfoDropdown({
   return (
     <div
       className={`absolute z-50 right-0 -top-20 origin-bottom-right bg-base-200 shadow-lg rounded-xl p-3 text-sm w-56 transition-all duration-500 ${
-        open ? "opacity-100 scale-100" : "opacity-0 scale-95 pointer-events-none"
+        open
+          ? "opacity-100 scale-100"
+          : "opacity-0 scale-95 pointer-events-none"
       }`}
     >
       <p>
-        <span className="font-medium">{t("friends.item.info.share_history")}:</span>{" "}
+        <span className="font-medium">
+          {t("friends.item.info.share_history")}:
+        </span>{" "}
         {sharedHistoryOn
           ? new Date(sharedHistoryOn).toLocaleString()
           : t("friends.item.info.unknown")}
       </p>
       <p>
-        <span className="font-medium">{t("friends.item.info.friends_since")}:</span>{" "}
-        {createdAt ? new Date(createdAt).toLocaleString() : t("friends.item.info.unknown")}
+        <span className="font-medium">
+          {t("friends.item.info.friends_since")}:
+        </span>{" "}
+        {createdAt
+          ? formatFriendDate(createdAt)
+          : t("friends.item.info.unknown")}
       </p>
     </div>
   );
@@ -290,7 +357,9 @@ const MenuDropdown = memo(function MenuDropdown({
   return (
     <div
       className={`absolute -top-38 right-1 origin-bottom-right bg-base-300 shadow-xl rounded-xl w-48 p-2 flex flex-col gap-2 transition-all duration-300 ${
-        open ? "scale-100 opacity-100" : "scale-0 opacity-0 pointer-events-none"
+        open
+          ? "scale-100 opacity-100"
+          : "scale-0 opacity-0 pointer-events-none"
       }`}
     >
       <button onClick={onHidden} className="btn w-full justify-between">
