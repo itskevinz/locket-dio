@@ -6,6 +6,13 @@
   "buildCommand": "npm run build:deploy",
   "outputDirectory": "vercel-static",
   "trailingSlash": false,
+  "redirects": [
+    {
+      "source": "/about-dio",
+      "destination": "/about-huy",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/dio-api",
