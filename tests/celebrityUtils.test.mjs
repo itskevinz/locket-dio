@@ -5,6 +5,7 @@ import {
   categorizeCelebrityUsers,
   groupCelebrityRecords,
   mapWithConcurrency,
+  mapWithConcurrencySettled,
   mergeCelebrityWithUser,
   normalizeCelebrityRecords,
 } from "../src/pages/Auth/LocketDioTools/tools/CelebrityTool/celebrityUtils.js";
@@ -78,4 +79,18 @@ test("detail hydration honors its concurrency cap", async () => {
   });
   assert.deepEqual(result, [2, 4, 6, 8, 10]);
   assert.equal(peak, 2);
+});
+
+test("detail hydration keeps available Celebrity profiles", async () => {
+  const results = await mapWithConcurrencySettled([1, 2, 3], 2, async (item) => {
+    if (item === 2) throw new Error("profile unavailable");
+    return item * 10;
+  });
+
+  assert.deepEqual(
+    results.map((result) =>
+      result.status === "fulfilled" ? result.value : result.status,
+    ),
+    [10, "rejected", 30],
+  );
 });

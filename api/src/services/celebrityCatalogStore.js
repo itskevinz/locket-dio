@@ -111,7 +111,7 @@ function createCelebrityCatalogStore(
           return 0;
         }
 
-        const inserted = await sql`
+        const changed = await sql`
           INSERT INTO celebrity_profiles (
             uid, username, display_name, avatar_url, locket_url,
             country_code, enabled, sort_order
@@ -128,12 +128,20 @@ function createCelebrityCatalogStore(
             country_code TEXT,
             sort_order INTEGER
           )
-          ON CONFLICT DO NOTHING
+          ON CONFLICT (uid) DO UPDATE SET
+            username = EXCLUDED.username,
+            display_name = EXCLUDED.display_name,
+            avatar_url = COALESCE(EXCLUDED.avatar_url, celebrity_profiles.avatar_url),
+            locket_url = EXCLUDED.locket_url,
+            country_code = EXCLUDED.country_code,
+            enabled = TRUE,
+            sort_order = EXCLUDED.sort_order,
+            updated_at = NOW()
           RETURNING id
         `;
 
         lastSuccessfulSyncAt = now();
-        return inserted.length;
+        return changed.length;
       })().finally(() => {
         upstreamSyncPromise = null;
       });
@@ -147,7 +155,7 @@ function createCelebrityCatalogStore(
       SELECT id, uid, username, display_name, avatar_url, locket_url,
              country_code
       FROM celebrity_profiles
-      WHERE enabled = TRUE
+      WHERE enabled = TRUE AND country_code <> 'TEST'
       ORDER BY sort_order ASC, display_name ASC, id ASC
     `;
   }

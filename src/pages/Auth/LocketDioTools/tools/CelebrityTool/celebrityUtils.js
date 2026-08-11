@@ -111,3 +111,13 @@ export async function mapWithConcurrency(items, limit, mapper) {
   await Promise.all(Array.from({ length: workerCount }, () => worker()));
   return results;
 }
+
+export async function mapWithConcurrencySettled(items, limit, mapper) {
+  return mapWithConcurrency(items, limit, async (item, index) => {
+    try {
+      return { status: "fulfilled", value: await mapper(item, index) };
+    } catch (reason) {
+      return { status: "rejected", reason };
+    }
+  });
+}

@@ -121,7 +121,7 @@ test("Celebrity catalog restores an empty table from the verified upstream sourc
     mock.queries.some(
       (query) =>
         query.includes("jsonb_to_recordset") &&
-        query.includes("ON CONFLICT DO NOTHING"),
+        query.includes("ON CONFLICT (uid) DO UPDATE"),
     ),
   );
   assert.ok(
@@ -200,4 +200,19 @@ test("Celebrity source outage keeps the last verified catalog available", async 
   });
 
   assert.deepEqual(await store.listEnabled(), existing);
+});
+
+test("Celebrity catalog hides upstream TEST fixtures from public reads", async () => {
+  const mock = createSqlMock();
+  const store = createCelebrityCatalogStore(mock.sql);
+
+  await store.listEnabled();
+
+  assert.ok(
+    mock.queries.some(
+      (query) =>
+        query.includes("WHERE enabled = TRUE") &&
+        query.includes("country_code <> 'TEST'"),
+    ),
+  );
 });

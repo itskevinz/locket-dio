@@ -28,7 +28,7 @@ import LockedPremiumFeature from "../../Layout/LockedPremiumFeature";
 import {
   categorizeCelebrityUsers,
   groupCelebrityRecords,
-  mapWithConcurrency,
+  mapWithConcurrencySettled,
   mergeCelebrityWithUser,
   normalizeCelebrityRecords,
 } from "./celebrityUtils";
@@ -67,6 +67,7 @@ export default function CelebrateTool() {
   const [userDetails, setUserDetails] = useState([]);
   const [loadState, setLoadState] = useState("idle");
   const [loadError, setLoadError] = useState("");
+  const [unavailableCount, setUnavailableCount] = useState(0);
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [processingUid, setProcessingUid] = useState(null);
@@ -108,6 +109,7 @@ export default function CelebrateTool() {
 
         userCacheRef.current.clear();
         setCatalog(records);
+        setUnavailableCount(0);
         setCountryCode((current) =>
           current === "ALL" ||
           records.some((record) => record.countryCode === current)
@@ -124,6 +126,7 @@ export default function CelebrateTool() {
         ) {
           setCatalog(null);
           setUserDetails([]);
+          setUnavailableCount(0);
           setLoadState("error");
           setLoadError(getLoadError(error));
         }
@@ -172,6 +175,7 @@ export default function CelebrateTool() {
     if (currentCatalog.length === 0) {
       detailSequenceRef.current += 1;
       setUserDetails([]);
+      setUnavailableCount(0);
       setLoadState("empty");
       return;
     }
@@ -180,7 +184,7 @@ export default function CelebrateTool() {
     setLoadState("loading");
     setLoadError("");
 
-    mapWithConcurrency(
+    mapWithConcurrencySettled(
       currentCatalog,
       DETAIL_CONCURRENCY,
       async (record) => {
@@ -196,12 +200,20 @@ export default function CelebrateTool() {
         return mergeCelebrityWithUser(record, liveUser);
       },
     )
-      .then((details) => {
+      .then((results) => {
         if (!mountedRef.current || sequence !== detailSequenceRef.current) {
           return;
         }
+        const details = results
+          .filter((result) => result.status === "fulfilled")
+          .map((result) => result.value);
+        const failedCount = results.length - details.length;
+        if (details.length === 0) {
+          throw new Error("CELEBRITY_DETAILS_UNAVAILABLE");
+        }
         details.forEach((user) => userCacheRef.current.set(user.uid, user));
         setUserDetails(details);
+        setUnavailableCount(failedCount);
         setLoadState("success");
       })
       .catch(() => {
@@ -209,6 +221,7 @@ export default function CelebrateTool() {
           return;
         }
         setUserDetails([]);
+        setUnavailableCount(0);
         setLoadState("error");
         setLoadError(
           "Không thể tải trạng thái Celebrity từ Locket. Vui lòng thử lại.",
@@ -354,8 +367,8 @@ export default function CelebrateTool() {
     <div>
       <div className="flex items-center justify-between mb-2">
         <h2 className="text-xl font-semibold">
-          Celebrity Tool
-          <span className="badge badge-sm badge-accent ml-2">New</span>
+          Celebrity Toàn Cầu
+          <span className="badge badge-sm badge-accent ml-2">Verified</span>
         </h2>
         <div className="flex gap-2 flex-row">
           <button
@@ -375,7 +388,7 @@ export default function CelebrateTool() {
         </div>
       </div>
       <p className="mb-3 text-sm opacity-80">
-        Công cụ này giúp bạn xem thông tin Celebrity và tình trạng slot của họ.
+        Danh mục Celebrity đã xác minh được tự động đồng bộ khi có người mới.
         Click vào username để copy link kết bạn. Bấm thêm để gửi kết bạn tới họ.
       </p>
       <div className="mb-3 text-sm opacity-80 leading-relaxed space-y-1">
@@ -390,7 +403,7 @@ export default function CelebrateTool() {
           </h3>
           <div className="flex gap-2 mb-3 flex-wrap">
             <FilterButton
-              label="ALL"
+              label="TOÀN CẦU"
               count={catalog.length}
               active={countryCode === "ALL"}
               activeClass="bg-green-500 text-white"
@@ -457,6 +470,12 @@ export default function CelebrateTool() {
             {searchQuery.trim() && (
               <p className="text-xs opacity-60 mt-1">
                 Tìm thấy {searchedUsers.length} Celebrity trong bộ lọc hiện tại.
+              </p>
+            )}
+            {unavailableCount > 0 && (
+              <p className="text-xs text-warning mt-1">
+                Tạm bỏ qua {unavailableCount} hồ sơ Locket chưa phản hồi; các hồ sơ
+                còn lại vẫn dùng bình thường.
               </p>
             )}
           </div>
