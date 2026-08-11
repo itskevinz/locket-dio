@@ -1,4 +1,4 @@
-import { instanceLocketV2 } from "@/libs";
+import { instanceAuth, instanceLocketV2 } from "@/libs";
 
 function getLocketResultError(data, fallback) {
   const result = data?.result;
@@ -11,18 +11,9 @@ function getLocketResultError(data, fallback) {
   return null;
 }
 
-function getExplicitLocketFailure(data, fallback) {
-  const result = data?.result;
-  if (result?.success === false) return result?.message || fallback;
-  if (data?.error) {
-    if (typeof data.error === "string") return data.error;
-    return data.error?.message || fallback;
-  }
-  return null;
-}
-
 function getApiErrorMessage(error, fallback) {
   return (
+    error?.response?.data?.message ||
     error?.response?.data?.result?.message ||
     error?.response?.data?.error?.message ||
     (typeof error?.response?.data?.error === "string"
@@ -102,10 +93,6 @@ export const updateAllowSearch = async (allowSearch) => {
   }
 };
 
-/**
- * Đổi tên thật trên tài khoản Locket.
- * changeProfileInfo của Locket dùng đúng hai field first_name / last_name.
- */
 export const updateProfileName = async ({ firstName, lastName }) => {
   const first = String(firstName ?? "").trim();
   const last = String(lastName ?? "").trim();
@@ -135,10 +122,6 @@ export const updateProfileName = async ({ firstName, lastName }) => {
   }
 };
 
-/**
- * Birthday của Locket được lưu ở users/{uid}.birthday.encoded_mdd.
- * encoded_mdd = month * 100 + day (ví dụ 09/05 -> 509).
- */
 export const updateProfileBirthday = async ({ day, month }) => {
   const d = Number(day);
   const m = Number(month);
@@ -179,10 +162,6 @@ export const updateProfileBirthday = async ({ day, month }) => {
   }
 };
 
-/**
- * Đổi email bằng endpoint thật của Locket Camera.
- * Không ghi localStorage và không giả lập trạng thái thành công.
- */
 export const updateProfileEmail = async (email) => {
   const normalized = String(email ?? "").trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
@@ -208,29 +187,23 @@ export const updateProfileEmail = async (email) => {
   }
 };
 
-/**
- * Bước 1 đổi số điện thoại giống app Locket: gửi OTP với operation=change_number.
- */
+// Gửi OTP qua backend đang giữ phiên Locket + cấu hình client_token/analytics.
+// Không gọi trực tiếp sendVerificationCode từ browser nữa vì Locket có thể trả
+// response nhưng không thực sự gửi SMS nếu thiếu metadata của app.
 export const requestProfilePhoneChange = async (phone, { isRetry = false } = {}) => {
   const normalized = normalizeLocketPhone(phone);
 
   try {
-    const res = await instanceLocketV2.post("sendVerificationCode", {
-      data: {
-        phone: normalized,
-        operation: "change_number",
-        platform: "ios",
-        is_retry: Boolean(isRetry),
-      },
+    const res = await instanceAuth.post("locket/profile/phone/request-otp", {
+      phone: normalized,
+      isRetry: Boolean(isRetry),
     });
 
-    const errorMessage = getExplicitLocketFailure(
-      res.data,
-      "Locket không thể gửi mã xác minh.",
-    );
-    if (errorMessage) throw new Error(errorMessage);
+    if (res.data?.success === false) {
+      throw new Error(res.data?.message || "Locket không thể gửi mã xác minh.");
+    }
 
-    return { phone: normalized, data: res.data };
+    return { phone: normalized, data: res.data?.data || null };
   } catch (error) {
     throw new Error(
       getApiErrorMessage(error, "Không thể gửi mã xác minh số điện thoại."),
@@ -238,10 +211,6 @@ export const requestProfilePhoneChange = async (phone, { isRetry = false } = {})
   }
 };
 
-/**
- * Bước 2: xác minh OTP thật bằng checkVerificationCode.
- * Với operation=change_number, Locket dùng OTP này để hoàn tất đổi số.
- */
 export const confirmProfilePhoneChange = async ({ phone, code }) => {
   const normalized = normalizeLocketPhone(phone);
   const verificationCode = String(code ?? "").trim();
@@ -251,20 +220,16 @@ export const confirmProfilePhoneChange = async ({ phone, code }) => {
   }
 
   try {
-    const res = await instanceLocketV2.post("checkVerificationCode", {
-      data: {
-        phone: normalized,
-        verification_code: verificationCode,
-      },
+    const res = await instanceAuth.post("locket/profile/phone/confirm-otp", {
+      phone: normalized,
+      code: verificationCode,
     });
 
-    const errorMessage = getExplicitLocketFailure(
-      res.data,
-      "Mã xác minh không đúng hoặc đã hết hạn.",
-    );
-    if (errorMessage) throw new Error(errorMessage);
+    if (res.data?.success === false) {
+      throw new Error(res.data?.message || "Mã xác minh không đúng hoặc đã hết hạn.");
+    }
 
-    return { phone: normalized, data: res.data };
+    return { phone: normalized, data: res.data?.data || null };
   } catch (error) {
     throw new Error(
       getApiErrorMessage(error, "Không thể xác minh số điện thoại."),
