@@ -40,16 +40,20 @@ router.get("/", celebrityReadLimiter, verifyIdToken, async (req, res) => {
     });
   } catch (error) {
     const schemaMissing = error?.code === "42P01";
+    const upstreamUnavailable =
+      error?.code === "CELEBRITY_UPSTREAM_UNAVAILABLE";
     console.error("[celebrity] catalog query failed", {
       code: error?.code || null,
       name: error?.name || "Error",
     });
 
-    return res.status(schemaMissing ? 503 : 500).json({
+    return res.status(schemaMissing || upstreamUnavailable ? 503 : 500).json({
       success: false,
       code: schemaMissing
         ? "CELEBRITY_SCHEMA_MISSING"
-        : "CELEBRITY_QUERY_FAILED",
+        : upstreamUnavailable
+          ? "CELEBRITY_UPSTREAM_UNAVAILABLE"
+          : "CELEBRITY_QUERY_FAILED",
       message: schemaMissing
         ? "Dữ liệu Celebrity chưa được khởi tạo."
         : "Không thể tải dữ liệu Celebrity.",

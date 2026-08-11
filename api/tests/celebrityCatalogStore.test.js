@@ -5,22 +5,32 @@ const {
   createCelebrityCatalogStore,
 } = require("../src/services/celebrityCatalogStore");
 
-function createSqlMock({ legacyTable = false, catalogRows = [] } = {}) {
+function createSqlMock({
+  legacyTable = false,
+  catalogRows = [],
+  emptyReadsBefore = 0,
+} = {}) {
   const queries = [];
-  const sql = async (strings) => {
+  const values = [];
+  let catalogReadCount = 0;
+  const sql = async (strings, ...queryValues) => {
     const query = strings.join(" ").replace(/\s+/g, " ").trim();
     queries.push(query);
+    values.push(queryValues);
 
     if (query.includes("to_regclass")) {
       return [{ table_name: legacyTable ? "locket_idols" : null }];
     }
     if (query.includes("FROM celebrity_profiles") && query.includes("WHERE enabled")) {
+      catalogReadCount += 1;
+      if (catalogReadCount <= emptyReadsBefore) return [];
       return catalogRows;
     }
+    if (query.includes("RETURNING id")) return [{ id: 1 }];
     return [];
   };
 
-  return { queries, sql };
+  return { queries, sql, values };
 }
 
 test("Celebrity catalog self-initializes and reads the canonical table", async () => {
@@ -77,5 +87,46 @@ test("Celebrity catalog initializes its schema only once per process", async () 
       query.includes("FROM celebrity_profiles") && query.includes("WHERE enabled"),
     ).length,
     2,
+  );
+});
+
+test("Celebrity catalog restores an empty table from the verified upstream source", async () => {
+  const expected = [{ id: 1, uid: "verified-uid", username: "celebrity" }];
+  const mock = createSqlMock({
+    catalogRows: expected,
+    emptyReadsBefore: 1,
+  });
+  let sourceCalls = 0;
+  const catalogSource = {
+    async fetchVerified() {
+      sourceCalls += 1;
+      return [
+        {
+          uid: "verified-uid",
+          username: "celebrity",
+          display_name: "Verified Celebrity",
+          avatar_url: null,
+          locket_url: "https://locket.cam/celebrity",
+          country_code: "VN",
+          sort_order: 0,
+        },
+      ];
+    },
+  };
+  const store = createCelebrityCatalogStore(mock.sql, { catalogSource });
+
+  assert.deepEqual(await store.listEnabled(), expected);
+  assert.equal(sourceCalls, 1);
+  assert.ok(
+    mock.queries.some(
+      (query) =>
+        query.includes("jsonb_to_recordset") &&
+        query.includes("ON CONFLICT DO NOTHING"),
+    ),
+  );
+  assert.ok(
+    mock.values.some((queryValues) =>
+      queryValues.some((value) => String(value).includes("verified-uid")),
+    ),
   );
 });

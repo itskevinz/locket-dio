@@ -1,16 +1,20 @@
 const { neon } = require("@neondatabase/serverless");
+const {
+  createCelebrityCatalogSource,
+} = require("./celebrityCatalogSource");
 
 function getCelebrityDatabaseUrl() {
   const candidates = [process.env.DATABASE_URL, process.env.NEON_DATABASE_URL];
   return candidates.find((value) => value?.trim())?.trim() || null;
 }
 
-function createCelebrityCatalogStore(sql) {
+function createCelebrityCatalogStore(sql, { catalogSource = null } = {}) {
   if (typeof sql !== "function") {
     throw new TypeError("Celebrity catalog requires a database client");
   }
 
   let schemaPromise = null;
+  let upstreamSyncPromise = null;
 
   async function ensureSchema() {
     if (!schemaPromise) {
@@ -72,8 +76,46 @@ function createCelebrityCatalogStore(sql) {
     return schemaPromise;
   }
 
-  async function listEnabled() {
-    await ensureSchema();
+  async function importVerifiedUpstreamCatalog() {
+    if (!catalogSource) return 0;
+
+    if (!upstreamSyncPromise) {
+      upstreamSyncPromise = (async () => {
+        const profiles = await catalogSource.fetchVerified();
+        if (profiles.length === 0) return 0;
+
+        const inserted = await sql`
+          INSERT INTO celebrity_profiles (
+            uid, username, display_name, avatar_url, locket_url,
+            country_code, enabled, sort_order
+          )
+          SELECT source.uid, source.username, source.display_name,
+                 source.avatar_url, source.locket_url, source.country_code,
+                 TRUE, source.sort_order
+          FROM jsonb_to_recordset(${JSON.stringify(profiles)}::jsonb) AS source(
+            uid TEXT,
+            username TEXT,
+            display_name TEXT,
+            avatar_url TEXT,
+            locket_url TEXT,
+            country_code TEXT,
+            sort_order INTEGER
+          )
+          ON CONFLICT DO NOTHING
+          RETURNING id
+        `;
+
+        return inserted.length;
+      })().catch((error) => {
+        upstreamSyncPromise = null;
+        throw error;
+      });
+    }
+
+    return upstreamSyncPromise;
+  }
+
+  async function selectEnabled() {
     return sql`
       SELECT id, uid, username, display_name, avatar_url, locket_url,
              country_code
@@ -83,12 +125,25 @@ function createCelebrityCatalogStore(sql) {
     `;
   }
 
-  return { ensureSchema, listEnabled };
+  async function listEnabled() {
+    await ensureSchema();
+    const rows = await selectEnabled();
+    if (rows.length > 0 || !catalogSource) return rows;
+
+    await importVerifiedUpstreamCatalog();
+    return selectEnabled();
+  }
+
+  return { ensureSchema, importVerifiedUpstreamCatalog, listEnabled };
 }
 
 function createDefaultCelebrityCatalogStore() {
   const databaseUrl = getCelebrityDatabaseUrl();
-  return databaseUrl ? createCelebrityCatalogStore(neon(databaseUrl)) : null;
+  return databaseUrl
+    ? createCelebrityCatalogStore(neon(databaseUrl), {
+        catalogSource: createCelebrityCatalogSource(),
+      })
+    : null;
 }
 
 module.exports = {

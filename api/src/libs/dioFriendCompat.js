@@ -1,9 +1,8 @@
 const axios = require("axios");
+const { getDioPublicApiKey } = require("../config/dioPublicApi");
 
 const DEFAULT_DIO_API_URL = "https://api.locket-dio.com";
 const DEFAULT_DIO_BETA_URL = "https://api-beta.locket-dio.com";
-const DEFAULT_DIO_PUBLIC_API_KEY =
-  "LKD-LOCKETDIO-AB02F55KYM55DD02MM03YY25-LKD";
 
 const DIO_TIMEOUT_MS = 12000;
 const FIRESTORE_USERS_BASE =
@@ -46,8 +45,7 @@ function commonHeaders(idToken) {
     Authorization: `Bearer ${idToken}`,
     "Content-Type": "application/json",
     Accept: "application/json",
-    "x-api-key":
-      process.env.DIO_PUBLIC_API_KEY || DEFAULT_DIO_PUBLIC_API_KEY,
+    "x-api-key": getDioPublicApiKey(),
     "x-app-author": "dio",
     "x-app-name": "locketdio",
     "x-app-client": "Beta1.3.6",
