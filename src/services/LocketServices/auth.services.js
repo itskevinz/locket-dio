@@ -110,3 +110,58 @@ export const updateProfileName = async ({ firstName, lastName }) => {
     throw new Error("Không thể cập nhật tên lúc này.");
   }
 };
+
+/**
+ * Birthday của Locket được lưu ở users/{uid}.birthday.encoded_mdd.
+ * encoded_mdd = month * 100 + day (ví dụ 09/05 -> 509).
+ */
+export const updateProfileBirthday = async ({ day, month }) => {
+  const d = Number(day);
+  const m = Number(month);
+
+  if (!Number.isInteger(d) || !Number.isInteger(m) || d < 1 || d > 31 || m < 1 || m > 12) {
+    throw new Error("Ngày sinh không hợp lệ.");
+  }
+
+  const probe = new Date(2024, m - 1, d);
+  if (probe.getMonth() !== m - 1 || probe.getDate() !== d) {
+    throw new Error("Ngày sinh không hợp lệ.");
+  }
+
+  const encodedMdd = m * 100 + d;
+
+  try {
+    const res = await instanceLocketV2.post("changeProfileInfo", {
+      data: {
+        birthday: {
+          encoded_mdd: encodedMdd,
+        },
+      },
+    });
+
+    const errorMessage = getLocketResultError(
+      res.data,
+      "Locket từ chối cập nhật ngày sinh.",
+    );
+    if (errorMessage) throw new Error(errorMessage);
+
+    return res.data;
+  } catch (error) {
+    const apiMessage =
+      error?.response?.data?.result?.message ||
+      error?.response?.data?.error?.message ||
+      error?.response?.data?.error;
+
+    if (apiMessage) {
+      throw new Error(
+        typeof apiMessage === "string"
+          ? apiMessage
+          : "Locket từ chối cập nhật ngày sinh.",
+      );
+    }
+
+    if (error instanceof Error) throw error;
+
+    throw new Error("Không thể cập nhật ngày sinh lúc này.");
+  }
+};
