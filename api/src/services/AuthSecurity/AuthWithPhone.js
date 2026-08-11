@@ -51,8 +51,9 @@ const sendVerifiCode = async (phone) => {
 };
 
 // Gửi OTP đổi số điện thoại cho tài khoản đang đăng nhập.
-// Khác luồng sign_in ở trên: request này bắt buộc đi kèm idToken hiện tại
-// và operation=change_number để Locket thực sự gửi SMS cho việc đổi số.
+// Payload cố ý bám sát request của app Locket: không thêm client_token rỗng,
+// analytics hay use_password_if_available vì các field phụ có thể khiến
+// sendVerificationCode trả result.status=400 cho operation=change_number.
 const requestPhoneChangeCode = async (idToken, phone, { isRetry = false } = {}) => {
   const normalizedPhone = normalizePhone(phone);
   if (!idToken) {
@@ -67,9 +68,6 @@ const requestPhoneChangeCode = async (idToken, phone, { isRetry = false } = {}) 
       operation: "change_number",
       platform: "ios",
       is_retry: Boolean(isRetry),
-      use_password_if_available: false,
-      client_token: getClientToken(),
-      analytics: constants.locketAnalytics,
     },
   };
 
@@ -103,8 +101,6 @@ const confirmPhoneChangeCode = async (idToken, phone, verificationCode) => {
     data: {
       phone: normalizedPhone,
       verification_code: code,
-      operation: "change_number",
-      analytics: constants.locketAnalytics,
     },
   };
 
