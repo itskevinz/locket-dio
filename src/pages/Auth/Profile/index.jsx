@@ -8,7 +8,6 @@ import {
   Flame,
   KeyRound,
   LayoutDashboard,
-  LockKeyhole,
   Mail,
   Phone,
   Save,
@@ -18,19 +17,22 @@ import {
 } from "lucide-react";
 import { SonnerInfo, SonnerWarning } from "@/components/uikit/SonnerToast";
 import {
+  confirmProfilePhoneChange,
   forgotPassword,
   GetUserLocket,
+  normalizeLocketPhone,
+  requestProfilePhoneChange,
   updateAllowSearch,
   updateProfileBirthday,
+  updateProfileEmail,
   updateProfileName,
 } from "@/services";
 import { useAuthStore, useUserSetting } from "@/stores";
 
-const PROFILE_PREFS_KEY = "huy-locket-profile-preferences-v1";
+const PROFILE_PREFS_KEY = "huy-locket-profile-preferences-v2";
 
 const DEFAULT_PROFILE_PREFS = {
   showGoldBadge: true,
-  shareThirdParty: false,
   splitDisplayName: true,
 };
 
@@ -53,7 +55,7 @@ const PROFILE_SECTIONS = [
     id: "privacy",
     label: "Riêng tư & hiển thị",
     shortLabel: "Riêng tư",
-    description: "Cách hồ sơ xuất hiện",
+    description: "Cài đặt Locket thật",
     icon: Eye,
   },
   {
@@ -116,10 +118,7 @@ function decodeBirthday(user) {
 
   if (birthday && typeof birthday === "object") {
     const encoded =
-      birthday?.encoded_mdd ??
-      birthday?.encodedMdd ??
-      birthday?.value ??
-      null;
+      birthday?.encoded_mdd ?? birthday?.encodedMdd ?? birthday?.value ?? null;
     if (encoded !== null && encoded !== undefined) {
       const number = Number(encoded);
       if (Number.isFinite(number)) {
@@ -137,7 +136,12 @@ function decodeBirthday(user) {
   }
 
   const numeric = Number(birthday);
-  if (birthday !== null && birthday !== undefined && Number.isFinite(numeric) && numeric > 0) {
+  if (
+    birthday !== null &&
+    birthday !== undefined &&
+    Number.isFinite(numeric) &&
+    numeric > 0
+  ) {
     return {
       day: String(numeric % 100).padStart(2, "0"),
       month: String(Math.floor(numeric / 100)).padStart(2, "0"),
@@ -160,12 +164,26 @@ function getStreak(user) {
   );
 }
 
-async function refreshAuthUser() {
-  const refreshed = await GetUserLocket();
-  if (refreshed) {
-    useAuthStore.setState({ user: refreshed });
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function refreshAuthUser(retries = 0) {
+  let refreshed = null;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    refreshed = await GetUserLocket();
+    if (refreshed) useAuthStore.setState({ user: refreshed });
+    if (attempt < retries) await sleep(450);
   }
   return refreshed;
+}
+
+function samePhone(a, b) {
+  try {
+    return normalizeLocketPhone(a) === normalizeLocketPhone(b);
+  } catch {
+    return String(a || "") === String(b || "");
+  }
 }
 
 export default function Profile() {
@@ -181,20 +199,41 @@ export default function Profile() {
   const [phone, setPhone] = useState("");
   const [birthdayDay, setBirthdayDay] = useState("");
   const [birthdayMonth, setBirthdayMonth] = useState("");
+  const [phoneCode, setPhoneCode] = useState("");
+  const [phoneTarget, setPhoneTarget] = useState("");
+  const [phoneOtpSent, setPhoneOtpSent] = useState(false);
+
   const [savingName, setSavingName] = useState(false);
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [sendingPhoneCode, setSendingPhoneCode] = useState(false);
+  const [verifyingPhone, setVerifyingPhone] = useState(false);
   const [savingBirthday, setSavingBirthday] = useState(false);
   const [savingSearch, setSavingSearch] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
+
+  const isRealGold = String(user?.badge || "").toLowerCase() === "locket_gold";
 
   useEffect(() => {
     const birthday = decodeBirthday(user);
     setFirstName(user?.firstName ?? "");
     setLastName(user?.lastName ?? "");
     setEmail(user?.email ?? "");
-    setPhone(user?.phoneNumber ?? "");
+    if (!phoneOtpSent) setPhone(user?.phoneNumber ?? "");
     setBirthdayDay(birthday.day || "");
     setBirthdayMonth(birthday.month || "");
-  }, [user]);
+
+    if (typeof user?.usernameDiscoverabilityDisabled === "boolean") {
+      useUserSetting.setState({
+        allowSearch: !user.usernameDiscoverabilityDisabled,
+      });
+    }
+  }, [user, phoneOtpSent]);
+
+  useEffect(() => {
+    if (!isRealGold && prefs.showGoldBadge) {
+      setPrefs((current) => ({ ...current, showGoldBadge: false }));
+    }
+  }, [isRealGold, prefs.showGoldBadge]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -218,12 +257,20 @@ export default function Profile() {
 
   const streak = getStreak(user);
   const planName = userPlan?.plan?.name || "Free";
-  const isGold =
-    String(user?.badge || "").toLowerCase() === "locket_gold" ||
-    String(planName).toLowerCase().includes("gold");
 
   const updatePref = (key) => {
     setPrefs((current) => ({ ...current, [key]: !current[key] }));
+  };
+
+  const handleGoldVisibilityChange = () => {
+    if (!isRealGold) {
+      SonnerWarning(
+        "Không thể bật",
+        "Tài khoản Locket hiện không có Gold nên web không thể hiển thị huy hiệu Gold.",
+      );
+      return;
+    }
+    updatePref("showGoldBadge");
   };
 
   const handleSaveName = async () => {
@@ -238,15 +285,98 @@ export default function Profile() {
     setSavingName(true);
     try {
       await updateProfileName({ firstName: first, lastName: last });
-      await refreshAuthUser().catch(() => null);
-      SonnerInfo("Đã cập nhật tên", "Tên mới đã được lưu lên tài khoản Locket.");
+      const fresh = await refreshAuthUser(2);
+      const verified =
+        String(fresh?.firstName || "").trim() === first &&
+        String(fresh?.lastName || "").trim() === last;
+
+      if (!verified) {
+        throw new Error(
+          "Locket đã nhận yêu cầu nhưng dữ liệu đọc lại chưa khớp. Web không đánh dấu thành công giả.",
+        );
+      }
+      SonnerInfo("Đã cập nhật tên", "Tên mới đã được lưu thật trên tài khoản Locket.");
     } catch (error) {
-      SonnerWarning(
-        "Chưa đổi được tên",
-        error?.message || "Locket từ chối yêu cầu cập nhật.",
-      );
+      SonnerWarning("Chưa đổi được tên", error?.message || "Locket từ chối yêu cầu.");
     } finally {
       setSavingName(false);
+    }
+  };
+
+  const handleSaveEmail = async () => {
+    if (savingEmail) return;
+    const nextEmail = email.trim().toLowerCase();
+    if (nextEmail === String(user?.email || "").trim().toLowerCase()) {
+      SonnerInfo("Email không thay đổi");
+      return;
+    }
+
+    setSavingEmail(true);
+    try {
+      await updateProfileEmail(nextEmail);
+      const fresh = await refreshAuthUser(3);
+      const actualEmail = String(fresh?.email || "").trim().toLowerCase();
+
+      if (actualEmail !== nextEmail) {
+        setEmail(fresh?.email || nextEmail);
+        throw new Error(
+          "Locket đã nhận yêu cầu nhưng email tài khoản chưa đổi khi kiểm tra lại. Có thể Locket yêu cầu xác minh email trước khi áp dụng.",
+        );
+      }
+
+      SonnerInfo("Đã đổi email", "Email đăng nhập đã được cập nhật thật trên Locket.");
+    } catch (error) {
+      SonnerWarning("Chưa đổi được email", error?.message || "Vui lòng thử lại sau.");
+    } finally {
+      setSavingEmail(false);
+    }
+  };
+
+  const handleSendPhoneCode = async (isRetry = false) => {
+    if (sendingPhoneCode) return;
+    setSendingPhoneCode(true);
+    try {
+      const result = await requestProfilePhoneChange(phone, { isRetry });
+      setPhone(result.phone);
+      setPhoneTarget(result.phone);
+      setPhoneOtpSent(true);
+      if (!isRetry) setPhoneCode("");
+      SonnerInfo(
+        isRetry ? "Đã yêu cầu gửi lại mã" : "Đã gửi yêu cầu OTP",
+        `Locket đã nhận yêu cầu xác minh số ${result.phone}.`,
+      );
+    } catch (error) {
+      SonnerWarning("Không gửi được mã", error?.message || "Vui lòng thử lại sau.");
+    } finally {
+      setSendingPhoneCode(false);
+    }
+  };
+
+  const handleVerifyPhone = async () => {
+    if (verifyingPhone || !phoneOtpSent) return;
+    setVerifyingPhone(true);
+    try {
+      await confirmProfilePhoneChange({ phone: phoneTarget || phone, code: phoneCode });
+      const fresh = await refreshAuthUser(4);
+      const changed = fresh?.phoneNumber && samePhone(fresh.phoneNumber, phoneTarget || phone);
+
+      if (!changed) {
+        throw new Error(
+          "Mã đã được Locket xử lý nhưng số điện thoại đọc lại từ tài khoản chưa đổi. Web không báo thành công nếu dữ liệu thật chưa thay đổi.",
+        );
+      }
+
+      setPhoneOtpSent(false);
+      setPhoneCode("");
+      setPhoneTarget("");
+      SonnerInfo(
+        "Đã đổi số điện thoại",
+        `Số ${fresh.phoneNumber} đã được lưu thật vào tài khoản Locket.`,
+      );
+    } catch (error) {
+      SonnerWarning("Chưa đổi được số điện thoại", error?.message || "Mã không hợp lệ.");
+    } finally {
+      setVerifyingPhone(false);
     }
   };
 
@@ -254,20 +384,21 @@ export default function Profile() {
     if (savingBirthday) return;
     setSavingBirthday(true);
     try {
-      await updateProfileBirthday({
-        day: birthdayDay,
-        month: birthdayMonth,
-      });
-      await refreshAuthUser().catch(() => null);
-      SonnerInfo(
-        "Đã cập nhật ngày sinh",
-        "Ngày sinh đã được gửi lên hồ sơ Locket.",
-      );
+      await updateProfileBirthday({ day: birthdayDay, month: birthdayMonth });
+      const fresh = await refreshAuthUser(2);
+      const actual = decodeBirthday(fresh);
+      const wantedDay = String(Number(birthdayDay)).padStart(2, "0");
+      const wantedMonth = String(Number(birthdayMonth)).padStart(2, "0");
+
+      if (actual.day !== wantedDay || actual.month !== wantedMonth) {
+        throw new Error(
+          "Locket đã nhận yêu cầu nhưng ngày sinh đọc lại chưa khớp. Web không báo lưu thành công giả.",
+        );
+      }
+
+      SonnerInfo("Đã cập nhật ngày sinh", "Ngày sinh đã được lưu thật vào hồ sơ Locket.");
     } catch (error) {
-      SonnerWarning(
-        "Chưa đổi được ngày sinh",
-        error?.message || "Locket từ chối yêu cầu cập nhật.",
-      );
+      SonnerWarning("Chưa đổi được ngày sinh", error?.message || "Locket từ chối yêu cầu.");
     } finally {
       setSavingBirthday(false);
     }
@@ -277,21 +408,29 @@ export default function Profile() {
     if (savingSearch) return;
     const previous = allowSearch;
     const next = !previous;
-
-    useUserSetting.setState({ allowSearch: next });
     setSavingSearch(true);
+
     try {
       await updateAllowSearch(next);
+      const fresh = await refreshAuthUser(2);
+      const actual =
+        typeof fresh?.usernameDiscoverabilityDisabled === "boolean"
+          ? !fresh.usernameDiscoverabilityDisabled
+          : next;
+
+      if (actual !== next) {
+        useUserSetting.setState({ allowSearch: previous });
+        throw new Error("Locket không giữ trạng thái tìm kiếm vừa chọn.");
+      }
+
+      useUserSetting.setState({ allowSearch: actual });
       SonnerInfo(
-        next ? "Đã bật tìm kiếm công khai" : "Đã tắt tìm kiếm công khai",
-        "Cài đặt đã được gửi lên tài khoản Locket.",
+        actual ? "Đã bật tìm kiếm công khai" : "Đã tắt tìm kiếm công khai",
+        "Trạng thái đã được kiểm tra lại từ hồ sơ Locket.",
       );
     } catch (error) {
       useUserSetting.setState({ allowSearch: previous });
-      SonnerWarning(
-        "Chưa cập nhật được quyền tìm kiếm",
-        error?.message || "Vui lòng thử lại sau.",
-      );
+      SonnerWarning("Chưa cập nhật được quyền tìm kiếm", error?.message || "Vui lòng thử lại.");
     } finally {
       setSavingSearch(false);
     }
@@ -311,10 +450,7 @@ export default function Profile() {
         `Kiểm tra hộp thư ${user.email} để tiếp tục.`,
       );
     } catch (error) {
-      SonnerWarning(
-        "Chưa gửi được email đổi mật khẩu",
-        error?.message || "Vui lòng thử lại sau.",
-      );
+      SonnerWarning("Chưa gửi được email đổi mật khẩu", error?.message || "Vui lòng thử lại.");
     } finally {
       setResettingPassword(false);
     }
@@ -327,7 +463,7 @@ export default function Profile() {
           <div>
             <h1 className="text-2xl font-bold sm:text-3xl">Hồ sơ</h1>
             <p className="mt-1 text-sm text-base-content/55">
-              Thông tin tài khoản và các cài đặt riêng tư.
+              Chỉ báo thành công khi dữ liệu đọc lại từ tài khoản Locket đã thay đổi.
             </p>
           </div>
 
@@ -375,9 +511,7 @@ export default function Profile() {
                     type="button"
                     onClick={() => setActiveSection(section.id)}
                     className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors ${
-                      active
-                        ? "bg-warning text-warning-content shadow-sm"
-                        : "hover:bg-base-300/60"
+                      active ? "bg-warning text-warning-content shadow-sm" : "hover:bg-base-300/60"
                     }`}
                   >
                     <Icon size={18} className="shrink-0" />
@@ -403,7 +537,7 @@ export default function Profile() {
                 <SectionHeader
                   icon={LayoutDashboard}
                   title="Tổng quan"
-                  description="Thông tin quan trọng nhất của tài khoản và gói đang dùng."
+                  description="Thông tin đang đọc từ tài khoản Locket và gói web."
                 />
 
                 <ProfileCard icon={Contact} title="Thông tin tài khoản">
@@ -414,16 +548,13 @@ export default function Profile() {
                           src={user.profilePicture}
                           alt={fullName}
                           className="h-20 w-20 rounded-full border-[3px] border-warning object-cover p-0.5"
-                          onError={(event) => {
-                            event.currentTarget.style.display = "none";
-                          }}
                         />
                       ) : (
                         <div className="flex h-20 w-20 items-center justify-center rounded-full border-[3px] border-warning bg-base-300 text-xl font-bold">
                           {initials}
                         </div>
                       )}
-                      {isGold && prefs.showGoldBadge && (
+                      {isRealGold && prefs.showGoldBadge && (
                         <span
                           className="absolute -bottom-0.5 -right-0.5 flex h-7 min-w-7 items-center justify-center rounded-full border-2 border-base-100 bg-warning px-1 text-warning-content shadow"
                           title="Locket Gold"
@@ -435,17 +566,12 @@ export default function Profile() {
 
                     <div className="min-w-0 flex-1 space-y-1.5">
                       <h2 className="truncate text-xl font-bold">{fullName}</h2>
-                      <AccountLine
-                        label="Username"
-                        value={user?.username ? `@${user.username}` : null}
-                      />
+                      <AccountLine label="Username" value={user?.username ? `@${user.username}` : null} />
                       <AccountLine label="Ngày tạo" value={formatDateOnly(user?.createdAt)} />
                       <div className="flex flex-wrap gap-2 pt-1">
-                        {isGold && <MiniBadge>Locket Gold</MiniBadge>}
+                        {isRealGold && <MiniBadge>Locket Gold</MiniBadge>}
                         <MiniBadge>{planName}</MiniBadge>
-                        {user?.emailVerified === true && (
-                          <MiniBadge>Đã xác thực email</MiniBadge>
-                        )}
+                        {user?.emailVerified === true && <MiniBadge>Đã xác thực email</MiniBadge>}
                       </div>
                     </div>
                   </div>
@@ -455,14 +581,8 @@ export default function Profile() {
                   <div className="grid gap-3 sm:grid-cols-2">
                     <InfoTile label="Mã người dùng" value={userPlan?.user?.customer_code} />
                     <InfoTile label="Gói hiện tại" value={planName} />
-                    <InfoTile
-                      label="Ngày bắt đầu"
-                      value={formatDateTime(userPlan?.subscription?.start_at)}
-                    />
-                    <InfoTile
-                      label="Ngày hết hạn"
-                      value={formatDateTime(userPlan?.subscription?.expires_at)}
-                    />
+                    <InfoTile label="Ngày bắt đầu" value={formatDateTime(userPlan?.subscription?.start_at)} />
+                    <InfoTile label="Ngày hết hạn" value={formatDateTime(userPlan?.subscription?.expires_at)} />
                   </div>
                 </ProfileCard>
 
@@ -472,14 +592,10 @@ export default function Profile() {
                       <SlidersHorizontal size={17} className="text-warning" />
                       <div>
                         <p className="text-sm font-bold">Thông tin nâng cao</p>
-                        <p className="mt-0.5 text-xs text-base-content/45">
-                          UID, trạng thái xác thực và mốc đồng bộ kỹ thuật.
-                        </p>
+                        <p className="mt-0.5 text-xs text-base-content/45">UID và trạng thái xác thực thật.</p>
                       </div>
                     </div>
-                    <span className="text-lg text-base-content/40 transition-transform group-open:rotate-45">
-                      +
-                    </span>
+                    <span className="text-lg text-base-content/40 transition-transform group-open:rotate-45">+</span>
                   </summary>
                   <div className="grid gap-3 border-t border-base-300 px-4 py-4 sm:grid-cols-2 sm:px-5">
                     <InfoTile label="UID" value={user?.uid} mono />
@@ -493,14 +609,8 @@ export default function Profile() {
                             : "Không xác định"
                       }
                     />
-                    <InfoTile
-                      label="Custom Auth"
-                      value={user?.customAuth ? "Có" : "Không"}
-                    />
-                    <InfoTile
-                      label="Cập nhật gần nhất"
-                      value={formatDateTime(user?.lastRefreshAt)}
-                    />
+                    <InfoTile label="Gold thật" value={isRealGold ? "Có" : "Không"} />
+                    <InfoTile label="Cập nhật gần nhất" value={formatDateTime(user?.lastRefreshAt)} />
                   </div>
                 </details>
               </div>
@@ -511,7 +621,7 @@ export default function Profile() {
                 <SectionHeader
                   icon={UserRoundCog}
                   title="Hồ sơ"
-                  description="Tên hiển thị, thông tin liên hệ và ngày sinh nằm cùng một chỗ."
+                  description="Các nút Lưu bên dưới gọi API Locket thật và kiểm tra lại kết quả."
                 />
 
                 <ProfileCard icon={UserRoundCog} title="Tên hiển thị">
@@ -522,16 +632,14 @@ export default function Profile() {
 
                   <SettingToggle
                     compact
-                    title="Thêm dấu cách giữa họ và tên khi hiển thị"
-                    description="Chỉ thay đổi cách xem trước tên trên trang hồ sơ của web"
+                    title="Thêm dấu cách khi xem trước trên web"
+                    description="Chỉ là cách hiển thị xem trước, không thay dữ liệu Locket."
                     checked={prefs.splitDisplayName}
                     onChange={() => updatePref("splitDisplayName")}
                   />
 
                   <div className="rounded-xl border border-base-300 bg-base-300/35 p-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-base-content/45">
-                      Xem trước
-                    </p>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-base-content/45">Xem trước</p>
                     <p className="mt-1 font-semibold">
                       {prefs.splitDisplayName
                         ? [firstName, lastName].filter(Boolean).join(" ") || "Tên hiển thị"
@@ -540,33 +648,84 @@ export default function Profile() {
                   </div>
 
                   <ActionButton onClick={handleSaveName} loading={savingName}>
-                    <Save size={15} /> {savingName ? "Đang lưu..." : "Lưu tên"}
+                    <Save size={15} /> {savingName ? "Đang lưu..." : "Lưu tên lên Locket"}
                   </ActionButton>
                 </ProfileCard>
 
                 <ProfileCard icon={AtSign} title="Thông tin liên hệ">
-                  <div className="space-y-3">
-                    <Field
-                      label="Email đăng nhập"
-                      value={email}
-                      onChange={setEmail}
-                      icon={Mail}
-                      type="email"
-                      disabled
-                    />
-                    <Field
-                      label="Số điện thoại"
-                      value={phone}
-                      onChange={setPhone}
-                      icon={Phone}
-                      placeholder="Chưa liên kết số điện thoại"
-                      disabled
-                    />
-                    <div className="flex items-start gap-2 rounded-xl border border-base-300 bg-base-300/25 p-3 text-xs text-base-content/55">
-                      <LockKeyhole size={15} className="mt-0.5 shrink-0 text-warning" />
-                      <span>
-                        Email và số điện thoại là thông tin đăng nhập Firebase. Đổi hai mục này cần bước xác minh riêng, nên web không hiển thị nút Lưu giả.
-                      </span>
+                  <div className="space-y-4">
+                    <div>
+                      <div className="grid items-end gap-2 sm:grid-cols-[1fr_auto]">
+                        <Field
+                          label="Email đăng nhập"
+                          value={email}
+                          onChange={setEmail}
+                          icon={Mail}
+                          type="email"
+                        />
+                        <ActionButton compact onClick={handleSaveEmail} loading={savingEmail}>
+                          {savingEmail ? "Đang lưu" : "Lưu email"}
+                        </ActionButton>
+                      </div>
+                      <p className="mt-2 text-xs text-base-content/45">
+                        Dùng endpoint updateEmailAddress của Locket và chỉ báo thành công sau khi đọc lại đúng email mới.
+                      </p>
+                    </div>
+
+                    <div className="border-t border-base-300 pt-4">
+                      <div className="grid items-end gap-2 sm:grid-cols-[1fr_auto]">
+                        <Field
+                          label="Số điện thoại"
+                          value={phone}
+                          onChange={(value) => {
+                            setPhone(value);
+                            if (phoneOtpSent && value !== phoneTarget) {
+                              setPhoneOtpSent(false);
+                              setPhoneCode("");
+                              setPhoneTarget("");
+                            }
+                          }}
+                          icon={Phone}
+                          placeholder="+84912345678"
+                        />
+                        <ActionButton
+                          compact
+                          onClick={() => handleSendPhoneCode(false)}
+                          loading={sendingPhoneCode}
+                        >
+                          {sendingPhoneCode ? "Đang gửi" : phoneOtpSent ? "Gửi lại mã" : "Gửi mã"}
+                        </ActionButton>
+                      </div>
+
+                      {phoneOtpSent && (
+                        <div className="mt-3 rounded-xl border border-warning/30 bg-warning/5 p-3">
+                          <div className="grid items-end gap-2 sm:grid-cols-[1fr_auto_auto]">
+                            <Field
+                              label={`Mã OTP gửi tới ${phoneTarget}`}
+                              value={phoneCode}
+                              onChange={setPhoneCode}
+                              inputMode="numeric"
+                              placeholder="Nhập mã xác minh"
+                              maxLength={8}
+                            />
+                            <ActionButton compact onClick={handleVerifyPhone} loading={verifyingPhone}>
+                              {verifyingPhone ? "Đang xác minh" : "Xác nhận"}
+                            </ActionButton>
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm h-12 rounded-xl"
+                              disabled={sendingPhoneCode}
+                              onClick={() => handleSendPhoneCode(true)}
+                            >
+                              Gửi lại
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      <p className="mt-2 text-xs text-base-content/45">
+                        Đổi số dùng sendVerificationCode với operation=change_number rồi xác minh bằng checkVerificationCode như luồng Locket.
+                      </p>
                     </div>
                   </div>
                 </ProfileCard>
@@ -594,7 +753,7 @@ export default function Profile() {
                     </ActionButton>
                   </div>
                   <p className="text-xs text-base-content/45">
-                    Ngày sinh được lưu trực tiếp vào hồ sơ Locket.
+                    Ngày sinh được ghi vào birthday.encoded_mdd của hồ sơ Locket và được đọc lại để xác nhận.
                   </p>
                 </ProfileCard>
               </div>
@@ -605,29 +764,28 @@ export default function Profile() {
                 <SectionHeader
                   icon={Eye}
                   title="Riêng tư & hiển thị"
-                  description="Các tùy chọn về cách hồ sơ xuất hiện trên web và Locket."
+                  description="Không giả lập trạng thái tài khoản."
                 />
 
                 <ProfileCard icon={Eye} title="Cài đặt hiển thị">
                   <SettingToggle
                     title="Hiển thị huy hiệu Locket Gold"
-                    description="Ẩn/hiện huy hiệu Gold trên giao diện hồ sơ của Huy Locket"
-                    checked={prefs.showGoldBadge}
-                    onChange={() => updatePref("showGoldBadge")}
+                    description={
+                      isRealGold
+                        ? "Tài khoản có Gold thật; tùy chọn này chỉ ẩn/hiện huy hiệu trên giao diện web."
+                        : "Tài khoản Locket hiện không có Gold nên không thể bật."
+                    }
+                    checked={isRealGold && prefs.showGoldBadge}
+                    onChange={handleGoldVisibilityChange}
+                    disabled={!isRealGold}
                   />
                   <SettingToggle
                     title="Hiển thị công khai tìm kiếm"
-                    description="Cho phép người khác tìm thấy username của bạn trên Locket"
+                    description="Cập nhật username_discoverability_disabled thật trên Locket."
                     checked={allowSearch}
                     onChange={handleAllowSearchChange}
                     disabled={savingSearch}
                     loading={savingSearch}
-                  />
-                  <SettingToggle
-                    title="Chia sẻ thông tin cho bên thứ ba"
-                    description="Tùy chọn của Huy Locket; mặc định tắt và được lưu trên thiết bị này"
-                    checked={prefs.shareThirdParty}
-                    onChange={() => updatePref("shareThirdParty")}
                   />
                 </ProfileCard>
               </div>
@@ -638,7 +796,7 @@ export default function Profile() {
                 <SectionHeader
                   icon={ShieldCheck}
                   title="Bảo mật"
-                  description="Mật khẩu, trạng thái đăng nhập và thông tin xác thực."
+                  description="Mật khẩu và trạng thái đăng nhập thật của tài khoản."
                 />
 
                 <ProfileCard icon={KeyRound} title="Đổi mật khẩu">
@@ -660,7 +818,7 @@ export default function Profile() {
                       {resettingPassword ? "Đang gửi..." : "Gửi email đổi mật khẩu"}
                     </button>
                     <p className="text-xs text-base-content/45">
-                      Hệ thống gửi liên kết đặt lại mật khẩu đến email gắn với tài khoản.
+                      Locket gửi liên kết đặt lại mật khẩu đến email đang gắn với tài khoản.
                     </p>
                   </div>
                 </ProfileCard>
@@ -668,6 +826,7 @@ export default function Profile() {
                 <ProfileCard icon={ShieldCheck} title="Trạng thái tài khoản">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <InfoTile label="Email" value={user?.email} />
+                    <InfoTile label="Số điện thoại" value={user?.phoneNumber} />
                     <InfoTile
                       label="Xác thực email"
                       value={
@@ -678,14 +837,7 @@ export default function Profile() {
                             : "Không xác định"
                       }
                     />
-                    <InfoTile
-                      label="Đăng nhập lần cuối"
-                      value={formatDateTime(user?.lastLoginAt)}
-                    />
-                    <InfoTile
-                      label="Tài khoản hoạt động"
-                      value={userPlan?.user?.is_active ? "Có" : "Không xác định"}
-                    />
+                    <InfoTile label="Đăng nhập lần cuối" value={formatDateTime(user?.lastLoginAt)} />
                   </div>
                 </ProfileCard>
               </div>
@@ -755,13 +907,11 @@ function SettingToggle({
     <label
       className={`flex items-center justify-between gap-4 border-base-300 ${
         compact ? "rounded-xl bg-base-300/25 px-3 py-2.5" : "border-b py-3 last:border-b-0"
-      } ${disabled ? "cursor-wait opacity-70" : "cursor-pointer"}`}
+      } ${disabled ? "cursor-not-allowed opacity-65" : "cursor-pointer"}`}
     >
       <span className="min-w-0">
         <span className="block text-sm font-semibold">{title}</span>
-        <span className="mt-0.5 block text-xs leading-relaxed text-base-content/45">
-          {description}
-        </span>
+        <span className="mt-0.5 block text-xs leading-relaxed text-base-content/45">{description}</span>
       </span>
       <span className="relative shrink-0">
         <input
@@ -791,9 +941,7 @@ function Field({
 }) {
   return (
     <label className={`block ${className}`}>
-      <span className="mb-1.5 block text-xs font-semibold text-base-content/55">
-        {label}
-      </span>
+      <span className="mb-1.5 block text-xs font-semibold text-base-content/55">{label}</span>
       <div className="relative">
         {Icon && (
           <Icon
@@ -833,9 +981,7 @@ function ActionButton({ children, onClick, compact = false, loading = false, dis
 function InfoTile({ label, value, mono = false }) {
   return (
     <div className="rounded-xl border border-base-300 bg-base-300/30 p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-base-content/40">
-        {label}
-      </p>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-base-content/40">{label}</p>
       <p className={`mt-1 break-words text-sm font-semibold ${mono ? "font-mono" : ""}`}>
         {value || "Không có dữ liệu"}
       </p>
