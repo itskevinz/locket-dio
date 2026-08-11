@@ -82,7 +82,7 @@ export const refreshIdTokenV2 = async () => {
       return null;
     }
 
-    return res.data.idToken; // Trả về dữ liệu từ server
+    return res.data.idToken; // Trả về dữ liệu từ API
   } catch (error) {
     if (error.response && error.response.data?.error) {
       throw error.response.data.error; // ⬅️ Ném lỗi từ `error.response.data.error`
@@ -107,7 +107,7 @@ export const refreshIdToken = async (refreshToken) => {
     //   return null;
     // }
 
-    return res.data.idToken; // Trả về dữ liệu từ server
+    return res.data.idToken; // Trả về dữ liệu từ API
   } catch (error) {
     if (error.response && error.response.data?.error) {
       throw error.response.data.error; // ⬅️ Ném lỗi từ `error.response.data.error`
@@ -121,24 +121,36 @@ export const refreshIdToken = async (refreshToken) => {
 
 export const forgotPassword = async (email) => {
   try {
-    const body = { email };
+    const normalizedEmail = String(email || "").trim();
+    if (!normalizedEmail) {
+      throw new Error("Tài khoản chưa có email để đặt lại mật khẩu.");
+    }
 
-    const res = await instanceMain.post(
-      `${BETA_SERVER_HOST}/locket/resetPassword`,
-      body,
-    );
+    // Dùng cùng auth client với login/refresh để luôn đi qua API hiện tại
+    // (/dio-api hoặc VITE_AUTH_API_URL). BETA_SERVER_HOST có thể không được
+    // cấu hình ở production nên đường dẫn cũ có thể thành undefined/locket/...
+    const res = await instanceAuth.post("locket/resetPassword", {
+      email: normalizedEmail,
+    });
+
+    if (res.data?.success === false) {
+      throw new Error(res.data?.message || "Không gửi được email đổi mật khẩu.");
+    }
 
     return res.data;
   } catch (error) {
-    console.log(error);
+    const message =
+      error?.response?.data?.message ||
+      error?.response?.data?.error?.message ||
+      error?.response?.data?.error ||
+      error?.message ||
+      "Có sự cố khi gửi email đổi mật khẩu, vui lòng thử lại sau.";
 
-    if (error.response && error.response.data?.error) {
-      throw error.response.data.error; // ⬅️ Ném lỗi từ `error.response.data.error`
-    }
-    console.error("❌ Network Error:", error.message);
-    throw new Error(
-      "Có sự cố khi kết nối đến hệ thống, vui lòng thử lại sau ít phút.",
+    const err = new Error(
+      typeof message === "string" ? message : "Không gửi được email đổi mật khẩu.",
     );
+    err.status = error?.response?.status || error?.status;
+    throw err;
   }
 };
 
