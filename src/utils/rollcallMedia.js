@@ -5,6 +5,7 @@
 
 import { replaceFirebaseWithCDN } from "@/utils/replace/replaceFirebaseWithCDN";
 import { getImageSrc } from "@/utils/replace/replaceUrl";
+import { collectNestedRollcallUrls } from "./rollcallUrlFields";
 
 const VIDEO_EXT = /\.(mp4|webm|mov|m4v)(\?|#|$)/i;
 const IMAGE_EXT = /\.(jpe?g|png|gif|webp|heic|heif|avif|bmp)(\?|#|$)/i;
@@ -108,6 +109,7 @@ function mainRawUrls(item) {
     item.media?.url,
     item.asset?.url,
     item.file?.url,
+    collectNestedRollcallUrls(item, "main"),
   ]);
 }
 
@@ -128,6 +130,7 @@ function thumbnailRawUrls(item) {
     item.media?.previewUrl,
     item.media?.poster_url,
     item.media?.posterUrl,
+    collectNestedRollcallUrls(item, "thumbnail"),
   ]);
 }
 

@@ -106,7 +106,7 @@ export const getRollcallPosts = async ({ selectWeek, selectYear, signal }) => {
 };
 
 /**
- * Tải ảnh Rollcalls qua backend có Authorization + header Locket.
+ * Tải media Rollcalls qua backend có Authorization + header Locket.
  * Trả object URL tạm; component gọi URL.revokeObjectURL khi đổi ảnh/unmount.
  */
 export const getRollcallMediaObjectUrl = async (url, { signal } = {}) => {
@@ -127,7 +127,11 @@ export const getRollcallMediaObjectUrl = async (url, { signal } = {}) => {
   }
 
   const contentType = String(blob.type || res.headers?.["content-type"] || "");
-  if (contentType && !contentType.startsWith("image/")) {
+  if (
+    contentType &&
+    !contentType.startsWith("image/") &&
+    !contentType.startsWith("video/")
+  ) {
     throw new Error(`Unsupported Rollcall media type: ${contentType}`);
   }
 

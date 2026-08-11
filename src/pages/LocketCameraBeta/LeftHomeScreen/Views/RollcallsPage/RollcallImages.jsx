@@ -225,10 +225,11 @@ const RollcallMedia = memo(function RollcallMedia({
   }, [mainCandidates, thumbnailCandidates, video]);
 
   const authenticatedCandidates = useMemo(() => {
-    if (video) return [];
     const candidates = [
       ...getRollcallMainCandidates(item, { includeProxy: false }),
-      ...getRollcallThumbnailCandidates(item, { includeProxy: false }),
+      ...(video
+        ? []
+        : getRollcallThumbnailCandidates(item, { includeProxy: false })),
     ];
     return candidates.filter(
       (url, position) =>
@@ -271,9 +272,9 @@ const RollcallMedia = memo(function RollcallMedia({
     replaceAuthenticatedUrl,
   ]);
 
-  // Authenticated backend fallback for images. Runs in parallel with direct <img>.
+  // Authenticated backend fallback for images/videos. Runs in parallel with direct media.
   useEffect(() => {
-    if (!load || video || !authenticatedCandidates.length || loaded) return;
+    if (!load || !authenticatedCandidates.length || loaded) return;
 
     const controller = new AbortController();
     authenticatedAbortRef.current = controller;
@@ -351,7 +352,6 @@ const RollcallMedia = memo(function RollcallMedia({
   useEffect(() => {
     if (
       load &&
-      !video &&
       !loaded &&
       authenticatedState === "error" &&
       candidateIndex >= mediaCandidates.length - 1
@@ -361,7 +361,6 @@ const RollcallMedia = memo(function RollcallMedia({
     }
   }, [
     load,
-    video,
     loaded,
     authenticatedState,
     candidateIndex,
@@ -388,7 +387,7 @@ const RollcallMedia = memo(function RollcallMedia({
       }
 
       // Wait for authenticated image request before declaring final failure.
-      if (!video && authenticatedState === "loading") return;
+      if (authenticatedState === "loading") return;
 
       setTimedOut(true);
       logRollcallNet({
@@ -475,7 +474,7 @@ const RollcallMedia = memo(function RollcallMedia({
     }
 
     // Image backend is still trying; do not show a false failure yet.
-    if (!video && authenticatedState === "loading") {
+    if (authenticatedState === "loading") {
       setFailed(false);
       setTimedOut(false);
       return;
@@ -587,10 +586,10 @@ const RollcallMedia = memo(function RollcallMedia({
         </div>
       )}
 
-      {video ? (
+      {video && displayUrl ? (
         <video
           key={`${id}-v-${retryKey}-${candidateIndex}`}
-          src={currentUrl}
+          src={displayUrl}
           poster={posterUrl}
           preload={isActive ? "metadata" : "none"}
           playsInline

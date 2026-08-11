@@ -8,6 +8,7 @@ const { checkAppMeta } = require("../middlewares/checkMeta");
 const { initializeAppCheck } = require("../modules/appcheck");
 const { validateOverlayType } = require("../middlewares/validateOverlayType");
 const { instanceLocketV2 } = require("../libs/instanceLocket");
+const { sniffRollcallMediaType } = require("../utils/rollcallMediaType");
 const {
   friendRequestLimiter,
   friendSearchLimiter,
@@ -51,7 +52,7 @@ async function fetchRollcallMediaWithRedirects(mediaUrl, idToken) {
       maxBodyLength: 25 * 1024 * 1024,
       validateStatus: (status) => status >= 200 && status < 400,
       headers: {
-        Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+        Accept: "image/avif,image/webp,image/apng,image/*,video/mp4,video/webm,video/*,*/*;q=0.8",
       },
     });
 
@@ -127,8 +128,8 @@ router.post("/getRollcallPostsV2", verifyIdToken, async (req, res) => {
   }
 });
 
-// Ảnh Rollcalls đôi khi không cho tải trực tiếp từ WebView/Chrome Android.
-// Route này dùng token hiện tại + bộ header Locket ở server rồi trả blob ảnh về frontend.
+// Media Rollcalls đôi khi không cho tải trực tiếp từ WebView/Chrome Android.
+// Route này dùng token hiện tại + bộ header Locket ở server rồi trả blob về frontend.
 router.get("/getRollcallMediaV2", verifyIdToken, async (req, res) => {
   const mediaUrl = String(req.query.url || "").trim();
   if (!isAllowedRollcallMediaUrl(mediaUrl)) {
@@ -144,23 +145,22 @@ router.get("/getRollcallMediaV2", verifyIdToken, async (req, res) => {
       req.user.idToken,
     );
 
-    const contentType = String(
-      upstream.headers?.["content-type"] || "application/octet-stream",
-    ).split(";")[0];
-
-    if (!contentType.startsWith("image/")) {
-      return res.status(415).json({
-        success: false,
-        message: "Rollcall media is not an image",
-        contentType,
-      });
-    }
-
     const buffer = Buffer.from(upstream.data);
     if (!buffer.length) {
       return res.status(502).json({
         success: false,
         message: "Empty Rollcall media response",
+      });
+    }
+
+    const declaredType = upstream.headers?.["content-type"];
+    const contentType = sniffRollcallMediaType(buffer, declaredType);
+    if (!contentType) {
+      return res.status(415).json({
+        success: false,
+        message: "Rollcall response is not supported media",
+        contentType: String(declaredType || "application/octet-stream")
+          .split(";", 1)[0],
       });
     }
 
