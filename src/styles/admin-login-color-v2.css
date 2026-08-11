@@ -94,7 +94,12 @@
   display: grid !important;
   grid-template-columns: minmax(18rem, .88fr) minmax(25rem, 1.12fr) !important;
   grid-template-rows: 1fr auto auto !important;
+  /* `hidden` still creates a programmatically scrollable box. Because the PIN
+     field is auto-focused while the right panel enters from the side, Chrome
+     can retain a horizontal scroll offset and clip the identity column.
+     `clip` keeps the rounded-card crop without turning the card into a scroller. */
   overflow: hidden !important;
+  overflow: clip !important;
   border: 1px solid color-mix(in srgb, var(--admin-primary) 19%, var(--vault-border)) !important;
   border-radius: clamp(1.8rem, 3vw, 2.8rem) !important;
   background: color-mix(in srgb, var(--admin-base) 76%, transparent) !important;
