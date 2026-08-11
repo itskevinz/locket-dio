@@ -1,4 +1,5 @@
 import { instanceAuth, instanceLocketV2 } from "@/libs";
+import { saveToken } from "@/utils";
 
 function getLocketResultError(data, fallback) {
   const result = data?.result;
@@ -162,24 +163,49 @@ export const updateProfileBirthday = async ({ day, month }) => {
   }
 };
 
-export const updateProfileEmail = async (email) => {
+// Đổi email là thao tác nhạy cảm. Backend sẽ xác minh mật khẩu hiện tại,
+// gọi updateEmailAddress bằng idToken vừa re-auth và chỉ trả success khi
+// đăng nhập lại bằng email mới xác nhận đúng cùng UID.
+export const updateProfileEmail = async ({ email, password }) => {
   const normalized = String(email ?? "").trim().toLowerCase();
+  const currentPassword = String(password ?? "");
+
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
     throw new Error("Email không hợp lệ.");
   }
+  if (!currentPassword) {
+    throw new Error("Nhập mật khẩu hiện tại để xác nhận đổi email.");
+  }
 
   try {
-    const res = await instanceLocketV2.post("updateEmailAddress", {
-      data: { email: normalized },
+    const res = await instanceAuth.post("locket/profile/email/update", {
+      email: normalized,
+      password: currentPassword,
     });
 
-    const errorMessage = getLocketResultError(
-      res.data,
-      "Locket từ chối cập nhật email.",
-    );
-    if (errorMessage) throw new Error(errorMessage);
+    if (res.data?.success === false) {
+      throw new Error(res.data?.message || "Locket từ chối cập nhật email.");
+    }
 
-    return { email: normalized, data: res.data };
+    const data = res.data?.data || {};
+    if (!data.idToken || !data.refreshToken || !data.uid) {
+      throw new Error("Email chưa được xác nhận thay đổi trên tài khoản Locket.");
+    }
+
+    saveToken({
+      idToken: data.idToken,
+      refreshToken: data.refreshToken,
+      localId: data.uid,
+    });
+
+    // Cập nhật header dùng cho request trực tiếp tới Locket ngay lập tức,
+    // tránh request kế tiếp còn mang token chứa email cũ.
+    instanceLocketV2.defaults.headers.Authorization = `Bearer ${data.idToken}`;
+
+    return {
+      email: String(data.email || normalized).trim().toLowerCase(),
+      data,
+    };
   } catch (error) {
     throw new Error(
       getApiErrorMessage(error, "Không thể cập nhật email lúc này."),
