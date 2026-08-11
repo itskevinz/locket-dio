@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Heart } from "lucide-react";
 import FriendActionButton from "../components/FriendActionButton";
-import { fetchUserById } from "@/services";
+import { fetchUserById, getListIdFriends } from "@/services";
 
 const getBadge = (user) =>
   user?.badge ??
@@ -9,6 +9,24 @@ const getBadge = (user) =>
   user?.profile?.badge ??
   user?.profile?._badge ??
   null;
+
+const formatFriendSince = (value) => {
+  if (!value) return "";
+
+  const numericValue = Number(value);
+  const normalizedValue = Number.isFinite(numericValue)
+    ? numericValue < 1e12
+      ? numericValue * 1000
+      : numericValue
+    : value;
+  const date = new Date(normalizedValue);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const pad = (number) => String(number).padStart(2, "0");
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(
+    date.getSeconds(),
+  )} ${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
+};
 
 export default function NormalItemFriend({
   friend,
@@ -18,6 +36,7 @@ export default function NormalItemFriend({
   status,
 }) {
   const [resolvedBadge, setResolvedBadge] = useState(() => getBadge(friend));
+  const [friendSince, setFriendSince] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -46,6 +65,42 @@ export default function NormalItemFriend({
     };
   }, [friend]);
 
+  useEffect(() => {
+    let active = true;
+    const isFriend =
+      status === "FRIENDS" || friend?.friendship_status === "friends";
+
+    setFriendSince("");
+    if (!isFriend || !friend?.uid) {
+      return () => {
+        active = false;
+      };
+    }
+
+    // Ngày kết bạn phải lấy từ relation thật trong getAllFriendsV2,
+    // không dùng createdAt của hồ sơ vì đó có thể là ngày tạo tài khoản.
+    getListIdFriends()
+      .then((relations) => {
+        if (!active || !Array.isArray(relations)) return;
+        const relation = relations.find(
+          (item) => String(item?.uid || "") === String(friend.uid),
+        );
+        const createdAt =
+          relation?.createdAt ??
+          relation?.created_at ??
+          relation?.friendship_created_at ??
+          null;
+        setFriendSince(formatFriendSince(createdAt));
+      })
+      .catch(() => {
+        // Không có relation thì chỉ ẩn ngày kết bạn; không ảnh hưởng kết quả tìm kiếm.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [friend?.uid, friend?.friendship_status, status]);
+
   const isGold = resolvedBadge === "locket_gold";
 
   return (
@@ -53,7 +108,7 @@ export default function NormalItemFriend({
       key={friend.uid}
       className="flex w-full items-center gap-3 space-y-2 rounded-md cursor-pointer justify-between"
     >
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 items-center gap-3">
         <div className="relative shrink-0 w-16 h-16">
           <img
             src={friend.profile_picture_url || "./default-avatar.png"}
@@ -75,13 +130,22 @@ export default function NormalItemFriend({
             </span>
           )}
         </div>
-        <div>
-          <h2 className="font-medium">
+
+        <div className="min-w-0">
+          <h2 className="font-medium truncate">
             {friend?.first_name} {friend?.last_name}
           </h2>
-          <p className="text-sm text-gray-500 underline">
+          <p className="text-sm text-base-content/60 truncate">
             @{friend.username || "Không có username"}
+            {friendSince ? ` • Ngày kết bạn: ${friendSince}` : ""}
           </p>
+          {isGold && (
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              <span className="inline-flex items-center rounded-full border border-amber-400/40 bg-amber-400/10 px-2.5 py-1 text-xs font-semibold text-amber-500">
+                Locket Gold
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
