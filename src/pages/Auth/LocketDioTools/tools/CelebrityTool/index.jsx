@@ -21,7 +21,7 @@ import {
   SonnerSuccess,
   SonnerWarning,
 } from "@/components/uikit/SonnerToast";
-import { RefreshCcw } from "lucide-react";
+import { RefreshCcw, Search, X } from "lucide-react";
 import { useFeatureVisible } from "@/hooks/useFeature";
 import { PiExport } from "react-icons/pi";
 import LockedPremiumFeature from "../../Layout/LockedPremiumFeature";
@@ -51,6 +51,16 @@ function getLoadError(error) {
   return serverMessage || "Không thể tải danh sách Celebrity.";
 }
 
+function normalizeSearchText(value) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase()
+    .trim();
+}
+
 export default function CelebrateTool() {
   const isCelebrityFeature = useFeatureVisible("celebrity_tool");
   const [catalog, setCatalog] = useState(null);
@@ -58,6 +68,7 @@ export default function CelebrateTool() {
   const [loadState, setLoadState] = useState("idle");
   const [loadError, setLoadError] = useState("");
   const [activeTab, setActiveTab] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [processingUid, setProcessingUid] = useState(null);
   const [countryCode, setCountryCode] = useState(
     () => localStorage.getItem("celebrate_country") || "ALL",
@@ -309,6 +320,26 @@ export default function CelebrateTool() {
     },
   ];
 
+  const searchedUsers = useMemo(() => {
+    const users = categorized[activeTab] || [];
+    const query = normalizeSearchText(searchQuery).replace(/^@+/, "");
+    if (!query) return users;
+
+    return users.filter((user) => {
+      const searchableText = normalizeSearchText(
+        [
+          user.first_name,
+          user.last_name,
+          user.username,
+          user.uid,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      );
+      return searchableText.includes(query);
+    });
+  }, [categorized, activeTab, searchQuery]);
+
   if (!isCelebrityFeature) {
     return <LockedPremiumFeature />;
   }
@@ -389,6 +420,43 @@ export default function CelebrateTool() {
               />
             ))}
           </div>
+
+          <div className="mb-3">
+            <label
+              htmlFor="celebrity-search"
+              className="font-semibold text-sm uppercase opacity-70"
+            >
+              Tìm Celebrity
+            </label>
+            <div className="relative mt-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-50 pointer-events-none" />
+              <input
+                id="celebrity-search"
+                type="text"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Tìm theo tên, @username hoặc UID..."
+                autoComplete="off"
+                className="input input-bordered w-full h-10 pl-10 pr-10 bg-base-100"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  aria-label="Xóa tìm kiếm"
+                  title="Xóa tìm kiếm"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md opacity-60 hover:opacity-100 hover:bg-base-200"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            {searchQuery.trim() && (
+              <p className="text-xs opacity-60 mt-1">
+                Tìm thấy {searchedUsers.length} Celebrity trong bộ lọc hiện tại.
+              </p>
+            )}
+          </div>
         </>
       )}
 
@@ -414,8 +482,8 @@ export default function CelebrateTool() {
           <p className="text-sm opacity-70 p-3">
             Chưa có dữ liệu Celebrity đã xác minh.
           </p>
-        ) : categorized[activeTab]?.length > 0 ? (
-          categorized[activeTab].map((user) => (
+        ) : searchedUsers.length > 0 ? (
+          searchedUsers.map((user) => (
             <CelebrateItem
               key={user.uid}
               user={user}
@@ -426,7 +494,9 @@ export default function CelebrateTool() {
           ))
         ) : (
           <p className="text-sm opacity-70 p-3">
-            Không có Celebrity phù hợp bộ lọc này.
+            {searchQuery.trim()
+              ? "Không tìm thấy Celebrity phù hợp từ khóa và bộ lọc hiện tại."
+              : "Không có Celebrity phù hợp bộ lọc này."}
           </p>
         )}
       </div>
