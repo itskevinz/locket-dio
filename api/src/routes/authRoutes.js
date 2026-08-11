@@ -15,6 +15,7 @@ const {
   requestPhoneChangeOtp,
   confirmPhoneChangeOtp,
 } = require("../controllers/profilePhoneController");
+const { updateEmailWithPassword } = require("../controllers/profileEmailController");
 
 const router = express.Router();
 
@@ -29,6 +30,14 @@ router.post("/refresh-token", refreshTokenLimit, logRequestInfo, refreshIdTokenC
 
 router.get("/getInfoUser", generalApiLimit, verifyIdToken, getInfoByToken);
 router.post("/resetPassword", authBruteForceLimit, resetPasswordControll);
+
+// Đổi email nhạy cảm: bắt buộc xác minh mật khẩu hiện tại rồi mới gọi Locket.
+router.post(
+  "/profile/email/update",
+  authBruteForceLimit,
+  verifyIdToken,
+  updateEmailWithPassword,
+);
 
 // Luồng đổi số điện thoại thật: phải dùng phiên đăng nhập hiện tại.
 router.post(
