@@ -77,7 +77,7 @@ export const updateAllowSearch = async (allowSearch) => {
   try {
     const body = {
       data: {
-        username_discoverability_disable: !allowSearch,
+        username_discoverability_disabled: !allowSearch,
       },
     };
 
