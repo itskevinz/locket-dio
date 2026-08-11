@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   Bell,
@@ -15,6 +15,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { fetchUserById, getListIdFriends } from "@/services";
 import { useSlotMonitor } from "../../SlotMonitor/useSlotMonitor";
 import { SLOT_STATUS } from "../../SlotMonitor/slotMonitorCore";
 import {
@@ -52,6 +53,39 @@ function formatDateTime(value) {
   });
 }
 
+function formatFriendSince(value) {
+  if (!value) return "";
+
+  const numericValue = Number(value);
+  const normalizedValue = Number.isFinite(numericValue)
+    ? numericValue < 1e12
+      ? numericValue * 1000
+      : numericValue
+    : value;
+  const date = new Date(normalizedValue);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const pad = (number) => String(number).padStart(2, "0");
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(
+    date.getSeconds(),
+  )} ${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
+}
+
+const getBadge = (user) =>
+  user?.badge ??
+  user?._badge ??
+  user?.profile?.badge ??
+  user?.profile?._badge ??
+  null;
+
+function SearchAccountLabel({ children }) {
+  return (
+    <span className="inline-flex items-center rounded-full border border-warning/40 bg-warning/10 px-2.5 py-0.5 text-[11px] font-semibold text-warning">
+      {children}
+    </span>
+  );
+}
+
 export default function CelebItemFriend({
   friend,
   handleAddFriend,
@@ -66,6 +100,8 @@ export default function CelebItemFriend({
   const [historyError, setHistoryError] = useState("");
   const [historyEvents, setHistoryEvents] = useState([]);
   const [checkingNow, setCheckingNow] = useState(false);
+  const [resolvedBadge, setResolvedBadge] = useState(() => getBadge(friend));
+  const [friendSince, setFriendSince] = useState("");
 
   const friendCount = Number(friend?.celebrity_data?.friend_count) || 0;
   const maxFriends = Number(friend?.celebrity_data?.max_friends) || 0;
@@ -74,6 +110,48 @@ export default function CelebItemFriend({
   const watch = getWatch(friend.uid);
   const isAlreadyFriend = friend?.friendship_status === "friends";
   const canShowWatch = !isAlreadyFriend;
+  const isGold = resolvedBadge === "locket_gold";
+
+  useEffect(() => {
+    let active = true;
+    const badgeFromSearch = getBadge(friend);
+    setResolvedBadge(badgeFromSearch);
+    setFriendSince("");
+
+    if (friend?.uid && !badgeFromSearch) {
+      fetchUserById(friend.uid)
+        .then((profile) => {
+          if (active) setResolvedBadge(getBadge(profile));
+        })
+        .catch(() => {
+          // Badge chỉ là dữ liệu bổ sung; không làm hỏng kết quả Celeb nếu fetch lỗi.
+        });
+    }
+
+    if (friend?.uid) {
+      // Relation getAllFriendsV2 là nguồn đúng cho thời điểm kết bạn.
+      getListIdFriends()
+        .then((relations) => {
+          if (!active || !Array.isArray(relations)) return;
+          const relation = relations.find(
+            (item) => String(item?.uid || "") === String(friend.uid),
+          );
+          const createdAt =
+            relation?.createdAt ??
+            relation?.created_at ??
+            relation?.friendship_created_at ??
+            null;
+          setFriendSince(formatFriendSince(createdAt));
+        })
+        .catch(() => {
+          // Không có relation thì ẩn ngày kết bạn, các tính năng Celeb vẫn hoạt động.
+        });
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [friend]);
 
   const progressPercent =
     maxFriends > 0 ? Math.min((friendCount / maxFriends) * 100, 100) : 0;
@@ -191,7 +269,12 @@ export default function CelebItemFriend({
             </div>
             <p className="text-sm text-base-content/60 truncate">
               @{friend.username || t("friends.no_username")}
+              {friendSince ? ` • Ngày kết bạn: ${friendSince}` : ""}
             </p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              <SearchAccountLabel>Celebrity</SearchAccountLabel>
+              {isGold && <SearchAccountLabel>Locket Gold</SearchAccountLabel>}
+            </div>
             {watch && (
               <p className="mt-1 text-[11px] text-base-content/55">
                 Railway đang canh • kiểm tra gần nhất {formatDateTime(watch.lastCheckedAt)}
