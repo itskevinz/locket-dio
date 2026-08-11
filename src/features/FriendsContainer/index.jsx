@@ -2,7 +2,7 @@ import { useRef, useState, useEffect } from "react";
 import ReactDOM from "react-dom";
 import { useAppNavigation } from "@/context/AppContext";
 import { logWebUserAction } from "@/services/UserActivityService";
-import { X } from "lucide-react";
+import { Clock3, X } from "lucide-react";
 import { AcceptRequestToFriend } from "@/services";
 import IncomingFriendRequests from "./IncomingRequests";
 import { SonnerPromiseV2 } from "@/components/uikit/SonnerToast";
@@ -12,6 +12,32 @@ import FindFriend from "./FindFriend";
 import FriendList from "./FriendList";
 import clsx from "clsx";
 import { useTranslation } from "react-i18next";
+
+const LiveClock = () => {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return (
+    <div
+      className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-base-content/60 tabular-nums"
+      aria-label="Giờ hiện tại"
+    >
+      <Clock3 className="w-3.5 h-3.5" />
+      <span>
+        {now.toLocaleTimeString("vi-VN", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: false,
+        })}
+      </span>
+    </div>
+  );
+};
 
 const FriendsContainer = ({ onClose }) => {
   const { t } = useTranslation("features");
@@ -147,6 +173,7 @@ const FriendsContainer = ({ onClose }) => {
           <h2 className="text-md font-semibold text-base-content">
             {t("friends.search_and_add")}
           </h2>
+          <LiveClock />
         </div>
 
         {/* Content */}
