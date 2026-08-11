@@ -36,8 +36,16 @@ const SpotifyCallback = React.lazy(
 const APP_NAME = CONFIG.app.fullName;
 
 export const publicRoutes = [
-  { path: "/", component: Home, title: `Trang Chủ | ${APP_NAME}` },
-  { path: "/login", component: Login, title: `Đăng Nhập | ${APP_NAME}` },
+  {
+    path: "/",
+    component: Home,
+    title: `Locket Web - Đăng ảnh & Video Locket | ${APP_NAME}`,
+  },
+  {
+    path: "/login",
+    component: Login,
+    title: `Đăng Nhập Locket Web | ${APP_NAME}`,
+  },
   {
     path: "/spotify/callback",
     component: SpotifyCallback,
@@ -55,7 +63,11 @@ export const publicRoutes = [
 
   { path: "/docs", component: Docs, title: `Tài liệu | ${APP_NAME}` },
   { path: "/sponsors", component: DonatePage, title: `Ủng hộ dự án | ${APP_NAME}` },
-  { path: "/locket", component: LocketCameraBeta, title: `Locket Camera | ${APP_NAME}` },
+  {
+    path: "/locket",
+    component: LocketCameraBeta,
+    title: `Locket Camera - Đăng ảnh & Video Locket | ${APP_NAME}`,
+  },
 
   { path: "/privacy", component: PrivacyPolicy, title: `Chính sách riêng tư | ${APP_NAME}` },
   { path: "/pricing", component: PricingPage, title: `Đăng ký gói thành viên | ${APP_NAME}` },
