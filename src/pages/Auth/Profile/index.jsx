@@ -8,6 +8,7 @@ import {
   Flame,
   KeyRound,
   LayoutDashboard,
+  LockKeyhole,
   Mail,
   Phone,
   Save,
@@ -16,14 +17,19 @@ import {
   UserRoundCog,
 } from "lucide-react";
 import { SonnerInfo, SonnerWarning } from "@/components/uikit/SonnerToast";
-import { forgotPassword } from "@/services";
-import { useAuthStore } from "@/stores";
+import {
+  forgotPassword,
+  GetUserLocket,
+  updateAllowSearch,
+  updateProfileBirthday,
+  updateProfileName,
+} from "@/services";
+import { useAuthStore, useUserSetting } from "@/stores";
 
 const PROFILE_PREFS_KEY = "huy-locket-profile-preferences-v1";
 
 const DEFAULT_PROFILE_PREFS = {
   showGoldBadge: true,
-  showCountdown: true,
   shareThirdParty: false,
   splitDisplayName: true,
 };
@@ -105,15 +111,43 @@ function formatDateTime(value) {
   });
 }
 
-function getBirthdayPart(user, type) {
+function decodeBirthday(user) {
   const birthday = user?.birthday || user?.birthdate || user?.dateOfBirth;
+
   if (birthday && typeof birthday === "object") {
-    return birthday[type] ?? birthday[type === "day" ? "date" : type] ?? "";
+    const encoded =
+      birthday?.encoded_mdd ??
+      birthday?.encodedMdd ??
+      birthday?.value ??
+      null;
+    if (encoded !== null && encoded !== undefined) {
+      const number = Number(encoded);
+      if (Number.isFinite(number)) {
+        return {
+          day: String(number % 100).padStart(2, "0"),
+          month: String(Math.floor(number / 100)).padStart(2, "0"),
+        };
+      }
+    }
+
+    return {
+      day: String(birthday.day ?? birthday.date ?? ""),
+      month: String(birthday.month ?? ""),
+    };
   }
-  if (type === "day") {
-    return user?.birthDay ?? user?.birthdayDay ?? user?.dayOfBirth ?? "";
+
+  const numeric = Number(birthday);
+  if (birthday !== null && birthday !== undefined && Number.isFinite(numeric) && numeric > 0) {
+    return {
+      day: String(numeric % 100).padStart(2, "0"),
+      month: String(Math.floor(numeric / 100)).padStart(2, "0"),
+    };
   }
-  return user?.birthMonth ?? user?.birthdayMonth ?? user?.monthOfBirth ?? "";
+
+  return {
+    day: String(user?.birthDay ?? user?.birthdayDay ?? user?.dayOfBirth ?? ""),
+    month: String(user?.birthMonth ?? user?.birthdayMonth ?? user?.monthOfBirth ?? ""),
+  };
 }
 
 function getStreak(user) {
@@ -126,9 +160,18 @@ function getStreak(user) {
   );
 }
 
+async function refreshAuthUser() {
+  const refreshed = await GetUserLocket();
+  if (refreshed) {
+    useAuthStore.setState({ user: refreshed });
+  }
+  return refreshed;
+}
+
 export default function Profile() {
   const user = useAuthStore((s) => s.user);
   const userPlan = useAuthStore((s) => s.userPlan);
+  const allowSearch = useUserSetting((s) => s.allowSearch);
 
   const [activeSection, setActiveSection] = useState("overview");
   const [prefs, setPrefs] = useState(readProfilePrefs);
@@ -138,15 +181,19 @@ export default function Profile() {
   const [phone, setPhone] = useState("");
   const [birthdayDay, setBirthdayDay] = useState("");
   const [birthdayMonth, setBirthdayMonth] = useState("");
+  const [savingName, setSavingName] = useState(false);
+  const [savingBirthday, setSavingBirthday] = useState(false);
+  const [savingSearch, setSavingSearch] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
 
   useEffect(() => {
+    const birthday = decodeBirthday(user);
     setFirstName(user?.firstName ?? "");
     setLastName(user?.lastName ?? "");
     setEmail(user?.email ?? "");
     setPhone(user?.phoneNumber ?? "");
-    setBirthdayDay(String(getBirthdayPart(user, "day") || ""));
-    setBirthdayMonth(String(getBirthdayPart(user, "month") || ""));
+    setBirthdayDay(birthday.day || "");
+    setBirthdayMonth(birthday.month || "");
   }, [user]);
 
   useEffect(() => {
@@ -179,11 +226,75 @@ export default function Profile() {
     setPrefs((current) => ({ ...current, [key]: !current[key] }));
   };
 
-  const showLocketWriteUnavailable = (label) => {
-    SonnerInfo(
-      `${label} chưa được thay đổi`,
-      "Web hiện chưa có API Locket an toàn để ghi mục này lên tài khoản.",
-    );
+  const handleSaveName = async () => {
+    if (savingName) return;
+    const first = firstName.trim();
+    const last = lastName.trim();
+    if (!first && !last) {
+      SonnerWarning("Tên không được để trống.");
+      return;
+    }
+
+    setSavingName(true);
+    try {
+      await updateProfileName({ firstName: first, lastName: last });
+      await refreshAuthUser().catch(() => null);
+      SonnerInfo("Đã cập nhật tên", "Tên mới đã được lưu lên tài khoản Locket.");
+    } catch (error) {
+      SonnerWarning(
+        "Chưa đổi được tên",
+        error?.message || "Locket từ chối yêu cầu cập nhật.",
+      );
+    } finally {
+      setSavingName(false);
+    }
+  };
+
+  const handleSaveBirthday = async () => {
+    if (savingBirthday) return;
+    setSavingBirthday(true);
+    try {
+      await updateProfileBirthday({
+        day: birthdayDay,
+        month: birthdayMonth,
+      });
+      await refreshAuthUser().catch(() => null);
+      SonnerInfo(
+        "Đã cập nhật ngày sinh",
+        "Ngày sinh đã được gửi lên hồ sơ Locket.",
+      );
+    } catch (error) {
+      SonnerWarning(
+        "Chưa đổi được ngày sinh",
+        error?.message || "Locket từ chối yêu cầu cập nhật.",
+      );
+    } finally {
+      setSavingBirthday(false);
+    }
+  };
+
+  const handleAllowSearchChange = async () => {
+    if (savingSearch) return;
+    const previous = allowSearch;
+    const next = !previous;
+
+    useUserSetting.setState({ allowSearch: next });
+    setSavingSearch(true);
+    try {
+      await updateAllowSearch(next);
+      SonnerInfo(
+        next ? "Đã bật tìm kiếm công khai" : "Đã tắt tìm kiếm công khai",
+        "Cài đặt đã được gửi lên tài khoản Locket.",
+      );
+    } catch (error) {
+      useUserSetting.setState({ allowSearch: previous });
+      SonnerWarning(
+        "Chưa cập nhật được quyền tìm kiếm",
+        error?.message || "Vui lòng thử lại sau.",
+      );
+    } finally {
+      setSavingSearch(false);
+    }
   };
 
   const handlePasswordReset = async () => {
@@ -216,7 +327,7 @@ export default function Profile() {
           <div>
             <h1 className="text-2xl font-bold sm:text-3xl">Hồ sơ</h1>
             <p className="mt-1 text-sm text-base-content/55">
-              Mọi cài đặt đã được chia nhóm để dễ tìm hơn.
+              Thông tin tài khoản và các cài đặt riêng tư.
             </p>
           </div>
 
@@ -428,45 +539,34 @@ export default function Profile() {
                     </p>
                   </div>
 
-                  <ActionButton onClick={() => showLocketWriteUnavailable("Tên hiển thị")}>
-                    <Save size={15} /> Lưu tên
+                  <ActionButton onClick={handleSaveName} loading={savingName}>
+                    <Save size={15} /> {savingName ? "Đang lưu..." : "Lưu tên"}
                   </ActionButton>
                 </ProfileCard>
 
                 <ProfileCard icon={AtSign} title="Thông tin liên hệ">
                   <div className="space-y-3">
-                    <div className="flex items-end gap-2">
-                      <Field
-                        className="flex-1"
-                        label="Email"
-                        value={email}
-                        onChange={setEmail}
-                        icon={Mail}
-                        type="email"
-                      />
-                      <ActionButton
-                        compact
-                        onClick={() => showLocketWriteUnavailable("Email")}
-                      >
-                        Lưu
-                      </ActionButton>
-                    </div>
-
-                    <div className="flex items-end gap-2">
-                      <Field
-                        className="flex-1"
-                        label="Số điện thoại"
-                        value={phone}
-                        onChange={setPhone}
-                        icon={Phone}
-                        placeholder="Chưa liên kết số điện thoại"
-                      />
-                      <ActionButton
-                        compact
-                        onClick={() => showLocketWriteUnavailable("Số điện thoại")}
-                      >
-                        Lưu
-                      </ActionButton>
+                    <Field
+                      label="Email đăng nhập"
+                      value={email}
+                      onChange={setEmail}
+                      icon={Mail}
+                      type="email"
+                      disabled
+                    />
+                    <Field
+                      label="Số điện thoại"
+                      value={phone}
+                      onChange={setPhone}
+                      icon={Phone}
+                      placeholder="Chưa liên kết số điện thoại"
+                      disabled
+                    />
+                    <div className="flex items-start gap-2 rounded-xl border border-base-300 bg-base-300/25 p-3 text-xs text-base-content/55">
+                      <LockKeyhole size={15} className="mt-0.5 shrink-0 text-warning" />
+                      <span>
+                        Email và số điện thoại là thông tin đăng nhập Firebase. Đổi hai mục này cần bước xác minh riêng, nên web không hiển thị nút Lưu giả.
+                      </span>
                     </div>
                   </div>
                 </ProfileCard>
@@ -479,6 +579,7 @@ export default function Profile() {
                       onChange={setBirthdayDay}
                       inputMode="numeric"
                       placeholder="--"
+                      maxLength={2}
                     />
                     <Field
                       label="Tháng"
@@ -486,14 +587,15 @@ export default function Profile() {
                       onChange={setBirthdayMonth}
                       inputMode="numeric"
                       placeholder="--"
+                      maxLength={2}
                     />
-                    <ActionButton
-                      compact
-                      onClick={() => showLocketWriteUnavailable("Ngày sinh")}
-                    >
-                      Lưu
+                    <ActionButton compact onClick={handleSaveBirthday} loading={savingBirthday}>
+                      {savingBirthday ? "Đang lưu" : "Lưu"}
                     </ActionButton>
                   </div>
+                  <p className="text-xs text-base-content/45">
+                    Ngày sinh được lưu trực tiếp vào hồ sơ Locket.
+                  </p>
                 </ProfileCard>
               </div>
             )}
@@ -503,25 +605,27 @@ export default function Profile() {
                 <SectionHeader
                   icon={Eye}
                   title="Riêng tư & hiển thị"
-                  description="Chỉ các tùy chọn liên quan đến việc hồ sơ xuất hiện như thế nào."
+                  description="Các tùy chọn về cách hồ sơ xuất hiện trên web và Locket."
                 />
 
                 <ProfileCard icon={Eye} title="Cài đặt hiển thị">
                   <SettingToggle
                     title="Hiển thị huy hiệu Locket Gold"
-                    description="Hiện huy hiệu Gold cạnh ảnh đại diện trên giao diện hồ sơ của web"
+                    description="Ẩn/hiện huy hiệu Gold trên giao diện hồ sơ của Huy Locket"
                     checked={prefs.showGoldBadge}
                     onChange={() => updatePref("showGoldBadge")}
                   />
                   <SettingToggle
                     title="Hiển thị công khai tìm kiếm"
-                    description="Cho phép thông tin hồ sơ cơ bản xuất hiện rõ trong giao diện tìm kiếm của web"
-                    checked={prefs.showCountdown}
-                    onChange={() => updatePref("showCountdown")}
+                    description="Cho phép người khác tìm thấy username của bạn trên Locket"
+                    checked={allowSearch}
+                    onChange={handleAllowSearchChange}
+                    disabled={savingSearch}
+                    loading={savingSearch}
                   />
                   <SettingToggle
                     title="Chia sẻ thông tin cho bên thứ ba"
-                    description="Mặc định tắt; chỉ áp dụng cho các tính năng do Huy Locket quản lý"
+                    description="Tùy chọn của Huy Locket; mặc định tắt và được lưu trên thiết bị này"
                     checked={prefs.shareThirdParty}
                     onChange={() => updatePref("shareThirdParty")}
                   />
@@ -540,7 +644,7 @@ export default function Profile() {
                 <ProfileCard icon={KeyRound} title="Đổi mật khẩu">
                   <div className="space-y-3">
                     <p className="text-sm font-semibold">
-                      Đăng nhập lần cuối: {formatDateTime(user?.lastLoginAt)}
+                      Lần cuối đổi mật khẩu: {formatDateTime(user?.passwordUpdatedAt)}
                     </p>
                     <button
                       type="button"
@@ -638,12 +742,20 @@ function MiniBadge({ children }) {
   );
 }
 
-function SettingToggle({ title, description, checked, onChange, compact = false }) {
+function SettingToggle({
+  title,
+  description,
+  checked,
+  onChange,
+  compact = false,
+  disabled = false,
+  loading = false,
+}) {
   return (
     <label
-      className={`flex cursor-pointer items-center justify-between gap-4 border-base-300 ${
+      className={`flex items-center justify-between gap-4 border-base-300 ${
         compact ? "rounded-xl bg-base-300/25 px-3 py-2.5" : "border-b py-3 last:border-b-0"
-      }`}
+      } ${disabled ? "cursor-wait opacity-70" : "cursor-pointer"}`}
     >
       <span className="min-w-0">
         <span className="block text-sm font-semibold">{title}</span>
@@ -651,12 +763,18 @@ function SettingToggle({ title, description, checked, onChange, compact = false 
           {description}
         </span>
       </span>
-      <input
-        type="checkbox"
-        className="toggle toggle-warning shrink-0"
-        checked={checked}
-        onChange={onChange}
-      />
+      <span className="relative shrink-0">
+        <input
+          type="checkbox"
+          className="toggle toggle-warning"
+          checked={checked}
+          onChange={onChange}
+          disabled={disabled}
+        />
+        {loading && (
+          <span className="loading loading-spinner loading-xs absolute -left-5 top-1/2 -translate-y-1/2" />
+        )}
+      </span>
     </label>
   );
 }
@@ -668,6 +786,7 @@ function Field({
   className = "",
   icon: Icon,
   type = "text",
+  disabled = false,
   ...props
 }) {
   return (
@@ -686,7 +805,10 @@ function Field({
           type={type}
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className={`input input-bordered w-full rounded-xl bg-base-300/35 ${Icon ? "pl-9" : ""}`}
+          disabled={disabled}
+          className={`input input-bordered w-full rounded-xl bg-base-300/35 ${Icon ? "pl-9" : ""} ${
+            disabled ? "cursor-not-allowed opacity-65" : ""
+          }`}
           {...props}
         />
       </div>
@@ -694,13 +816,15 @@ function Field({
   );
 }
 
-function ActionButton({ children, onClick, compact = false }) {
+function ActionButton({ children, onClick, compact = false, loading = false, disabled = false }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled || loading}
       className={`btn btn-warning rounded-xl ${compact ? "btn-sm h-12" : "w-full"}`}
     >
+      {loading && <span className="loading loading-spinner loading-xs" />}
       {children}
     </button>
   );
