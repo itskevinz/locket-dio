@@ -1,9 +1,7 @@
 import React, { useEffect, useState } from "react";
+import { Heart } from "lucide-react";
 import FriendActionButton from "../components/FriendActionButton";
 import { fetchUserById } from "@/services";
-
-const GOLD_BADGE_URL =
-  "https://cdn.locket-dio.com/v1/caption/caption-icon/locket_gold_badge.png";
 
 const getBadge = (user) =>
   user?.badge ??
@@ -56,19 +54,25 @@ export default function NormalItemFriend({
       className="flex w-full items-center gap-3 space-y-2 rounded-md cursor-pointer justify-between"
     >
       <div className="flex items-center gap-3">
-        <div className="relative shrink-0">
+        <div className="relative shrink-0 w-16 h-16">
           <img
             src={friend.profile_picture_url || "./default-avatar.png"}
             alt={`${friend?.first_name} ${friend?.last_name}`}
             className="w-16 h-16 rounded-full border-[3.5px] p-0.5 border-amber-400 object-cover"
           />
           {isGold && (
-            <img
-              src={GOLD_BADGE_URL}
-              alt="Locket Gold"
-              className="absolute -right-1 -bottom-1 w-6 h-6 object-contain drop-shadow-sm"
-              draggable={false}
-            />
+            <span
+              className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-full border-2 border-base-100 bg-amber-400 shadow-sm"
+              aria-label="Locket Gold"
+              title="Locket Gold"
+            >
+              <Heart
+                size={13}
+                className="text-white"
+                fill="currentColor"
+                strokeWidth={0}
+              />
+            </span>
           )}
         </div>
         <div>
