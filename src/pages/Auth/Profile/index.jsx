@@ -5,6 +5,7 @@ import {
   Cake,
   Contact,
   Eye,
+  EyeOff,
   Flame,
   KeyRound,
   LayoutDashboard,
@@ -196,6 +197,9 @@ export default function Profile() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [emailPassword, setEmailPassword] = useState("");
+  const [emailConfirmOpen, setEmailConfirmOpen] = useState(false);
+  const [showEmailPassword, setShowEmailPassword] = useState(false);
   const [phone, setPhone] = useState("");
   const [birthdayDay, setBirthdayDay] = useState("");
   const [birthdayMonth, setBirthdayMonth] = useState("");
@@ -303,28 +307,61 @@ export default function Profile() {
     }
   };
 
-  const handleSaveEmail = async () => {
+  const handleSaveEmail = () => {
     if (savingEmail) return;
     const nextEmail = email.trim().toLowerCase();
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nextEmail)) {
+      SonnerWarning("Email không hợp lệ", "Nhập đúng email mới trước khi lưu.");
+      return;
+    }
+
     if (nextEmail === String(user?.email || "").trim().toLowerCase()) {
       SonnerInfo("Email không thay đổi");
       return;
     }
 
+    setEmailPassword("");
+    setShowEmailPassword(false);
+    setEmailConfirmOpen(true);
+  };
+
+  const handleConfirmEmailChange = async () => {
+    if (savingEmail) return;
+    const nextEmail = email.trim().toLowerCase();
+
+    if (!emailPassword) {
+      SonnerWarning("Nhập mật khẩu hiện tại", "Đổi email cần xác minh lại tài khoản.");
+      return;
+    }
+
     setSavingEmail(true);
     try {
-      await updateProfileEmail(nextEmail);
+      const result = await updateProfileEmail({
+        email: nextEmail,
+        password: emailPassword,
+      });
+
       const fresh = await refreshAuthUser(3);
-      const actualEmail = String(fresh?.email || "").trim().toLowerCase();
+      const actualEmail = String(fresh?.email || result?.email || "")
+        .trim()
+        .toLowerCase();
 
       if (actualEmail !== nextEmail) {
-        setEmail(fresh?.email || nextEmail);
+        setEmail(fresh?.email || result?.email || nextEmail);
         throw new Error(
-          "Locket đã nhận yêu cầu nhưng email tài khoản chưa đổi khi kiểm tra lại. Có thể Locket yêu cầu xác minh email trước khi áp dụng.",
+          "Email mới chưa được xác nhận từ tài khoản Locket. Web không báo thành công nếu dữ liệu thật chưa đổi.",
         );
       }
 
-      SonnerInfo("Đã đổi email", "Email đăng nhập đã được cập nhật thật trên Locket.");
+      setEmailConfirmOpen(false);
+      setEmailPassword("");
+      setShowEmailPassword(false);
+      setEmail(actualEmail);
+      SonnerInfo(
+        "Đã đổi email",
+        "Mật khẩu hiện tại đã được xác minh và email đăng nhập đã đổi thật trên Locket.",
+      );
     } catch (error) {
       SonnerWarning("Chưa đổi được email", error?.message || "Vui lòng thử lại sau.");
     } finally {
@@ -668,7 +705,7 @@ export default function Profile() {
                         </ActionButton>
                       </div>
                       <p className="mt-2 text-xs text-base-content/45">
-                        Dùng endpoint updateEmailAddress của Locket và chỉ báo thành công sau khi đọc lại đúng email mới.
+                        Đổi email yêu cầu nhập mật khẩu hiện tại. Web chỉ báo thành công sau khi đăng nhập lại được bằng email mới trên đúng UID.
                       </p>
                     </div>
 
@@ -843,6 +880,111 @@ export default function Profile() {
               </div>
             )}
           </main>
+        </div>
+      </div>
+
+      {emailConfirmOpen && (
+        <EmailConfirmModal
+          email={email.trim().toLowerCase()}
+          password={emailPassword}
+          setPassword={setEmailPassword}
+          showPassword={showEmailPassword}
+          setShowPassword={setShowEmailPassword}
+          loading={savingEmail}
+          onCancel={() => {
+            if (savingEmail) return;
+            setEmailConfirmOpen(false);
+            setEmailPassword("");
+            setShowEmailPassword(false);
+          }}
+          onConfirm={handleConfirmEmailChange}
+        />
+      )}
+    </div>
+  );
+}
+
+function EmailConfirmModal({
+  email,
+  password,
+  setPassword,
+  showPassword,
+  setShowPassword,
+  loading,
+  onCancel,
+  onConfirm,
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/65 px-4 backdrop-blur-[2px]"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-email-title"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onCancel();
+      }}
+    >
+      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-2xl">
+        <div className="px-5 pb-4 pt-5 text-center sm:px-6">
+          <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-warning/15 text-warning">
+            <Mail size={21} />
+          </div>
+          <h2 id="confirm-email-title" className="text-lg font-bold">
+            Xác nhận đổi Email
+          </h2>
+          <p className="mt-1 text-xs text-base-content/55">
+            Nhập mật khẩu hiện tại để xác nhận thay đổi sang <span className="font-semibold">{email}</span>
+          </p>
+
+          <div className="relative mt-4 text-left">
+            <KeyRound
+              size={16}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base-content/45"
+            />
+            <input
+              autoFocus
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !loading) onConfirm();
+                if (event.key === "Escape" && !loading) onCancel();
+              }}
+              placeholder="Mật khẩu hiện tại"
+              autoComplete="current-password"
+              className="input input-bordered w-full rounded-xl bg-base-200/70 pl-10 pr-11"
+              disabled={loading}
+            />
+            <button
+              type="button"
+              aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+              className="btn btn-ghost btn-sm absolute right-1.5 top-1/2 h-8 min-h-8 w-8 -translate-y-1/2 rounded-lg p-0"
+              onClick={() => setShowPassword((current) => !current)}
+              disabled={loading}
+            >
+              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 border-t border-base-300">
+          <button
+            type="button"
+            className="btn btn-ghost h-14 rounded-none border-r border-base-300"
+            onClick={onCancel}
+            disabled={loading}
+          >
+            Hủy
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost h-14 rounded-none font-bold text-warning"
+            onClick={onConfirm}
+            disabled={loading || !password}
+          >
+            {loading && <span className="loading loading-spinner loading-xs" />}
+            {loading ? "Đang xác minh" : "Xác nhận"}
+          </button>
         </div>
       </div>
     </div>
