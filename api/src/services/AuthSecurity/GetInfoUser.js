@@ -35,7 +35,9 @@ const getUserInfoV2 = async (idToken, localId) => {
       // Firebase Auth accounts:lookup trả mốc mật khẩu gần nhất ở trường này.
       // Giữ nguyên timestamp gốc để frontend định dạng theo múi giờ người dùng.
       passwordUpdatedAt: userData.passwordUpdatedAt || null,
-      emailVerified: userData.emailVerified || null,
+      // Không dùng `|| null` ở đây vì `false` là dữ liệu hợp lệ và có nghĩa là
+      // email CHƯA xác thực. Dùng ?? để giữ nguyên cả true lẫn false.
+      emailVerified: userData.emailVerified ?? null,
 
       username: userDataV2?.fields?.username?.stringValue || null,
       firstName: userDataV2?.fields?.first_name?.stringValue || null,
@@ -120,6 +122,7 @@ const getUserInfoV3 = async (idToken) => {
         false,
       displayName: userData.displayName || null,
       email: userData.email || null,
+      emailVerified: userData.emailVerified ?? null,
       phoneNumber: userData.phoneNumber || null,
       profilePicture:
         userDataV2?.fields?.profile_picture_url?.stringValue || null,
