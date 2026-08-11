@@ -461,15 +461,17 @@ html[data-performance-mode="lite"] .admin-vault-handoff__sweep { filter: blur(3p
 html[data-performance-mode="lite"] .admin-vault-handoff__orbit { box-shadow: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  .admin-dashboard-enter,
-  .admin-dashboard-enter::before,
-  .admin-vault-handoff,
-  .admin-vault-handoff__sweep,
-  .admin-vault-handoff__orbit,
-  .admin-vault-handoff__status i {
+  html:not([data-animation-enabled="true"]) .admin-dashboard-enter,
+  html:not([data-animation-enabled="true"]) .admin-dashboard-enter::before,
+  html:not([data-animation-enabled="true"]) .admin-vault-handoff,
+  html:not([data-animation-enabled="true"]) .admin-vault-handoff__sweep,
+  html:not([data-animation-enabled="true"]) .admin-vault-handoff__orbit,
+  html:not([data-animation-enabled="true"]) .admin-vault-handoff__status i {
     animation: none !important;
   }
-  .admin-vault *, .admin-vault *::before, .admin-vault *::after {
+  html:not([data-animation-enabled="true"]) .admin-vault *,
+  html:not([data-animation-enabled="true"]) .admin-vault *::before,
+  html:not([data-animation-enabled="true"]) .admin-vault *::after {
     scroll-behavior: auto !important;
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
@@ -483,4 +485,13 @@ html[data-animation-enabled="false"] .admin-vault-handoff__sweep,
 html[data-animation-enabled="false"] .admin-vault-handoff__orbit,
 html[data-animation-enabled="false"] .admin-vault-handoff__status i {
   animation: none !important;
+}
+
+html[data-animation-enabled="false"] .admin-vault *,
+html[data-animation-enabled="false"] .admin-vault *::before,
+html[data-animation-enabled="false"] .admin-vault *::after {
+  scroll-behavior: auto !important;
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
 }

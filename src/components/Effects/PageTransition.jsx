@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { motion as Motion } from "framer-motion";
 import { useAnimation } from "@/context/AnimationContext";
 import "./page-transition.css";
@@ -67,33 +67,11 @@ const pageTransition = {
   duration: 0.2,
 };
 
-function useSystemReducedMotion() {
-  const [reduceMotion, setReduceMotion] = useState(() => (
-    typeof window !== "undefined"
-      && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches
-  ));
-
-  useEffect(() => {
-    const media = window.matchMedia?.("(prefers-reduced-motion: reduce)");
-    if (!media) return undefined;
-    const handleChange = (event) => setReduceMotion(event.matches);
-    media.addEventListener?.("change", handleChange);
-    return () => media.removeEventListener?.("change", handleChange);
-  }, []);
-
-  return reduceMotion;
-}
-
 export const PageTransition = ({ children, className = "w-full h-full", preset = "default" }) => {
   const { isAnimationEnabled } = useAnimation();
-  const systemReducedMotion = useSystemReducedMotion();
   const isAdmin = preset === "admin";
 
   if (!isAnimationEnabled) {
-    return <div className={className}>{children}</div>;
-  }
-
-  if (isAdmin && systemReducedMotion) {
     return <div className={className}>{children}</div>;
   }
 

@@ -24,8 +24,11 @@ test("the in-app animation switch is the single Framer Motion authority", () => 
   const context = read("src/context/AnimationContext.jsx");
   const pageTransition = read("src/components/Effects/PageTransition.jsx");
   const scrollReveal = read("src/components/Effects/ScrollReveal.jsx");
+  const adminGate = read("src/pages/Public/AdminUsers/AdminSecurityGate.jsx");
+  const adminUsers = read("src/pages/Public/AdminUsers/index.jsx");
 
   assert.match(context, /dataset\.animationEnabled/);
+  assert.match(context, /prefers-reduced-motion:\s*reduce/);
   assert.match(
     context,
     /reducedMotion=\{isAnimationEnabled \? ["']never["'] : ["']always["']\}/,
@@ -33,6 +36,9 @@ test("the in-app animation switch is the single Framer Motion authority", () => 
   assert.match(pageTransition, /useAnimation/);
   assert.match(pageTransition, /if \(!isAnimationEnabled\)/);
   assert.doesNotMatch(pageTransition, /useReducedMotion|litePageVariants/);
+  assert.match(adminGate, /useAnimation/);
+  assert.doesNotMatch(adminGate, /useReducedMotion/);
+  assert.match(adminUsers, /const reduceMotion = !isAnimationEnabled/);
   assert.match(scrollReveal, /useAnimation/);
   assert.match(scrollReveal, /initial=\{\{\s*opacity:\s*0,\s*y:\s*yOffset\s*\}\}/);
   assert.doesNotMatch(scrollReveal, /useReducedMotion|perfMode === ["']lite["']/);

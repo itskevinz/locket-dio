@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { SonnerInfo, SonnerSuccess, SonnerWarning } from "@/components/uikit/SonnerToast";
 import ScrollReveal from "@/components/Effects/ScrollReveal";
+import { useAnimation } from "@/context/AnimationContext";
 import { updateAndSyncGpsLocation } from "@/services/UserActivityService";
 import AdminSystemHealth from "../AdminSystemHealth";
 import AdminSecurityGate, { AdminRouteLoading, AdminSecurityHandoff } from "./AdminSecurityGate";
@@ -154,6 +155,7 @@ function renderUserLocation(user, latestLogin) {
 
 export default function AdminUsers() {
   const navigate = useNavigate();
+  const { isAnimationEnabled } = useAnimation();
   const [isAdmin, setIsAdmin] = useState(false);
   const [currentRole, setCurrentRole] = useState("user");
   const [currentEmail, setCurrentEmail] = useState("");
@@ -812,8 +814,7 @@ export default function AdminUsers() {
     setGateVerified(true);
     if (gateUnlockTimerRef.current) window.clearTimeout(gateUnlockTimerRef.current);
     if (gateRevealTimerRef.current) window.clearTimeout(gateRevealTimerRef.current);
-    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches
-      || document.documentElement.dataset.animationEnabled === "false";
+    const reduceMotion = !isAnimationEnabled;
     gateRevealTimerRef.current = window.setTimeout(() => {
       setIsGateUnlocked(true);
       gateRevealTimerRef.current = null;
@@ -822,7 +823,7 @@ export default function AdminUsers() {
       setGateVerified(false);
       gateUnlockTimerRef.current = null;
     }, reduceMotion ? 140 : 1080);
-  }, []);
+  }, [isAnimationEnabled]);
 
   useEffect(() => () => {
     if (gateUnlockTimerRef.current) window.clearTimeout(gateUnlockTimerRef.current);

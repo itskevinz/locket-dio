@@ -1,4 +1,5 @@
-import { AnimatePresence, motion as Motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion as Motion } from "framer-motion";
+import { useAnimation } from "@/context/AnimationContext";
 import {
   ArrowLeft,
   Check,
@@ -14,6 +15,11 @@ import "./admin-security-gate.css";
 
 const easeOut = [0.22, 1, 0.36, 1];
 const keypad = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "backspace", "0", "clear"];
+
+function useAdminReducedMotion() {
+  const { isAnimationEnabled } = useAnimation();
+  return !isAnimationEnabled;
+}
 
 function SecurityMark({ compact = false }) {
   return (
@@ -89,7 +95,7 @@ function PinKeypad({ value, onChange, disabled, reduceMotion }) {
 }
 
 export function AdminRouteLoading() {
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useAdminReducedMotion();
   return (
     <Motion.main
       className="admin-vault admin-vault--loading"
@@ -111,7 +117,7 @@ export function AdminRouteLoading() {
 }
 
 export function AdminSecurityHandoff({ active }) {
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useAdminReducedMotion();
 
   return (
     <AnimatePresence>
@@ -190,7 +196,7 @@ export default function AdminSecurityGate({
   onOtpBack,
   onLeave,
 }) {
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useAdminReducedMotion();
   const isOtp = Boolean(otpToken);
   const panelKey = verified ? "success" : isOtp ? "otp" : "pin";
   return (

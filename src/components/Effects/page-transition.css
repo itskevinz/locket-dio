@@ -57,9 +57,9 @@ html[data-performance-mode="lite"] .admin-route-transition__scan {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .admin-route-transition__veil,
-  .admin-route-transition__scan,
-  .admin-route-transition__rail {
+  html:not([data-animation-enabled="true"]) .admin-route-transition__veil,
+  html:not([data-animation-enabled="true"]) .admin-route-transition__scan,
+  html:not([data-animation-enabled="true"]) .admin-route-transition__rail {
     display: none;
   }
 }

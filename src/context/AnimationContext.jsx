@@ -18,7 +18,9 @@ export const useAnimation = () => useContext(AnimationContext);
 function readAnimationEnabled() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved === null) return true;
+    if (saved === null) {
+      return !window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    }
     return JSON.parse(saved) !== false;
   } catch {
     return true;
