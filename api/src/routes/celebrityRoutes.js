@@ -1,17 +1,12 @@
 const express = require("express");
-const { neon } = require("@neondatabase/serverless");
 const { verifyIdToken } = require("../middlewares/Auth");
 const { celebrityReadLimiter } = require("../middlewares/rateLimit");
+const {
+  createDefaultCelebrityCatalogStore,
+} = require("../services/celebrityCatalogStore");
 
 const router = express.Router();
-
-function getDatabaseUrl() {
-  const candidates = [process.env.DATABASE_URL, process.env.NEON_DATABASE_URL];
-  return candidates.find((value) => value?.trim())?.trim() || null;
-}
-
-const databaseUrl = getDatabaseUrl();
-const sql = databaseUrl ? neon(databaseUrl) : null;
+const catalogStore = createDefaultCelebrityCatalogStore();
 
 function mapCelebrity(row) {
   return {
@@ -28,7 +23,7 @@ function mapCelebrity(row) {
 router.get("/", celebrityReadLimiter, verifyIdToken, async (req, res) => {
   res.setHeader("Cache-Control", "no-store, max-age=0");
 
-  if (!sql) {
+  if (!catalogStore) {
     return res.status(503).json({
       success: false,
       code: "DATABASE_UNAVAILABLE",
@@ -37,13 +32,7 @@ router.get("/", celebrityReadLimiter, verifyIdToken, async (req, res) => {
   }
 
   try {
-    const rows = await sql`
-      SELECT id, uid, username, display_name, avatar_url, locket_url,
-             country_code
-      FROM locket_idols
-      WHERE enabled = TRUE
-      ORDER BY sort_order ASC, display_name ASC, id ASC
-    `;
+    const rows = await catalogStore.listEnabled();
 
     return res.status(200).json({
       success: true,
