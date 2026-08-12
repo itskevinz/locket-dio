@@ -1,5 +1,6 @@
 const { tokenUltils } = require("../../utils");
 const tempMedia = require("./tempMediaStore");
+const publishedMedia = require("./publishedMediaStore");
 const { logInfo, logError } = require("../../utils/logEventUtils");
 
 /**
@@ -188,8 +189,30 @@ const mediaTempGet = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/published-media/:filename
+ * Public, unguessable and durable media URL used only when Locket Firebase Storage rejects writes.
+ */
+const publishedMediaGet = async (req, res) => {
+  try {
+    const item = publishedMedia.readPublished(req.params.filename);
+    if (!item || !item.buffer || !item.buffer.length) {
+      return res.status(404).send("Not found");
+    }
+    res.setHeader("Content-Type", item.contentType || "application/octet-stream");
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    res.setHeader("Content-Length", String(item.buffer.length));
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    return res.status(200).send(item.buffer);
+  } catch (err) {
+    logError("publishedMediaGet", err.message);
+    return res.status(500).send("error");
+  }
+};
+
 module.exports = {
   presignedV3,
   mediaUpload,
   mediaTempGet,
+  publishedMediaGet,
 };
