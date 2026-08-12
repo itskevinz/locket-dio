@@ -1,12 +1,11 @@
 import * as services from "@/services";
 import { useAppNavigation, useAppCamera, useAppLoading } from "@/context/AppContext";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import UploadStatusIcon from "./UploadStatusIcon";
 import { getMaxUploads } from "@/hooks/useFeature";
 import {
   SonnerError,
   SonnerInfo,
-  SonnerSuccess,
   SonnerWarning,
 } from "@/components/uikit/SonnerToast";
 import {
@@ -19,6 +18,13 @@ import {
 import { useNavigate } from "react-router-dom";
 import { resetAllPostData } from "@/utils";
 import { useTranslation } from "react-i18next";
+
+const TEMPORARY_QUEUE_ERRORS = new Set([
+  "NETWORK_ERROR",
+  "AUTH_REFRESH_TEMPORARY",
+  "UPLOAD_IN_PROGRESS",
+  "SERVER_ERROR",
+]);
 
 const SendButton = () => {
   const { t } = useTranslation("main");
@@ -43,6 +49,7 @@ const SendButton = () => {
   //Nhap hooks
   const { maxImageSizeMB, maxVideoSizeMB, storage_limit_mb } = getMaxUploads();
   const enqueueUploadItem = useUploadQueueStore((s) => s.enqueueUploadItem);
+  const uploadItems = useUploadQueueStore((s) => s.uploadItems);
   const reloadUser = useAuthStore((s) => s.initAuth);
 
   const isImage = preview?.type === "image";
@@ -62,12 +69,18 @@ const SendButton = () => {
 
   // State để quản lý hiệu ứng loading và success
   const [isSuccess, setIsSuccess] = useState(false);
+  const [pendingClientUploadId, setPendingClientUploadId] = useState(null);
   // React state updates are asynchronous; this ref closes the tiny window where
   // a fast double-tap could start two payload/upload operations before rerender.
   const submitLockRef = useRef(false);
 
   const sendDisabled =
-    capturePending || uploadLoading || isSuccess || isOffline || !serverReachable;
+    capturePending ||
+    uploadLoading ||
+    isSuccess ||
+    Boolean(pendingClientUploadId) ||
+    isOffline ||
+    !serverReachable;
 
   const handleDelete = useCallback(() => {
     // Dừng stream cũ nếu có
@@ -82,12 +95,52 @@ const SendButton = () => {
 
     setCameraActive(true); // Giữ dòng này để trigger useEffect
     setIsSuccess(false); // Reset success state
+    setPendingClientUploadId(null);
   }, []);
+
+  // Never clear the captured image just because it entered the queue. Keep the
+  // preview until the queue confirms DONE; on failure, leave it available so
+  // the user can retry without losing the capture.
+  useEffect(() => {
+    if (!pendingClientUploadId) return;
+
+    const queued = uploadItems.find(
+      (item) => item?.clientUploadId === pendingClientUploadId,
+    );
+    if (!queued) return;
+
+    if (queued.status === "done") {
+      setPendingClientUploadId(null);
+      setUploadLoading(false);
+      setIsSuccess(true);
+      const timer = setTimeout(() => {
+        handleDelete();
+      }, 700);
+      return () => clearTimeout(timer);
+    }
+
+    if (queued.status === "failed") {
+      const retryCount = Number(queued.retryCount || 0);
+      const temporaryFailure = TEMPORARY_QUEUE_ERRORS.has(queued.errorCode);
+      if (!temporaryFailure || retryCount >= 3) {
+        setPendingClientUploadId(null);
+        setUploadLoading(false);
+        setIsSuccess(false);
+      }
+    }
+  }, [pendingClientUploadId, uploadItems, handleDelete, setUploadLoading]);
 
   // Hàm submit được cải tiến
   const handleSubmit = async () => {
     // Chặn double-tap / double-enqueue ngay trong cùng event loop.
-    if (submitLockRef.current || uploadLoading || isSuccess || capturePending) return;
+    if (
+      submitLockRef.current ||
+      uploadLoading ||
+      isSuccess ||
+      pendingClientUploadId ||
+      capturePending
+    )
+      return;
     submitLockRef.current = true;
 
     try {
@@ -196,23 +249,20 @@ const SendButton = () => {
         // Persist payload before telling the user it is queued. This keeps a
         // recoverable copy even if the tab closes immediately after tapping send.
         await enqueueUploadItem(payload);
+        setPendingClientUploadId(payload.clientUploadId || null);
 
-        // Kết thúc loading và hiển thị success
+        // Queueing is not a successful Locket post. Stop the foreground spinner
+        // while the queue worker reports the real result, and keep the preview.
         setUploadLoading(false);
-        setIsSuccess(true);
-        // Hiển thị thông báo thành công
-        SonnerSuccess(
-          t("home.added_to_queue"), // Title
-          t("home.processing_post"), // Body
+        setIsSuccess(false);
+        SonnerInfo(
+          t("home.added_to_queue"),
+          t("home.processing_post"),
         );
-        // Reset studio UI — draft stays until API post succeeds
-        setTimeout(() => {
-          setIsSuccess(false);
-          handleDelete();
-        }, 1000);
       } catch (error) {
         setUploadLoading(false);
         setIsSuccess(false);
+        setPendingClientUploadId(null);
         try {
           await useMomentDraftStore
             .getState()
@@ -240,7 +290,7 @@ const SendButton = () => {
       ? "sendButton--overLimit"
       : isSuccess
         ? "sendButton--success"
-        : uploadLoading || capturePending
+        : uploadLoading || capturePending || pendingClientUploadId
           ? "sendButton--loading"
           : isOffline || !serverReachable
             ? "sendButton--warn"
@@ -254,21 +304,25 @@ const SendButton = () => {
       aria-label={
         capturePending
           ? "Đang hoàn tất ảnh chất lượng cao"
-          : isOffline
-            ? "Mất mạng — không thể đăng"
-            : !serverReachable
-              ? "Máy chủ đang bảo trì — không thể đăng"
-              : "Đăng bài"
+          : pendingClientUploadId
+            ? "Đang xử lý bài đăng trong hàng chờ"
+            : isOffline
+              ? "Mất mạng — không thể đăng"
+              : !serverReachable
+                ? "Máy chủ đang bảo trì — không thể đăng"
+                : "Đăng bài"
       }
-      aria-busy={uploadLoading || capturePending || undefined}
+      aria-busy={uploadLoading || capturePending || Boolean(pendingClientUploadId) || undefined}
       title={
         capturePending
           ? "Đang hoàn tất ảnh chất lượng cao"
-          : isOffline
-            ? "Mất mạng · Bản nháp vẫn được lưu"
-            : !serverReachable
-              ? "Máy chủ đang bảo trì · Bản nháp vẫn được lưu"
-              : undefined
+          : pendingClientUploadId
+            ? "Đang xử lý bài đăng · Ảnh sẽ được giữ lại nếu đăng thất bại"
+            : isOffline
+              ? "Mất mạng · Bản nháp vẫn được lưu"
+              : !serverReachable
+                ? "Máy chủ đang bảo trì · Bản nháp vẫn được lưu"
+                : undefined
       }
       className={`sendButton ${toneClass}`.trim()}
       data-send-button="true"
@@ -276,7 +330,7 @@ const SendButton = () => {
       data-offline={isOffline || !serverReachable ? "true" : undefined}
     >
       <UploadStatusIcon
-        loading={uploadLoading || capturePending}
+        loading={uploadLoading || capturePending || Boolean(pendingClientUploadId)}
         success={isSuccess}
         overLimit={isTooBig}
       />
