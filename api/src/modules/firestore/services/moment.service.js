@@ -1,5 +1,5 @@
 const fs = require("fs");
-const { logInfo, logError } = require("../../../utils/logEventUtils");
+const { logInfo, logError, logWarning } = require("../../../utils/logEventUtils");
 const {
   instanceFirestoreUpload,
   instanceFirestoreInit,
@@ -7,6 +7,7 @@ const {
 } = require("../utils/http");
 const { generateFirestoreId } = require("../../../utils");
 const { buildResumableUploadUrl } = require("../utils/resumableUpload");
+const publishedMedia = require("../../storage/publishedMediaStore");
 
 const createStorageUploadError = (message, cause) => {
   const error = new Error(message);
@@ -18,21 +19,36 @@ const createStorageUploadError = (message, cause) => {
   return error;
 };
 
+const logStorageRejection = (scope, err) => {
+  const data = err?.response?.data;
+  const safeMessage =
+    data?.error?.message ||
+    data?.message ||
+    (typeof data === "string" ? data.slice(0, 300) : undefined) ||
+    err?.message ||
+    "Unknown Firebase Storage error";
+  console.error(`[${scope}] Firebase Storage rejected upload`, {
+    status: err?.response?.status,
+    code: data?.error?.code,
+    message: safeMessage,
+  });
+};
+
 /**
  * Tải hình ảnh khoảnh khắc (moment image) lên Firebase Storage.
+ * Nếu Firebase từ chối ghi bằng 403, lưu ảnh vào volume bền vững của Huy Locket
+ * và trả URL public để postMomentV2 vẫn có thể sử dụng ảnh.
  *
  * @param {string} localId - ID người dùng sở hữu khoảnh khắc
  * @param {string} idToken - Firebase ID token để xác thực
  * @param {File|Buffer} fileBuffer - Dữ liệu tệp hình ảnh (Buffer hoặc đối tượng File chứa thuộc tính path)
  * @param {string} [mediaId] - (Tuỳ chọn) ID dùng làm tên file. Nếu không truyền, sẽ tự sinh ID mới.
- *                             Truyền cùng mediaId với uploadMomentVideo để thumbnail và video có cùng tên base.
- * @returns {Promise<string>} Trả về URL tải về công khai của ảnh kèm token truy cập
+ * @returns {Promise<string>} URL ảnh dùng cho postMomentV2
  */
 const uploadMomentImage = async (localId, idToken, fileBuffer, mediaId) => {
   try {
     logInfo("uploadMomentImage", "Start");
 
-    // Nếu mediaId được truyền vào thì dùng luôn, ngược lại tự sinh ID mới
     const imageId = mediaId || generateFirestoreId();
     const imageName = `${imageId}.webp`;
     const fileSize = fileBuffer.size || fileBuffer.length;
@@ -43,10 +59,7 @@ const uploadMomentImage = async (localId, idToken, fileBuffer, mediaId) => {
       fileSize,
     });
 
-    // Bước 1: Khởi tạo đường dẫn lưu trữ khoảnh khắc ảnh (định dạng thumbnail webp)
     const objectPath = `users/${localId}/moments/thumbnails/${imageName}`;
-
-    // Bước 2: Tạo link upload và URL gốc của tệp trên bucket locket-img
     const { uploadUrl, objectUrl } = buildResumableUploadUrl({
       bucket: "locket-img",
       objectPath: objectPath,
@@ -60,7 +73,6 @@ const uploadMomentImage = async (localId, idToken, fileBuffer, mediaId) => {
       cacheControl: "public, max-age=604800",
     };
 
-    // Bước 3: Gửi yêu cầu khởi tạo session upload để lấy Upload URL từ Firebase
     const response = await instanceFirestoreInit.post(uploadUrl, body, {
       meta: {
         idToken,
@@ -74,7 +86,6 @@ const uploadMomentImage = async (localId, idToken, fileBuffer, mediaId) => {
       throw new Error("Missing upload URL in Firebase response headers");
     }
 
-    // Bước 4: Chuyển đổi dữ liệu ảnh thành Buffer
     let imageBuffer;
     if (fileBuffer instanceof Buffer) {
       imageBuffer = fileBuffer;
@@ -82,18 +93,32 @@ const uploadMomentImage = async (localId, idToken, fileBuffer, mediaId) => {
       imageBuffer = fs.readFileSync(fileBuffer.path);
     }
 
-    // Bước 5: Upload dữ liệu binary lên Firebase Storage theo finalization request của Locket/iOS
     try {
       await instanceFirestoreUpload.put(resumableUploadUrl, imageBuffer);
     } catch (err) {
-      console.error("Upload error detail:", err);
+      logStorageRejection("uploadMomentImage", err);
+      const status = Number(err?.response?.status || 0);
+
+      if (status === 403) {
+        try {
+          const saved = publishedMedia.publishBuffer(imageBuffer, "image/webp");
+          const fallbackUrl = publishedMedia.buildPublicUrl(saved.filename);
+          logWarning(
+            "uploadMomentImage",
+            `Firebase 403 -> durable fallback ${saved.filename} (${saved.size} bytes)`,
+          );
+          return fallbackUrl;
+        } catch (fallbackErr) {
+          logError("uploadMomentImage fallback", fallbackErr.message);
+        }
+      }
+
       throw createStorageUploadError(
         "Failed to upload moment image to Firebase Storage",
         err,
       );
     }
 
-    // Bước 6: Lấy metadata để lấy token downloadToken
     const getRes = await instanceFirestoreGet.get(objectUrl, {
       meta: { idToken },
     });
@@ -103,17 +128,12 @@ const uploadMomentImage = async (localId, idToken, fileBuffer, mediaId) => {
     }
 
     const downloadToken = getRes.data.downloadTokens;
-
     logInfo("uploadMomentImage", "End");
-
-    // Bước 7: Trả về URL tải về công khai
-    const finalUrl = `${objectUrl}?alt=media&token=${downloadToken}`;
-    return finalUrl;
+    return `${objectUrl}?alt=media&token=${downloadToken}`;
   } catch (error) {
     logError("uploadMomentImage", error.message);
     throw error;
   } finally {
-    // Bước 8: Dọn dẹp tệp tin tạm trên đĩa
     if (fileBuffer.path) {
       try {
         fs.unlinkSync(fileBuffer.path);
@@ -131,14 +151,12 @@ const uploadMomentImage = async (localId, idToken, fileBuffer, mediaId) => {
  * @param {string} idToken - Firebase ID token dùng để xác thực
  * @param {File|Buffer} fileBuffer - Dữ liệu tệp video (Buffer hoặc đối tượng File chứa thuộc tính path)
  * @param {string} [mediaId] - (Tuỳ chọn) ID dùng làm tên file. Nếu không truyền, sẽ tự sinh ID mới.
- *                             Truyền cùng mediaId với uploadMomentImage để video và thumbnail có cùng tên base.
  * @returns {Promise<string>} Trả về URL tải về công khai của video kèm token truy cập
  */
 const uploadMomentVideo = async (localId, idToken, fileBuffer, mediaId) => {
   try {
     logInfo("uploadMomentVideo", "Start");
 
-    // Nếu mediaId được truyền vào thì dùng luôn, ngược lại tự sinh ID mới
     const videoId = mediaId || generateFirestoreId();
     const videoName = `${videoId}.mp4`;
     const videoSize = fileBuffer.length || fileBuffer.size;
@@ -149,10 +167,7 @@ const uploadMomentVideo = async (localId, idToken, fileBuffer, mediaId) => {
       videoSize,
     });
 
-    // Bước 1: Khởi tạo đường dẫn lưu trữ khoảnh khắc video (định dạng mp4)
     const objectPath = `users/${localId}/moments/videos/${videoName}`;
-
-    // Bước 2: Tạo link upload và URL gốc của tệp trên bucket locket-video
     const { uploadUrl, objectUrl } = buildResumableUploadUrl({
       bucket: "locket-video",
       objectPath: objectPath,
@@ -166,7 +181,6 @@ const uploadMomentVideo = async (localId, idToken, fileBuffer, mediaId) => {
       cacheControl: "public, max-age=604800",
     };
 
-    // Bước 3: Khởi tạo quá trình tải lên để nhận Upload URL
     const response = await instanceFirestoreInit.post(uploadUrl, body, {
       meta: {
         idToken: idToken,
@@ -180,7 +194,6 @@ const uploadMomentVideo = async (localId, idToken, fileBuffer, mediaId) => {
       throw new Error("Missing upload URL in Firebase response headers");
     }
 
-    // Bước 4: Chuyển đổi dữ liệu video thành Buffer
     let videoBuffer;
     if (fileBuffer instanceof Buffer) {
       videoBuffer = fileBuffer;
@@ -188,18 +201,16 @@ const uploadMomentVideo = async (localId, idToken, fileBuffer, mediaId) => {
       videoBuffer = fs.readFileSync(fileBuffer.path);
     }
 
-    // Bước 5: Thực hiện PUT dữ liệu binary video lên Firebase Storage
     try {
       await instanceFirestoreUpload.put(resumableUploadUrl, videoBuffer);
     } catch (err) {
-      console.error("Upload error detail:", err);
+      logStorageRejection("uploadMomentVideo", err);
       throw createStorageUploadError(
         "Failed to upload moment video to Firebase Storage",
         err,
       );
     }
 
-    // Bước 6: Gọi API GET để kiểm tra sự tồn tại và lấy download token
     const getResponse = await instanceFirestoreGet.get(objectUrl, {
       meta: { idToken },
     });
@@ -209,12 +220,8 @@ const uploadMomentVideo = async (localId, idToken, fileBuffer, mediaId) => {
     }
 
     const downloadToken = getResponse.data.downloadTokens;
-
     logInfo("uploadMomentVideo", "End");
-
-    // Bước 7: Trả về liên kết xem video trực tiếp có token xác thực
-    const finalUrl = `${objectUrl}?alt=media&token=${downloadToken}`;
-    return finalUrl;
+    return `${objectUrl}?alt=media&token=${downloadToken}`;
   } catch (error) {
     console.error("❌ uploadMomentVideo error details:", {
       message: error.message,
@@ -223,7 +230,6 @@ const uploadMomentVideo = async (localId, idToken, fileBuffer, mediaId) => {
     logError("uploadMomentVideo", error.message);
     throw error;
   } finally {
-    // Bước 8: Giải phóng tệp tin tạm trên đĩa
     if (fileBuffer.path) {
       try {
         fs.unlinkSync(fileBuffer.path);
