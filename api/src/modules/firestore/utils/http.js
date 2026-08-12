@@ -37,13 +37,6 @@ const instanceFirestoreUpload = axios.create({
   },
 });
 
-instanceFirestoreUpload.interceptors.request.use((config) => {
-  if (config.meta?.appCheckToken) {
-    config.headers["X-Firebase-AppCheck"] = config.meta.appCheckToken;
-  }
-  return config;
-});
-
 /**
  * Axios client instance for initiating resumable upload sessions to Firebase Storage.
  */

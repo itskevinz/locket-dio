@@ -108,3 +108,28 @@ test("raw DeviceCheck env token is never forwarded as X-Firebase-AppCheck", () =
   );
   assert.match(source, /process\.env\.LOCKET_APP_CHECK_TOKEN/);
 });
+
+test("Firebase resumable finalization relies only on its signed upload URL", () => {
+  const httpSource = fs.readFileSync(
+    path.resolve(__dirname, "../src/modules/firestore/utils/http.js"),
+    "utf8",
+  );
+  const momentSource = fs.readFileSync(
+    path.resolve(__dirname, "../src/modules/firestore/services/moment.service.js"),
+    "utf8",
+  );
+
+  const uploadClientSection = httpSource.slice(
+    httpSource.indexOf("const instanceFirestoreUpload"),
+    httpSource.indexOf("const instanceFirestoreInit"),
+  );
+  assert.doesNotMatch(uploadClientSection, /Authorization|X-Firebase-AppCheck/);
+  assert.match(
+    momentSource,
+    /instanceFirestoreUpload\.put\(resumableUploadUrl, imageBuffer\)/,
+  );
+  assert.match(
+    momentSource,
+    /instanceFirestoreUpload\.put\(resumableUploadUrl, videoBuffer\)/,
+  );
+});

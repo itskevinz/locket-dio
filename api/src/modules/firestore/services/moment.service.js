@@ -101,9 +101,10 @@ const uploadMomentImage = async (
     }
 
     try {
-      await instanceFirestoreUpload.put(resumableUploadUrl, imageBuffer, {
-        meta: { appCheckToken },
-      });
+      // The resumable URL returned by Firebase already carries the upload
+      // session authorization. Adding a short-lived App Check/ID token here
+      // caused valid sessions to be rejected intermittently with 403.
+      await instanceFirestoreUpload.put(resumableUploadUrl, imageBuffer);
     } catch (err) {
       logStorageRejection("uploadMomentImage", err);
       throw createStorageUploadError(
@@ -202,9 +203,7 @@ const uploadMomentVideo = async (
     }
 
     try {
-      await instanceFirestoreUpload.put(resumableUploadUrl, videoBuffer, {
-        meta: { appCheckToken },
-      });
+      await instanceFirestoreUpload.put(resumableUploadUrl, videoBuffer);
     } catch (err) {
       logStorageRejection("uploadMomentVideo", err);
       throw createStorageUploadError(

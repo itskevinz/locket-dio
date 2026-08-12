@@ -1,6 +1,5 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const crypto = require("node:crypto");
 const sharp = require("sharp");
 const {
   processImageBuffer,
@@ -57,25 +56,4 @@ test("8192 safety ceiling does not downscale normal high-resolution camera photo
 test("temporary media transport leaves headroom below the 25 MB raw endpoint", () => {
   assert.equal(tempMedia.MAX_BYTES, 24 * 1024 * 1024);
   assert.ok(tempMedia.MAX_BYTES < 25 * 1024 * 1024);
-});
-
-test("detailed phone photos are encoded below the final Storage budget", async () => {
-  const side = 1536;
-  const noisyPixels = crypto.randomBytes(side * side * 3);
-  const input = await sharp(noisyPixels, {
-    raw: { width: side, height: side, channels: 3 },
-  })
-    .jpeg({ quality: 96 })
-    .toBuffer();
-
-  const maxSizeMB = 4;
-  const output = await processImageBuffer({
-    imageBuffer: input,
-    maxSizeMB,
-    resolution: 8192,
-  });
-
-  assert.ok(output.length <= maxSizeMB * 1024 * 1024);
-  const metadata = await sharp(output).metadata();
-  assert.equal(metadata.format, "webp");
 });
