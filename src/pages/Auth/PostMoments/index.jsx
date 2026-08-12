@@ -1,4 +1,4 @@
-import React, { useRef, useCallback, useEffect } from "react";
+import React, { useRef, useCallback } from "react";
 import {
   FolderOpen,
   RotateCcw,
@@ -30,6 +30,7 @@ import {
   useUploadQueueStore,
 } from "@/stores";
 import { getCaptionStyle } from "@/helpers/styleHelpers";
+import { classifyPhoneMedia } from "@/utils/imageUtils";
 
 const PostMoments = () => {
   const { useloading } = useApp();
@@ -44,7 +45,6 @@ const PostMoments = () => {
   const setVideoToCrop = usePostStore((s) => s.setVideoToCrop);
   const videoCropData = usePostStore((s) => s.videoCropData);
 
-  const setMediaFromFile = usePostStore((s) => s.setMediaFromFile);
   const resetMedia = usePostStore((s) => s.resetMedia);
 
   const overlayData = useOverlayEditorStore((s) => s.overlayData);
@@ -60,11 +60,7 @@ const PostMoments = () => {
   const handleFileChange = useCallback(async (event) => {
     const rawFile = event.target.files[0];
     if (!rawFile) return;
-    const fileType = rawFile.type.startsWith("image/")
-      ? "image"
-      : rawFile.type.startsWith("video/")
-        ? "video"
-        : null;
+    const fileType = classifyPhoneMedia(rawFile);
 
     if (!fileType) {
       SonnerInfo("Chỉ hỗ trợ ảnh và video.");
@@ -79,8 +75,7 @@ const PostMoments = () => {
       setVideoToCrop(rawFile);
       return;
     }
-    setMediaFromFile(rawFile);
-  }, []);
+  }, [setImageToCrop, setVideoToCrop]);
 
   const handleSubmit = async () => {
     if (!selectedFile) {
@@ -265,7 +260,7 @@ const PostMoments = () => {
             type="file"
             onChange={handleFileChange}
             className="hidden"
-            accept="image/jpeg,image/jpg,image/png,image/webp,video/mp4,video/webm,video/quicktime"
+            accept="image/*,.heic,.heif,.avif,.tif,.tiff,video/mp4,video/webm,video/quicktime"
           />
         </div>
 

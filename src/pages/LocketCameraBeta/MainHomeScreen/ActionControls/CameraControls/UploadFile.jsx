@@ -4,6 +4,7 @@ import { ImageUp } from "lucide-react";
 import { SonnerInfo } from "@/components/uikit/SonnerToast";
 import { useMomentDraftStore, usePostStore } from "@/stores";
 import { useTranslation } from "react-i18next";
+import { classifyPhoneMedia } from "@/utils/imageUtils";
 
 const UploadFile = () => {
   const { t } = useTranslation("main");
@@ -13,10 +14,7 @@ const UploadFile = () => {
   const setImageToCrop = usePostStore((s) => s.setImageToCrop);
   const setVideoToCrop = usePostStore((s) => s.setVideoToCrop);
 
-  const setMediaFromFile = usePostStore((s) => s.setMediaFromFile);
-  const applyNewMediaFile = useMomentDraftStore((s) => s.applyNewMediaFile);
-
-  const { cameraActive, setCameraActive } = camera;
+  const { setCameraActive } = camera;
 
   //Handle tải file
   const handleFileChange = useCallback(async (event) => {
@@ -24,11 +22,7 @@ const UploadFile = () => {
 
     const rawFile = event.target.files[0];
     if (!rawFile) return;
-    const fileType = rawFile.type.startsWith("image/")
-      ? "image"
-      : rawFile.type.startsWith("video/")
-        ? "video"
-        : null;
+    const fileType = classifyPhoneMedia(rawFile);
 
     if (!fileType) {
       SonnerInfo(t("home.only_media_supported_short"));
@@ -49,15 +43,16 @@ const UploadFile = () => {
 
     if (fileType === "image") {
       setImageToCrop(rawFile);
+      event.target.value = "";
       // Crop flow will setMediaFromFile later → autosave via store subscribe
       return;
     }
     if (fileType === "video") {
       setVideoToCrop(rawFile);
+      event.target.value = "";
       return;
     }
-    await applyNewMediaFile(rawFile);
-  }, []);
+  }, [resetMedia, setCameraActive, setImageToCrop, setVideoToCrop, t]);
 
   return (
     <>

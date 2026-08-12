@@ -16,11 +16,13 @@ import { SonnerInfo } from "@/components/uikit/SonnerToast";
 import { useTranslation } from "react-i18next";
 import { useAppCamera } from "@/context/AppContext";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { classifyPhoneMedia } from "@/utils/imageUtils";
 import "./mobileLocket.css";
 import "./iosLocketV2.css";
 
 const BottomHomeScreen = lazy(() => import("../BottomHomeScreen"));
 const SelectFriendsList = lazy(() => import("./Layout/SelectFriends"));
+const MotionDiv = motion.div;
 
 export default function MainHomeScreen() {
   const {
@@ -95,11 +97,7 @@ export default function MainHomeScreen() {
       camera.setCameraActive(false);
     }
 
-    const fileType = rawFile.type.startsWith("image/")
-      ? "image"
-      : rawFile.type.startsWith("video/")
-        ? "video"
-        : null;
+    const fileType = classifyPhoneMedia(rawFile);
 
     if (!fileType) {
       SonnerInfo(
@@ -157,7 +155,7 @@ export default function MainHomeScreen() {
           selectedFile={selectedFile}
         />
 
-        <motion.div
+        <MotionDiv
           data-history-panel="true"
           data-history-motion="framer"
           initial={false}
@@ -183,9 +181,9 @@ export default function MainHomeScreen() {
             setIsProfileOpen={setIsProfileOpen}
             setIsHomeOpen={setIsHomeOpen}
           />
-        </motion.div>
+        </MotionDiv>
 
-        <motion.div
+        <MotionDiv
           data-capture-stack="true"
           data-camera-panel="true"
           data-history-motion="framer"
@@ -262,7 +260,7 @@ export default function MainHomeScreen() {
               </button>
             </nav>
           )}
-        </motion.div>
+        </MotionDiv>
       </div>
     </>
   );

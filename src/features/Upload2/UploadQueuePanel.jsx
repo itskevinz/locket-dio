@@ -17,6 +17,10 @@ import {
 } from "@/stores/PostStores/useUploadPostStore";
 import { useMomentDraftStore } from "@/stores/PostStores/useMomentDraftStore";
 import { createDraft, resolveDraftUid } from "@/utils/momentDraft";
+import {
+  classifyPhoneMedia,
+  normalizePhoneImage,
+} from "@/utils/imageUtils";
 
 function humanBytes(value) {
   const bytes = Number(value || 0);
@@ -38,39 +42,18 @@ function statusMeta(status) {
   return { label: "Đang chờ", className: "badge-warning" };
 }
 
-async function compressImageIfUseful(file) {
-  if (!file?.type?.startsWith("image/") || file.size < 2.5 * 1024 * 1024) {
-    return { file, compressed: false, savedBytes: 0 };
-  }
-  try {
-    const bitmap = await createImageBitmap(file);
-    const maxEdge = 2048;
-    const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
-    const width = Math.max(1, Math.round(bitmap.width * scale));
-    const height = Math.max(1, Math.round(bitmap.height * scale));
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d", { alpha: false });
-    ctx.drawImage(bitmap, 0, 0, width, height);
-    bitmap.close?.();
-    const blob = await new Promise((resolve) =>
-      canvas.toBlob(resolve, "image/jpeg", 0.86),
-    );
-    if (!blob || blob.size >= file.size * 0.94) {
-      return { file, compressed: false, savedBytes: 0 };
-    }
-    return {
-      file: new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", {
-        type: "image/jpeg",
-        lastModified: file.lastModified,
-      }),
-      compressed: true,
-      savedBytes: file.size - blob.size,
-    };
-  } catch {
-    return { file, compressed: false, savedBytes: 0 };
-  }
+async function normalizeQueuedImage(file) {
+  const normalized = await normalizePhoneImage(file, {
+    maxEdge: 2048,
+    outputType: "image/jpeg",
+    quality: 0.9,
+  });
+  return {
+    file: normalized,
+    compressed: normalized.size < file.size,
+    normalized: true,
+    savedBytes: Math.max(0, file.size - normalized.size),
+  };
 }
 
 export default function UploadQueuePanel({ onOpenDrafts }) {
@@ -138,12 +121,28 @@ export default function UploadQueuePanel({ onOpenDrafts }) {
     setPreparing(true);
     let added = 0;
     let savedBytes = 0;
+    let failed = 0;
     try {
       for (let index = 0; index < files.length; index += 1) {
         const raw = files[index];
-        if (!raw.type.startsWith("image/") && !raw.type.startsWith("video/")) continue;
+        const mediaType = classifyPhoneMedia(raw);
+        if (!mediaType) {
+          failed += 1;
+          continue;
+        }
         setPrepareText(`Chuẩn bị ${index + 1}/${files.length}: ${raw.name}`);
-        const optimized = await compressImageIfUseful(raw);
+        let optimized = { file: raw, compressed: false, normalized: false, savedBytes: 0 };
+        try {
+          if (mediaType === "image") {
+            optimized = await normalizeQueuedImage(raw);
+          }
+        } catch (error) {
+          failed += 1;
+          toast.error(`Không xử lý được ${raw.name}`, {
+            description: error?.message || "Ảnh không hợp lệ.",
+          });
+          continue;
+        }
         savedBytes += optimized.savedBytes || 0;
         const result = await createDraft({
           ownerUid: uid,
@@ -155,6 +154,7 @@ export default function UploadQueuePanel({ onOpenDrafts }) {
               draftFolder: "Hàng đợi nhanh",
               draftTags: ["upload-queue"],
               optimizedImage: optimized.compressed,
+              normalizedPhoneImage: optimized.normalized,
             },
           },
         });
@@ -166,9 +166,11 @@ export default function UploadQueuePanel({ onOpenDrafts }) {
       await hydrateUploadQueue();
       if (added) {
         toast.success(`Đã thêm ${added} file vào hàng đợi`, {
-          description: savedBytes > 0 ? `Ảnh đã tối ưu, giảm ${humanBytes(savedBytes)} trước upload.` : undefined,
+          description: savedBytes > 0
+            ? `Ảnh đã xoay đúng và tối ưu, giảm ${humanBytes(savedBytes)} trước upload.`
+            : "Ảnh điện thoại đã được xoay đúng và chuẩn hóa trước upload.",
         });
-      } else {
+      } else if (!failed) {
         toast.warning("Không có file hợp lệ để thêm");
       }
     } finally {

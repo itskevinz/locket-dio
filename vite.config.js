@@ -30,6 +30,9 @@ const manifestForPlugIn = {
       "**/images/**",
       "**/stats.html",
       "**/prvlocket.png",
+      // HEIC fallback is ~3 MB and must stay truly on-demand. Browsers that
+      // already decode JPEG/PNG/WebP/AVIF should not download it at SW install.
+      "**/assets/heic-to-*.js",
     ],
     maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
   },

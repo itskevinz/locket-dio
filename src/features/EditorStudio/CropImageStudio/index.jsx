@@ -1,10 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getCroppedImg, getFileSizeMB } from "@/utils";
-import {
-  prepareImageForCrop,
-  canBrowserRenderImage,
-} from "@/utils/process/PrsImage/prepareImageForCrop";
+import { prepareImageForCrop } from "@/utils/process/PrsImage/prepareImageForCrop";
 import clsx from "clsx";
 import { usePostStore } from "@/stores";
 import { convertImageToBlob } from "@/services";
@@ -87,9 +84,12 @@ const CropImageStudio = () => {
       setPreparing(true);
       setCropError("");
       setMediaReady(false);
+      revokeUrl();
+      setWorkFile(null);
+      setImageUrl(null);
 
       try {
-        // 1) Thử chuẩn hóa local (canvas) — mượt, không phụ thuộc server
+        // 1) Nhận dạng + auto-orient + chuyển JPEG hoàn toàn ở client.
         const prepared = await prepareImageForCrop(imageToCrop, {
           maxEdge: 2048,
         });
@@ -98,19 +98,7 @@ const CropImageStudio = () => {
       } catch (localErr) {
         console.warn("[crop] local prepare failed:", localErr);
 
-        // 2) Nếu browser vẫn đọc được raw → dùng raw
-        try {
-          const ok = await canBrowserRenderImage(imageToCrop);
-          if (cancelled || gen !== prepareGen.current) return;
-          if (ok) {
-            applyWorkFile(imageToCrop);
-            return;
-          }
-        } catch {
-          /* continue */
-        }
-
-        // 3) Remote convert (fallback)
+        // 2) Remote convert là fallback cuối cho container ít gặp.
         try {
           const blob = await convertImageToBlob(imageToCrop);
           if (cancelled || gen !== prepareGen.current) return;
@@ -121,26 +109,19 @@ const CropImageStudio = () => {
           );
           file.__converted = true;
           file.__prepared = true;
-          // Re-prepare local after remote
-          try {
-            const again = await prepareImageForCrop(file);
-            if (cancelled || gen !== prepareGen.current) return;
-            applyWorkFile(again);
-          } catch {
-            if (cancelled || gen !== prepareGen.current) return;
-            applyWorkFile(file);
-          }
+          const again = await prepareImageForCrop(file);
+          if (cancelled || gen !== prepareGen.current) return;
+          applyWorkFile(again);
         } catch (remoteErr) {
           console.error("[crop] remote convert failed:", remoteErr);
           if (cancelled || gen !== prepareGen.current) return;
           setCropError(
             t("crop_image.crop_failed_detail", {
               error:
-                "Không đọc được ảnh. Thử ảnh JPG/PNG khác hoặc nút Chuyển đổi.",
+                localErr?.message ||
+                "Không đọc được ảnh. Hãy chọn một ảnh điện thoại hợp lệ khác.",
             }),
           );
-          // Vẫn gắn raw để user thử convert tay
-          applyWorkFile(imageToCrop);
         }
       } finally {
         if (!cancelled && gen === prepareGen.current) {
@@ -207,7 +188,7 @@ const CropImageStudio = () => {
   };
 
   const handleCropConfirm = useCallback(async () => {
-    const file = workFile || imageToCrop;
+    const file = workFile;
     if (!file) return;
 
     // Nếu chưa có vùng crop — dùng full ảnh (square center sau)
@@ -240,7 +221,6 @@ const CropImageStudio = () => {
   }, [
     croppedAreaPixels,
     workFile,
-    imageToCrop,
     setMediaFromFile,
     setImageToCrop,
     t,
@@ -262,7 +242,7 @@ const CropImageStudio = () => {
     };
   }, [imageToCrop]);
 
-  const displayFile = workFile || imageToCrop;
+  const displayFile = workFile;
   const fileName = displayFile?.name;
   const fileType = displayFile?.type;
   const fileSizeMB = getFileSizeMB(displayFile);
@@ -273,7 +253,7 @@ const CropImageStudio = () => {
     busy || !imageUrl || !mediaReady || !croppedAreaPixels;
 
   const handleSkipCrop = () => {
-    const file = workFile || imageToCrop;
+    const file = workFile;
     if (!file) return;
     setMediaFromFile(file);
     setImageToCrop(null);
@@ -324,7 +304,7 @@ const CropImageStudio = () => {
         onCancel={() => setImageToCrop(null)}
         onConvert={handleConvertImage}
         onCrop={handleCropConfirm}
-        canSkipCrop={Boolean(displayFile) && !preparing}
+        canSkipCrop={Boolean(workFile) && !preparing}
         onSkip={handleSkipCrop}
       />
     </div>
