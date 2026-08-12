@@ -64,10 +64,9 @@ const serverConfig = {
     maxVideoSizeMB: Number(process.env.MAX_VIDEO_SIZE_MB) || 5,
     maxVideoSizeBytes:
       (Number(process.env.MAX_VIDEO_SIZE_MB) || 5) * 1024 * 1024,
-    // Full-resolution camera JPEG/PNG source files can legitimately exceed
-    // the old 15 MB cap. Keep this under the 25 MB raw transport ceiling.
+    // Generic large-media fallback. Images use the dedicated 10 MB cap below.
     maxSizeAllowedFree: Number(process.env.MAX_SIZE_ALLOWED_FREE) || 24,
-    maxImageSize: Number(process.env.MAX_IMAGE_SIZE) || 24, // MB
+    maxImageSize: Number(process.env.MAX_IMAGE_SIZE) || 10, // MB per source image
   },
 
   cache: {

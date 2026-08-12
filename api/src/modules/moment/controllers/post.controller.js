@@ -80,14 +80,20 @@ const uploadMediaV3 = async (req, res, next) => {
         });
       }
       const sizeInMB = size / (1024 * 1024);
-      if (!isUploadAllowed(planData, sizeInMB, limits.maxSizeAllowedFree)) {
+      const technicalLimitMB =
+        type === "image" ? limits.maxImageSize : limits.maxSizeAllowedFree;
+      if (!isUploadAllowed(planData, sizeInMB, technicalLimitMB)) {
         logWarning(
           "uploadMediaV3",
           `🚫 Upload bị từ chối do vượt giới hạn gói`,
         );
-        return res.status(400).json({
+        return res.status(413).json({
           success: false,
-          message: "Bad request",
+          code: type === "image" ? "IMAGE_TOO_LARGE" : "MEDIA_TOO_LARGE",
+          message:
+            type === "image"
+              ? `Ảnh vượt quá giới hạn ${technicalLimitMB} MB.`
+              : `Media vượt quá giới hạn ${technicalLimitMB} MB.`,
         });
       }
       logTable(

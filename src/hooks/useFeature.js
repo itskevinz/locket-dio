@@ -1,4 +1,5 @@
 import { useAuthStore } from "@/stores";
+import { MAX_IMAGE_UPLOAD_MB } from "@/config/uploadLimits";
 
 /**
  * Huy Locket — full Premium cho mọi user (không paywall).
@@ -9,7 +10,7 @@ export const FREE_FOR_ALL = true;
 
 /** Giới hạn Premium (free-for-all) — không phải paywall */
 const FREE_LIMITS = {
-  maxImageSizeMB: 25,
+  maxImageSizeMB: MAX_IMAGE_UPLOAD_MB,
   maxVideoSizeMB: 50,
   storage_limit_mb: 99999,
   video_record_max_length: 15, // Premium: 15s

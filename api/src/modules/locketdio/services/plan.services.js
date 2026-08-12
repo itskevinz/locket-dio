@@ -59,7 +59,8 @@ function buildLocalFreePlan(uid, email, phone, name, picture) {
     },
     feature_blocks: {},
     limits: {
-      image_storage_limit_mb: 99999,
+      // Technical per-file cap; total storage remains unrestricted.
+      image_storage_limit_mb: 10,
       video_storage_limit_mb: 99999,
       storage_limit_mb: 99999,
       video_record_max_length: 15,

@@ -1,5 +1,7 @@
 //config/webConfig.js — Huy Locket
 
+import { MAX_IMAGE_UPLOAD_MB } from "./uploadLimits.js";
+
 export const CONFIG = {
   api: {
     // `vite dev` does not load `.env.production`. These same-origin defaults
@@ -44,7 +46,7 @@ export const CONFIG = {
       limits: {
         maxRecordTime: 10, // Locket native ~10s
         // Free-for-all — generous client limits (not paywall)
-        maxImageSizeMB: 25,
+        maxImageSizeMB: MAX_IMAGE_UPLOAD_MB,
         maxVideoSizeMB: 50,
       },
       resolutions: {

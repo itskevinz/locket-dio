@@ -4,6 +4,11 @@ import {
   CAMERA_INLINE_TARGET_BYTES,
   cameraJpegEncodingPlan,
 } from "../../src/utils/device/capturePhoto.js";
+import { MAX_IMAGE_UPLOAD_MB } from "../../src/config/uploadLimits.js";
+
+test("source images are capped at 10 MB", () => {
+  assert.equal(MAX_IMAGE_UPLOAD_MB, 10);
+});
 
 test("camera images target the reliable inline upload route", () => {
   const storageInlineLimit = 4.5 * 1024 * 1024;
