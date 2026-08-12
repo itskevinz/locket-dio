@@ -15,6 +15,10 @@ const createStorageUploadError = (message, cause) => {
     error.status = status;
   }
   error.code = status === 403 ? "FIREBASE_STORAGE_FORBIDDEN" : "FIREBASE_STORAGE_UPLOAD_FAILED";
+  if (status === 403) {
+    error.message =
+      "Firebase Storage từ chối upload (403). Locket có thể đang yêu cầu App Check/DeviceCheck hợp lệ.";
+  }
   return error;
 };
 

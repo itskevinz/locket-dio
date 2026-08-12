@@ -161,3 +161,23 @@ test("expired media and invalid API responses remain visible without retry", () 
   assert.equal(upstreamUnconfirmed.code, UPLOAD_QUEUE_ERROR.INVALID_RESPONSE);
   assert.equal(upstreamUnconfirmed.autoRetry, false);
 });
+
+test("nested Firebase Storage rejection is not retried", () => {
+  const result = classifyUploadFailure(
+    {
+      response: {
+        status: 403,
+        data: {
+          error: {
+            code: "FIREBASE_STORAGE_FORBIDDEN",
+            message: "Firebase Storage từ chối upload (403).",
+          },
+        },
+      },
+    },
+    { online: true },
+  );
+
+  assert.equal(result.code, UPLOAD_QUEUE_ERROR.STORAGE_REJECTED);
+  assert.equal(result.autoRetry, false);
+});

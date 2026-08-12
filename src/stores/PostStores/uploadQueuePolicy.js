@@ -41,10 +41,17 @@ export function classifyUploadFailure(error, { online = true } = {}) {
   const status = Number(error?.response?.status || error?.status || 0);
   const code = String(error?.code || "").toUpperCase();
   const responseCode = String(
-    error?.response?.data?.code || error?.response?.data?.error || "",
+    error?.response?.data?.code ||
+      error?.response?.data?.error?.code ||
+      (typeof error?.response?.data?.error === "string"
+        ? error.response.data.error
+        : ""),
   ).toUpperCase();
   const responseMessage = String(
-    error?.response?.data?.message || error?.message || "",
+    error?.response?.data?.message ||
+      error?.response?.data?.error?.message ||
+      error?.message ||
+      "",
   ).toUpperCase();
 
   if (
@@ -63,6 +70,8 @@ export function classifyUploadFailure(error, { online = true } = {}) {
   // Retrying the same rejected write only makes the camera spin for ~15s and
   // cannot recover without a change in authorization/storage policy.
   if (
+    code === "FIREBASE_STORAGE_FORBIDDEN" ||
+    responseCode === "FIREBASE_STORAGE_FORBIDDEN" ||
     responseMessage.includes("FIREBASE STORAGE") &&
     (responseMessage.includes("FAILED TO UPLOAD") || status >= 400)
   ) {

@@ -454,7 +454,10 @@ export const useUploadQueueStore = create((set, get) => ({
       }
 
       const msg =
-        err?.response?.data?.message || "Đăng tải thất bại, vui lòng thử lại";
+        err?.response?.data?.message ||
+        err?.response?.data?.error?.message ||
+        err?.message ||
+        "Đăng tải thất bại, vui lòng thử lại";
       const policy = classifyUploadFailure(err, { online: isOnline() });
 
       await markDraftEditing();

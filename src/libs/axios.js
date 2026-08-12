@@ -177,16 +177,24 @@ api.interceptors.response.use(
       error.message ||
       "Có lỗi xảy ra";
 
-    // Downstream upload queue reads response.data.message. Normalize APIs that
-    // return { error: "..." } so they do not fall back to Axios' English text.
+    // Downstream upload queue reads response.data.message/code. Normalize APIs
+    // that return the standard nested { error: { code, message } } shape.
     if (
       responseData &&
       typeof responseData === "object" &&
       !Array.isArray(responseData) &&
-      !responseData.message &&
-      stringError
+      !responseData.message
     ) {
-      responseData.message = stringError;
+      responseData.message = message;
+    }
+    if (
+      responseData &&
+      typeof responseData === "object" &&
+      !Array.isArray(responseData) &&
+      !responseData.code &&
+      responseData?.error?.code
+    ) {
+      responseData.code = responseData.error.code;
     }
 
     const originalRequest = error.config;
