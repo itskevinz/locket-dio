@@ -9,8 +9,15 @@ uploadMomentsDB.version(1).stores({
 });
 
 // ===== Payloads =====
-export const saveUploadItemToDB = (payload) => {
-  return uploadMomentsDB.payloads.add(payload);
+export const saveUploadItemToDB = async (payload) => {
+  const id = await uploadMomentsDB.payloads.add(payload);
+  // Dexie generates the ++id in IndexedDB, but the queue store keeps the same
+  // object in memory. Mirror the generated id back so status/retry/remove
+  // updates can find that item without waiting for a full queue re-hydration.
+  if (payload && payload.id == null) {
+    payload.id = id;
+  }
+  return id;
 };
 
 export const updateUploadItemInDB = (id, data) => {
