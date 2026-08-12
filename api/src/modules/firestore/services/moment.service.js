@@ -53,6 +53,88 @@ const logStorageRejection = (scope, err, details = {}) => {
 };
 
 /**
+ * Initialize a resumable upload session on Firebase Storage.
+ * Returns the signed resumable upload URL from the response headers.
+ */
+const initResumableSession = async (uploadUrl, body, meta) => {
+  const response = await instanceFirestoreInit.post(uploadUrl, body, { meta });
+  const resumableUrl =
+    response.headers["x-goog-upload-url"] ||
+    response.headers["X-Goog-Upload-URL"];
+  if (!resumableUrl) {
+    throw new Error("Missing upload URL in Firebase response headers");
+  }
+  return resumableUrl;
+};
+
+/**
+ * Attempt a finalize PUT on a resumable URL. If the first attempt fails with
+ * 403, refresh the App Check token, re-init a brand-new resumable session, and
+ * retry the upload once. This handles the case where a resumable session has
+ * expired or Firebase tightened storage-rule enforcement between init and
+ * finalize.
+ *
+ * @returns {Promise<void>}
+ */
+const finalizeWithRetry = async ({
+  buffer,
+  resumableUploadUrl,
+  uploadUrl,
+  body,
+  initMeta,
+  scope,
+}) => {
+  const MAX_ATTEMPTS = 2;
+  let currentUrl = resumableUploadUrl;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      await instanceFirestoreUpload.put(currentUrl, buffer);
+      return; // success
+    } catch (err) {
+      const status = Number(err?.response?.status || err?.status || 0);
+      logStorageRejection(`${scope}:finalize(attempt ${attempt})`, err, {
+        fileSize: buffer.length,
+      });
+
+      // Only retry on 403 and only once
+      if (status === 403 && attempt < MAX_ATTEMPTS) {
+        logInfo(
+          scope,
+          "Finalize 403 — refreshing AppCheck token and re-initializing resumable session...",
+        );
+        try {
+          const { appCheckServices } = require("../../appcheck/services");
+          const freshAppCheck =
+            await appCheckServices.getOrCreateAppCheckToken();
+          const retryMeta = { ...initMeta, appCheckToken: freshAppCheck };
+          currentUrl = await initResumableSession(uploadUrl, body, retryMeta);
+          logInfo(scope, "Re-init succeeded, retrying finalize...");
+        } catch (reinitErr) {
+          logStorageRejection(`${scope}:re-init`, reinitErr, {
+            fileSize: buffer.length,
+          });
+          // Cannot re-init → throw the original finalize error
+          throw createStorageUploadError(
+            `Failed to upload ${scope.includes("video") ? "video" : "image"} to Firebase Storage`,
+            err,
+            { stage: "finalize", fileSize: buffer.length },
+          );
+        }
+        continue; // retry finalize with fresh session
+      }
+
+      // Non-403 or exhausted retries → throw
+      throw createStorageUploadError(
+        `Failed to upload ${scope.includes("video") ? "video" : "image"} to Firebase Storage`,
+        err,
+        { stage: "finalize", fileSize: buffer.length },
+      );
+    }
+  }
+};
+
+/**
  * Tải hình ảnh khoảnh khắc (moment image) lên Firebase Storage.
  * @param {string} localId - ID người dùng sở hữu khoảnh khắc
  * @param {string} idToken - Firebase ID token để xác thực
@@ -94,16 +176,20 @@ const uploadMomentImage = async (
       cacheControl: "public, max-age=604800",
     };
 
-    let response;
+    const initMeta = {
+      idToken,
+      appCheckToken,
+      fileSize,
+      contentType: "image/webp",
+    };
+
+    let resumableUploadUrl;
     try {
-      response = await instanceFirestoreInit.post(uploadUrl, body, {
-        meta: {
-          idToken,
-          appCheckToken,
-          fileSize,
-          contentType: "image/webp",
-        },
-      });
+      resumableUploadUrl = await initResumableSession(
+        uploadUrl,
+        body,
+        initMeta,
+      );
     } catch (err) {
       logStorageRejection("uploadMomentImage:init", err, { fileSize });
       throw createStorageUploadError(
@@ -113,11 +199,6 @@ const uploadMomentImage = async (
       );
     }
 
-    const resumableUploadUrl = response.headers["x-goog-upload-url"] || response.headers["X-Goog-Upload-URL"];
-    if (!resumableUploadUrl) {
-      throw new Error("Missing upload URL in Firebase response headers");
-    }
-
     let imageBuffer;
     if (fileBuffer instanceof Buffer) {
       imageBuffer = fileBuffer;
@@ -125,21 +206,16 @@ const uploadMomentImage = async (
       imageBuffer = fs.readFileSync(fileBuffer.path);
     }
 
-    try {
-      // The resumable URL returned by Firebase already carries the upload
-      // session authorization. Adding a short-lived App Check/ID token here
-      // caused valid sessions to be rejected intermittently with 403.
-      await instanceFirestoreUpload.put(resumableUploadUrl, imageBuffer);
-    } catch (err) {
-      logStorageRejection("uploadMomentImage:finalize", err, {
-        fileSize: imageBuffer.length,
-      });
-      throw createStorageUploadError(
-        "Failed to upload moment image to Firebase Storage",
-        err,
-        { stage: "finalize", fileSize: imageBuffer.length },
-      );
-    }
+    // Finalize: upload binary data via the resumable URL.
+    // Retries once with a fresh session if the finalize is rejected with 403.
+    await finalizeWithRetry({
+      buffer: imageBuffer,
+      resumableUploadUrl,
+      uploadUrl,
+      body,
+      initMeta,
+      scope: "uploadMomentImage",
+    });
 
     const getRes = await instanceFirestoreGet.get(objectUrl, {
       meta: { idToken, appCheckToken },
@@ -209,16 +285,20 @@ const uploadMomentVideo = async (
       cacheControl: "public, max-age=604800",
     };
 
-    let response;
+    const initMeta = {
+      idToken,
+      appCheckToken,
+      fileSize: videoSize,
+      contentType: "video/mp4",
+    };
+
+    let resumableUploadUrl;
     try {
-      response = await instanceFirestoreInit.post(uploadUrl, body, {
-        meta: {
-          idToken: idToken,
-          appCheckToken,
-          fileSize: videoSize,
-          contentType: "video/mp4",
-        },
-      });
+      resumableUploadUrl = await initResumableSession(
+        uploadUrl,
+        body,
+        initMeta,
+      );
     } catch (err) {
       logStorageRejection("uploadMomentVideo:init", err, {
         fileSize: videoSize,
@@ -230,11 +310,6 @@ const uploadMomentVideo = async (
       );
     }
 
-    const resumableUploadUrl = response.headers["x-goog-upload-url"] || response.headers["X-Goog-Upload-URL"] || (typeof response.headers.get === "function" && response.headers.get("X-Goog-Upload-URL"));
-    if (!resumableUploadUrl) {
-      throw new Error("Missing upload URL in Firebase response headers");
-    }
-
     let videoBuffer;
     if (fileBuffer instanceof Buffer) {
       videoBuffer = fileBuffer;
@@ -242,18 +317,16 @@ const uploadMomentVideo = async (
       videoBuffer = fs.readFileSync(fileBuffer.path);
     }
 
-    try {
-      await instanceFirestoreUpload.put(resumableUploadUrl, videoBuffer);
-    } catch (err) {
-      logStorageRejection("uploadMomentVideo:finalize", err, {
-        fileSize: videoBuffer.length,
-      });
-      throw createStorageUploadError(
-        "Failed to upload moment video to Firebase Storage",
-        err,
-        { stage: "finalize", fileSize: videoBuffer.length },
-      );
-    }
+    // Finalize: upload binary data via the resumable URL.
+    // Retries once with a fresh session if the finalize is rejected with 403.
+    await finalizeWithRetry({
+      buffer: videoBuffer,
+      resumableUploadUrl,
+      uploadUrl,
+      body,
+      initMeta,
+      scope: "uploadMomentVideo",
+    });
 
     const getResponse = await instanceFirestoreGet.get(objectUrl, {
       meta: { idToken, appCheckToken },

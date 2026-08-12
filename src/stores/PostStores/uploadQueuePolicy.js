@@ -66,12 +66,27 @@ export function classifyUploadFailure(error, { online = true } = {}) {
     };
   }
 
-  // The API currently wraps Firebase Storage permission failures as HTTP 500.
-  // Retrying the same rejected write only makes the camera spin for ~15s and
-  // cannot recover without a change in authorization/storage policy.
+  // Firebase Storage init failures (expired token / AppCheck) may recover after
+  // the client retries with a fresh session. Allow a single auto-retry.
+  if (
+    code === "FIREBASE_STORAGE_INIT_FORBIDDEN" ||
+    responseCode === "FIREBASE_STORAGE_INIT_FORBIDDEN"
+  ) {
+    return {
+      code: UPLOAD_QUEUE_ERROR.STORAGE_REJECTED,
+      autoRetry: true,
+      resumeOnReconnect: false,
+    };
+  }
+
+  // The API now retries finalize 403 server-side. If it still reaches the
+  // client it means all server attempts were exhausted — retrying the same
+  // rejected write won't recover without a change in authorization/policy.
   if (
     code === "FIREBASE_STORAGE_FORBIDDEN" ||
+    code === "FIREBASE_STORAGE_FINALIZE_FORBIDDEN" ||
     responseCode === "FIREBASE_STORAGE_FORBIDDEN" ||
+    responseCode === "FIREBASE_STORAGE_FINALIZE_FORBIDDEN" ||
     responseMessage.includes("FIREBASE STORAGE") &&
     (responseMessage.includes("FAILED TO UPLOAD") || status >= 400)
   ) {

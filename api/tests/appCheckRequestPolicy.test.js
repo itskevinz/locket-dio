@@ -124,13 +124,20 @@ test("Firebase resumable finalization relies only on its signed upload URL", () 
     httpSource.indexOf("const instanceFirestoreInit"),
   );
   assert.doesNotMatch(uploadClientSection, /Authorization|X-Firebase-AppCheck/);
+  // The finalize step now goes through finalizeWithRetry which internally uses
+  // instanceFirestoreUpload.put(currentUrl, buffer).
   assert.match(
     momentSource,
-    /instanceFirestoreUpload\.put\(resumableUploadUrl, imageBuffer\)/,
+    /instanceFirestoreUpload\.put\(currentUrl, buffer\)/,
+  );
+  // Both image and video uploads use the shared finalizeWithRetry helper.
+  assert.match(
+    momentSource,
+    /scope:\s*"uploadMomentImage"/,
   );
   assert.match(
     momentSource,
-    /instanceFirestoreUpload\.put\(resumableUploadUrl, videoBuffer\)/,
+    /scope:\s*"uploadMomentVideo"/,
   );
 });
 
@@ -143,5 +150,6 @@ test("Firebase Storage errors identify init and finalization separately", () => 
   assert.match(momentSource, /FIREBASE_STORAGE_INIT_FORBIDDEN/);
   assert.match(momentSource, /FIREBASE_STORAGE_FINALIZE_FORBIDDEN/);
   assert.match(momentSource, /uploadMomentImage:init/);
-  assert.match(momentSource, /uploadMomentImage:finalize/);
+  // Finalize logging now includes the attempt number via finalizeWithRetry.
+  assert.match(momentSource, /finalize\(attempt/);
 });
