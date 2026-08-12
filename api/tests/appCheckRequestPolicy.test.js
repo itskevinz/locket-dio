@@ -133,3 +133,15 @@ test("Firebase resumable finalization relies only on its signed upload URL", () 
     /instanceFirestoreUpload\.put\(resumableUploadUrl, videoBuffer\)/,
   );
 });
+
+test("Firebase Storage errors identify init and finalization separately", () => {
+  const momentSource = fs.readFileSync(
+    path.resolve(__dirname, "../src/modules/firestore/services/moment.service.js"),
+    "utf8",
+  );
+
+  assert.match(momentSource, /FIREBASE_STORAGE_INIT_FORBIDDEN/);
+  assert.match(momentSource, /FIREBASE_STORAGE_FINALIZE_FORBIDDEN/);
+  assert.match(momentSource, /uploadMomentImage:init/);
+  assert.match(momentSource, /uploadMomentImage:finalize/);
+});

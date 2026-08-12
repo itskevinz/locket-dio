@@ -8,21 +8,35 @@ const {
 const { generateFirestoreId } = require("../../../utils");
 const { buildResumableUploadUrl } = require("../utils/resumableUpload");
 
-const createStorageUploadError = (message, cause) => {
+const createStorageUploadError = (
+  message,
+  cause,
+  { stage = "finalize", fileSize = 0 } = {},
+) => {
   const error = new Error(message);
   const status = Number(cause?.response?.status || cause?.status || 0);
   if (status >= 400 && status <= 599) {
     error.status = status;
   }
-  error.code = status === 403 ? "FIREBASE_STORAGE_FORBIDDEN" : "FIREBASE_STORAGE_UPLOAD_FAILED";
+  error.stage = stage;
+  error.fileSize = Number(fileSize) || 0;
+  error.code = status === 403
+    ? stage === "init"
+      ? "FIREBASE_STORAGE_INIT_FORBIDDEN"
+      : "FIREBASE_STORAGE_FINALIZE_FORBIDDEN"
+    : "FIREBASE_STORAGE_UPLOAD_FAILED";
   if (status === 403) {
-    error.message =
-      "Firebase Storage từ chối upload (403). Locket có thể đang yêu cầu App Check/DeviceCheck hợp lệ.";
+    const sizeMB = error.fileSize
+      ? `, ${(error.fileSize / 1024 / 1024).toFixed(2)} MB`
+      : "";
+    error.message = stage === "init"
+      ? "Firebase Storage từ chối khởi tạo upload (403). Phiên đăng nhập hoặc App Check có thể đã hết hạn."
+      : `Firebase Storage từ chối hoàn tất upload (403${sizeMB}).`;
   }
   return error;
 };
 
-const logStorageRejection = (scope, err) => {
+const logStorageRejection = (scope, err, details = {}) => {
   const data = err?.response?.data;
   const safeMessage =
     data?.error?.message ||
@@ -34,6 +48,7 @@ const logStorageRejection = (scope, err) => {
     status: err?.response?.status,
     code: data?.error?.code,
     message: safeMessage,
+    ...details,
   });
 };
 
@@ -79,14 +94,24 @@ const uploadMomentImage = async (
       cacheControl: "public, max-age=604800",
     };
 
-    const response = await instanceFirestoreInit.post(uploadUrl, body, {
-      meta: {
-        idToken,
-        appCheckToken,
-        fileSize,
-        contentType: "image/webp",
-      },
-    });
+    let response;
+    try {
+      response = await instanceFirestoreInit.post(uploadUrl, body, {
+        meta: {
+          idToken,
+          appCheckToken,
+          fileSize,
+          contentType: "image/webp",
+        },
+      });
+    } catch (err) {
+      logStorageRejection("uploadMomentImage:init", err, { fileSize });
+      throw createStorageUploadError(
+        "Failed to initialize moment image upload",
+        err,
+        { stage: "init", fileSize },
+      );
+    }
 
     const resumableUploadUrl = response.headers["x-goog-upload-url"] || response.headers["X-Goog-Upload-URL"];
     if (!resumableUploadUrl) {
@@ -106,10 +131,13 @@ const uploadMomentImage = async (
       // caused valid sessions to be rejected intermittently with 403.
       await instanceFirestoreUpload.put(resumableUploadUrl, imageBuffer);
     } catch (err) {
-      logStorageRejection("uploadMomentImage", err);
+      logStorageRejection("uploadMomentImage:finalize", err, {
+        fileSize: imageBuffer.length,
+      });
       throw createStorageUploadError(
         "Failed to upload moment image to Firebase Storage",
         err,
+        { stage: "finalize", fileSize: imageBuffer.length },
       );
     }
 
@@ -181,14 +209,26 @@ const uploadMomentVideo = async (
       cacheControl: "public, max-age=604800",
     };
 
-    const response = await instanceFirestoreInit.post(uploadUrl, body, {
-      meta: {
-        idToken: idToken,
-        appCheckToken,
+    let response;
+    try {
+      response = await instanceFirestoreInit.post(uploadUrl, body, {
+        meta: {
+          idToken: idToken,
+          appCheckToken,
+          fileSize: videoSize,
+          contentType: "video/mp4",
+        },
+      });
+    } catch (err) {
+      logStorageRejection("uploadMomentVideo:init", err, {
         fileSize: videoSize,
-        contentType: "video/mp4",
-      },
-    });
+      });
+      throw createStorageUploadError(
+        "Failed to initialize moment video upload",
+        err,
+        { stage: "init", fileSize: videoSize },
+      );
+    }
 
     const resumableUploadUrl = response.headers["x-goog-upload-url"] || response.headers["X-Goog-Upload-URL"] || (typeof response.headers.get === "function" && response.headers.get("X-Goog-Upload-URL"));
     if (!resumableUploadUrl) {
@@ -205,10 +245,13 @@ const uploadMomentVideo = async (
     try {
       await instanceFirestoreUpload.put(resumableUploadUrl, videoBuffer);
     } catch (err) {
-      logStorageRejection("uploadMomentVideo", err);
+      logStorageRejection("uploadMomentVideo:finalize", err, {
+        fileSize: videoBuffer.length,
+      });
       throw createStorageUploadError(
         "Failed to upload moment video to Firebase Storage",
         err,
+        { stage: "finalize", fileSize: videoBuffer.length },
       );
     }
 

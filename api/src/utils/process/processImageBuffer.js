@@ -49,25 +49,6 @@ const prepareImageForProcessing = async (imageBuffer) => {
   }
 };
 
-async function encodeLosslessWebp(basePipeline, side) {
-  let pipe = basePipeline.clone();
-  if (side && side > 0) {
-    pipe = pipe.resize(side, side, {
-      fit: "fill",
-      kernel: sharp.kernel.lanczos3,
-      withoutEnlargement: true,
-    });
-  }
-
-  return pipe
-    .webp({
-      lossless: true,
-      alphaQuality: 100,
-      effort: 4,
-    })
-    .toBuffer();
-}
-
 async function encodeHighQualityWebp(basePipeline, side, quality) {
   let pipe = basePipeline.clone();
   if (side && side > 0) {
@@ -89,24 +70,22 @@ async function encodeHighQualityWebp(basePipeline, side, quality) {
 }
 
 /**
- * Process image for Locket upload — full-quality first.
+ * Process image for Locket upload — stable high quality.
  *
  * Rules:
  * - Center-crop to square at the source resolution.
- * - No default 1920/1440/1080 downscale.
- * - First encode is lossless WebP so camera pixels are not damaged by another
- *   lossy compression pass.
- * - If an unusually complex/high-megapixel image exceeds the soft output
- *   budget, keep the same resolution and try q100/q98/q96 first.
- * - Resolution is reduced only as an emergency stability fallback for very
- *   large images that still exceed the budget.
- *
- * `resolution` is optional. Passing null/undefined means native resolution.
+ * - Accept high-resolution phone sources, but cap the Locket object to a
+ *   display-sized square. Source acceptance and final Storage size are two
+ *   separate limits.
+ * - Always use high-quality lossy WebP. Lossless WebP makes dark/noisy camera
+ *   frames expand unpredictably and can cross Firebase Storage Rules limits.
+ * - Guarantee the returned buffer stays within maxSizeMB or fail before the
+ *   Firebase request instead of surfacing a misleading intermittent 403.
  */
 const processImageBuffer = async ({
   imageBuffer,
-  maxSizeMB = 32,
-  resolution = null,
+  maxSizeMB = 2.5,
+  resolution = 2048,
 }) => {
   try {
     if (!imageBuffer || !Buffer.isBuffer(imageBuffer) || imageBuffer.length < 32) {
@@ -117,7 +96,7 @@ const processImageBuffer = async ({
 
     logInfo(
       "processImageBuffer",
-      "Start processing image (full-quality, lossless-first)...",
+      "Start processing image (storage-safe high quality)...",
     );
 
     let image = await prepareImageForProcessing(imageBuffer);
@@ -143,67 +122,60 @@ const processImageBuffer = async ({
     });
 
     const requestedResolution = Number(resolution);
-    const hasExplicitResolution =
-      Number.isFinite(requestedResolution) && requestedResolution > 0;
-    const outSide = hasExplicitResolution
-      ? Math.min(cropSide, Math.max(720, Math.min(requestedResolution, 8192)))
-      : cropSide;
+    const targetSide = Number.isFinite(requestedResolution) && requestedResolution > 0
+      ? Math.max(720, Math.min(requestedResolution, 4096))
+      : 2048;
+    const outSide = Math.min(cropSide, targetSide);
 
     logInfo(
       "processImageBuffer",
-      outSide === cropSide
-        ? `Keep native square ${outSide}px`
-        : `Explicit resize ${cropSide}px → ${outSide}px`,
+      cropSide > outSide
+        ? `Downscale ${cropSide}px → ${outSide}px (lanczos3)`
+        : `Keep native square ${outSide}px (no upscale)`,
     );
 
-    const maxBytes = Math.max(4, Number(maxSizeMB) || 32) * 1024 * 1024;
+    const maxBytes = Math.max(0.5, Number(maxSizeMB) || 2.5) * 1024 * 1024;
+    let processedBuffer;
 
-    // 1) Lossless at native square resolution.
-    let processedBuffer = await encodeLosslessWebp(squared, outSide);
-    logInfo(
-      "processImageBuffer",
-      `Lossless WebP → ${(processedBuffer.length / 1024 / 1024).toFixed(2)}MB`,
-    );
-
-    if (processedBuffer.length <= maxBytes) {
-      logSuccess("processImageBuffer", "✅ End processing image buffer (lossless).");
-      return processedBuffer;
-    }
-
-    // 2) Keep every pixel before considering any resize.
-    for (const quality of [100, 98, 96]) {
+    // Preserve the selected resolution first and lower quality gradually.
+    for (const quality of [95, 92, 90, 88, 85, 82]) {
       processedBuffer = await encodeHighQualityWebp(squared, outSide, quality);
       logInfo(
         "processImageBuffer",
-        `Native ${outSide}px WebP q${quality} → ${(processedBuffer.length / 1024 / 1024).toFixed(2)}MB`,
+        `${outSide}px WebP q${quality} → ${(processedBuffer.length / 1024 / 1024).toFixed(2)}MB`,
       );
       if (processedBuffer.length <= maxBytes) {
         logSuccess(
           "processImageBuffer",
-          `✅ End processing image buffer (native q${quality}).`,
+          `✅ End processing image buffer (${outSide}px q${quality}).`,
         );
         return processedBuffer;
       }
     }
 
-    // 3) Emergency only: extremely large images can consume hundreds of MB in
-    // Sharp/Railway memory. Keep a high resolution and high quality instead of
-    // the old 1440/1080 fallbacks.
-    const emergencySides = [4096, 3072].filter((side) => outSide > side);
-    for (const side of emergencySides) {
-      const quality = side === 4096 ? 98 : 96;
+    // Sensor noise can still be expensive at 2K. Reduce resolution in small
+    // steps, keeping a visually high quality encode at every step.
+    const fallbackSides = [1920, 1600, 1440, 1280, 1080, 960, 720]
+      .filter((side) => side < outSide);
+    for (const side of fallbackSides) {
+      const quality = side >= 1600 ? 90 : side >= 1080 ? 88 : 84;
       processedBuffer = await encodeHighQualityWebp(squared, side, quality);
       logInfo(
         "processImageBuffer",
-        `Emergency ${side}px q${quality} → ${(processedBuffer.length / 1024 / 1024).toFixed(2)}MB`,
+        `Fallback ${side}px q${quality} → ${(processedBuffer.length / 1024 / 1024).toFixed(2)}MB`,
       );
-      if (processedBuffer.length <= maxBytes) break;
+      if (processedBuffer.length <= maxBytes) {
+        logSuccess(
+          "processImageBuffer",
+          `✅ End processing image buffer (${side}px q${quality}).`,
+        );
+        return processedBuffer;
+      }
     }
 
-    const finalSize = (processedBuffer.length / 1024 / 1024).toFixed(2);
-    logInfo("processImageBuffer", `✅ Final image size: ${finalSize}MB`);
-    logSuccess("processImageBuffer", "✅ End processing image buffer.");
-    return processedBuffer;
+    throw new Error(
+      `Processed WebP remains above upload budget (${(processedBuffer.length / 1024 / 1024).toFixed(2)}MB > ${(maxBytes / 1024 / 1024).toFixed(2)}MB)`,
+    );
   } catch (err) {
     throw new Error("❌ Lỗi xử lý ảnh: " + err.message);
   }

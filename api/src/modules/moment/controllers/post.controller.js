@@ -282,16 +282,18 @@ const uploadMediaV3 = async (req, res, next) => {
 
       try {
         if (type === "image") {
-          // Full-quality camera path. 8192 is a memory safety ceiling, not a
-          // normal resize target: common 12/24/48 MP square crops stay native.
+          // Accept 4K/high-resolution phone sources, then normalize the final
+          // Locket object. Dark/noisy close-ups expand dramatically as
+          // lossless WebP, so native 32 MB outputs can be rejected by Firebase
+          // Storage Rules with a content-dependent 403.
           const resolution = getResolution({
             planData,
-            normal: 8192,
-            member: 8192,
+            normal: 1920,
+            member: 2048,
           });
           processedBuffer = await processImageBuffer({
             imageBuffer: mediaBuffer,
-            maxSizeMB: 32,
+            maxSizeMB: 2.5,
             resolution,
           });
         } else if (type === "video") {
