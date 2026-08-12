@@ -1,6 +1,6 @@
 import * as services from "@/services";
-import { useAppNavigation, useAppCamera, useAppLoading } from "@/context/AppContext";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useAppCamera, useAppLoading } from "@/context/AppContext";
+import { useCallback, useRef } from "react";
 import UploadStatusIcon from "./UploadStatusIcon";
 import { getMaxUploads } from "@/hooks/useFeature";
 import {
@@ -18,22 +18,14 @@ import {
 import { useNavigate } from "react-router-dom";
 import { resetAllPostData } from "@/utils";
 import { useTranslation } from "react-i18next";
-
-const TEMPORARY_QUEUE_ERRORS = new Set([
-  "NETWORK_ERROR",
-  "AUTH_REFRESH_TEMPORARY",
-  "UPLOAD_IN_PROGRESS",
-  "SERVER_ERROR",
-]);
+import { UPLOAD_RETRY_MODE } from "@/stores/PostStores/uploadQueuePolicy";
 
 const SendButton = () => {
   const { t } = useTranslation("main");
   const navigate = useNavigate();
-  const navigation = useAppNavigation();
   const useloading = useAppLoading();
   const camera = useAppCamera();
-  const { setIsFilterOpen } = navigation;
-  const { sendLoading, uploadLoading, setUploadLoading } = useloading;
+  const { uploadLoading, setUploadLoading } = useloading;
 
   const selectedFile = usePostStore((s) => s.selectedFile);
   const isSizeMedia = usePostStore((s) => s.isSizeMedia);
@@ -47,9 +39,8 @@ const SendButton = () => {
   const { setCameraActive } = camera;
 
   //Nhap hooks
-  const { maxImageSizeMB, maxVideoSizeMB, storage_limit_mb } = getMaxUploads();
+  const { maxImageSizeMB, maxVideoSizeMB } = getMaxUploads();
   const enqueueUploadItem = useUploadQueueStore((s) => s.enqueueUploadItem);
-  const uploadItems = useUploadQueueStore((s) => s.uploadItems);
   const reloadUser = useAuthStore((s) => s.initAuth);
 
   const isImage = preview?.type === "image";
@@ -67,22 +58,14 @@ const SendButton = () => {
   // Limits always have free defaults now — never block send on "no plan data"
   const hasNoData = false;
 
-  // State để quản lý hiệu ứng loading và success
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [pendingClientUploadId, setPendingClientUploadId] = useState(null);
   // React state updates are asynchronous; this ref closes the tiny window where
   // a fast double-tap could start two payload/upload operations before rerender.
   const submitLockRef = useRef(false);
 
   const sendDisabled =
-    capturePending ||
-    uploadLoading ||
-    isSuccess ||
-    Boolean(pendingClientUploadId) ||
-    isOffline ||
-    !serverReachable;
+    capturePending || uploadLoading || isOffline || !serverReachable;
 
-  const handleDelete = useCallback(() => {
+  const resumeCameraAfterQueue = useCallback(() => {
     // Dừng stream cũ nếu có
     if (camera.streamRef.current) {
       camera.streamRef.current.getTracks().forEach((track) => track.stop());
@@ -94,53 +77,12 @@ const SendButton = () => {
     resetAllPostData();
 
     setCameraActive(true); // Giữ dòng này để trigger useEffect
-    setIsSuccess(false); // Reset success state
-    setPendingClientUploadId(null);
-  }, []);
-
-  // Never clear the captured image just because it entered the queue. Keep the
-  // preview until the queue confirms DONE; on failure, leave it available so
-  // the user can retry without losing the capture.
-  useEffect(() => {
-    if (!pendingClientUploadId) return;
-
-    const queued = uploadItems.find(
-      (item) => item?.clientUploadId === pendingClientUploadId,
-    );
-    if (!queued) return;
-
-    if (queued.status === "done") {
-      setPendingClientUploadId(null);
-      setUploadLoading(false);
-      setIsSuccess(true);
-      const timer = setTimeout(() => {
-        handleDelete();
-      }, 700);
-      return () => clearTimeout(timer);
-    }
-
-    if (queued.status === "failed") {
-      const retryCount = Number(queued.retryCount || 0);
-      const temporaryFailure = TEMPORARY_QUEUE_ERRORS.has(queued.errorCode);
-      if (!temporaryFailure || retryCount >= 3) {
-        setPendingClientUploadId(null);
-        setUploadLoading(false);
-        setIsSuccess(false);
-      }
-    }
-  }, [pendingClientUploadId, uploadItems, handleDelete, setUploadLoading]);
+  }, [camera.streamRef, resetMedia, setCameraActive]);
 
   // Hàm submit được cải tiến
   const handleSubmit = async () => {
     // Chặn double-tap / double-enqueue ngay trong cùng event loop.
-    if (
-      submitLockRef.current ||
-      uploadLoading ||
-      isSuccess ||
-      pendingClientUploadId ||
-      capturePending
-    )
-      return;
+    if (submitLockRef.current || uploadLoading || capturePending) return;
     submitLockRef.current = true;
 
     try {
@@ -225,7 +167,6 @@ const SendButton = () => {
       try {
         // Bắt đầu loading
         setUploadLoading(true);
-        setIsSuccess(false);
 
         // Flush draft meta + mark posting (do NOT delete draft yet)
         const draftId = useMomentDraftStore.getState().activeDraftId;
@@ -245,24 +186,26 @@ const SendButton = () => {
 
         // Tag multi-draft id so success only removes this draft
         if (draftId) payload.draftId = draftId;
+        // A foreground camera post must return control on the first failure.
+        // Retry is user-triggered with the same idempotency key, so a timeout
+        // cannot silently create duplicate moments in the background.
+        payload.queueRetryMode = UPLOAD_RETRY_MODE.MANUAL;
 
         // Persist payload before telling the user it is queued. This keeps a
         // recoverable copy even if the tab closes immediately after tapping send.
         await enqueueUploadItem(payload);
-        setPendingClientUploadId(payload.clientUploadId || null);
 
-        // Queueing is not a successful Locket post. Stop the foreground spinner
-        // while the queue worker reports the real result, and keep the preview.
+        // The durable queue owns the media from here. Return to the live camera
+        // immediately; success/failure remains visible in Upload 2.0 and the
+        // saved draft is only deleted after Locket confirms the post.
         setUploadLoading(false);
-        setIsSuccess(false);
         SonnerInfo(
-          t("home.added_to_queue"),
-          t("home.processing_post"),
+          "Đang đăng trong nền",
+          "Bài đã được lưu vào hàng đợi. Bạn có thể chụp tiếp ngay.",
         );
+        resumeCameraAfterQueue();
       } catch (error) {
         setUploadLoading(false);
-        setIsSuccess(false);
-        setPendingClientUploadId(null);
         try {
           await useMomentDraftStore
             .getState()
@@ -288,13 +231,11 @@ const SendButton = () => {
     ? "sendButton--warn"
     : isTooBig
       ? "sendButton--overLimit"
-      : isSuccess
-        ? "sendButton--success"
-        : uploadLoading || capturePending || pendingClientUploadId
-          ? "sendButton--loading"
-          : isOffline || !serverReachable
-            ? "sendButton--warn"
-            : "";
+      : uploadLoading || capturePending
+        ? "sendButton--loading"
+        : isOffline || !serverReachable
+          ? "sendButton--warn"
+          : "";
 
   return (
     <button
@@ -304,25 +245,21 @@ const SendButton = () => {
       aria-label={
         capturePending
           ? "Đang hoàn tất ảnh chất lượng cao"
-          : pendingClientUploadId
-            ? "Đang xử lý bài đăng trong hàng chờ"
-            : isOffline
-              ? "Mất mạng — không thể đăng"
-              : !serverReachable
-                ? "Máy chủ đang bảo trì — không thể đăng"
-                : "Đăng bài"
+          : isOffline
+            ? "Mất mạng — không thể đăng"
+            : !serverReachable
+              ? "Máy chủ đang bảo trì — không thể đăng"
+              : "Đăng bài"
       }
-      aria-busy={uploadLoading || capturePending || Boolean(pendingClientUploadId) || undefined}
+      aria-busy={uploadLoading || capturePending || undefined}
       title={
         capturePending
           ? "Đang hoàn tất ảnh chất lượng cao"
-          : pendingClientUploadId
-            ? "Đang xử lý bài đăng · Ảnh sẽ được giữ lại nếu đăng thất bại"
-            : isOffline
-              ? "Mất mạng · Bản nháp vẫn được lưu"
-              : !serverReachable
-                ? "Máy chủ đang bảo trì · Bản nháp vẫn được lưu"
-                : undefined
+          : isOffline
+            ? "Mất mạng · Bản nháp vẫn được lưu"
+            : !serverReachable
+              ? "Máy chủ đang bảo trì · Bản nháp vẫn được lưu"
+              : undefined
       }
       className={`sendButton ${toneClass}`.trim()}
       data-send-button="true"
@@ -330,8 +267,7 @@ const SendButton = () => {
       data-offline={isOffline || !serverReachable ? "true" : undefined}
     >
       <UploadStatusIcon
-        loading={uploadLoading || capturePending || Boolean(pendingClientUploadId)}
-        success={isSuccess}
+        loading={uploadLoading || capturePending}
         overLimit={isTooBig}
       />
     </button>

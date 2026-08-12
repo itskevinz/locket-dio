@@ -4,8 +4,11 @@ import {
   classifyUploadFailure,
   MAX_UPLOAD_AUTO_RETRY,
   rateLimitCooldownRemaining,
+  shouldAutoRetryUpload,
   shouldResumeAfterReconnect,
+  UPLOAD_DONE_DISPLAY_MS,
   UPLOAD_QUEUE_ERROR,
+  UPLOAD_RETRY_MODE,
   uploadRetryDelayMs,
 } from "../../src/stores/PostStores/uploadQueuePolicy.js";
 
@@ -90,6 +93,43 @@ test("server errors retry automatically but user errors do not", () => {
   assert.equal(invalid.code, UPLOAD_QUEUE_ERROR.FAILED);
   assert.equal(invalid.autoRetry, false);
   assert.equal(MAX_UPLOAD_AUTO_RETRY, 3);
+});
+
+test("foreground camera failure waits for a manual retry", () => {
+  const server = classifyUploadFailure(
+    { response: { status: 503 } },
+    { online: true },
+  );
+
+  assert.equal(
+    shouldAutoRetryUpload(
+      { queueRetryMode: UPLOAD_RETRY_MODE.MANUAL },
+      server,
+      0,
+    ),
+    false,
+  );
+  assert.equal(
+    shouldAutoRetryUpload(
+      { queueRetryMode: UPLOAD_RETRY_MODE.AUTO },
+      server,
+      0,
+    ),
+    true,
+  );
+  assert.equal(
+    shouldAutoRetryUpload(
+      { queueRetryMode: UPLOAD_RETRY_MODE.AUTO },
+      server,
+      MAX_UPLOAD_AUTO_RETRY,
+    ),
+    false,
+  );
+});
+
+test("completed uploads stay visible long enough to confirm success", () => {
+  assert.ok(UPLOAD_DONE_DISPLAY_MS >= 10000);
+  assert.ok(UPLOAD_DONE_DISPLAY_MS <= 30000);
 });
 
 test("expired media and invalid API responses remain visible without retry", () => {

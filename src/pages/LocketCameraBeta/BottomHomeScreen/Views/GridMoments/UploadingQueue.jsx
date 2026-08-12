@@ -60,8 +60,9 @@ const UploadingQueue = () => {
     resumeQueue?.();
   }, [resumeQueue]);
 
-  // Item lỗi preview vẫn phải hiện spinner/trạng thái; không được biến mất khỏi lưới.
-  const visible = uploadItems.filter((item) => item.status !== "done");
+  // Keep a completed item briefly so the green check confirms that the post
+  // reached Locket. The queue store removes it after the success display delay.
+  const visible = uploadItems;
 
   const openConfirm = (e, item) => {
     e.stopPropagation();

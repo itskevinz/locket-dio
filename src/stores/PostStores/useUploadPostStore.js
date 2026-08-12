@@ -12,9 +12,10 @@ import { useMomentsStoreV2 } from "@/stores/MomentStores";
 import { logWebUserAction } from "@/services/UserActivityService";
 import {
   classifyUploadFailure,
-  MAX_UPLOAD_AUTO_RETRY,
   rateLimitCooldownRemaining,
+  shouldAutoRetryUpload,
   shouldResumeAfterReconnect,
+  UPLOAD_DONE_DISPLAY_MS,
   UPLOAD_QUEUE_ERROR,
 } from "./uploadQueuePolicy";
 
@@ -372,6 +373,7 @@ export const useUploadQueueStore = create((set, get) => ({
 
       await get().updateUploadItem(item.id, {
         status: STATUS_UPLOAD_MOMENT.DONE,
+        completedAt: new Date().toISOString(),
       });
 
       // Draft only cleared after confirmed API success (by draftId if multi-draft)
@@ -454,7 +456,7 @@ export const useUploadQueueStore = create((set, get) => ({
         errorMessage: msg,
       });
 
-      if (policy.autoRetry && retries < MAX_UPLOAD_AUTO_RETRY) {
+      if (shouldAutoRetryUpload(item, policy, retries)) {
         // Chỉ retry lỗi mạng/server tạm thời trong đúng phiên hiện tại.
         setTimeout(() => {
           const still = get().uploadItems.find((i) => i.id === item.id);
@@ -501,7 +503,7 @@ export const useUploadQueueStore = create((set, get) => ({
   },
   /* ================= CLEANUP ================= */
 
-  autoCleanupItem: (itemId, delay = 2500) => {
+  autoCleanupItem: (itemId, delay = UPLOAD_DONE_DISPLAY_MS) => {
     setTimeout(async () => {
       if (!itemId) return;
       const item = await getUploadItemFromDB(itemId);

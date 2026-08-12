@@ -13,6 +13,11 @@ export const UPLOAD_QUEUE_ERROR = Object.freeze({
 
 export const MAX_UPLOAD_AUTO_RETRY = 3;
 export const RATE_LIMIT_COOLDOWN_MS = 15 * 60 * 1000;
+export const UPLOAD_DONE_DISPLAY_MS = 12 * 1000;
+export const UPLOAD_RETRY_MODE = Object.freeze({
+  AUTO: "auto",
+  MANUAL: "manual",
+});
 
 const NETWORK_ERROR_CODES = new Set([
   "ECONNABORTED",
@@ -148,13 +153,21 @@ export function uploadRetryDelayMs(retryCount = 0, policy = {}) {
   return base + Math.floor(Math.random() * Math.max(250, base * 0.2));
 }
 
+export function shouldAutoRetryUpload(item, policy, retryCount = 0) {
+  return Boolean(
+    policy?.autoRetry &&
+    item?.queueRetryMode !== UPLOAD_RETRY_MODE.MANUAL &&
+    Number(retryCount || 0) < MAX_UPLOAD_AUTO_RETRY,
+  );
+}
+
 export function shouldResumeAfterReconnect(item, queueSessionId) {
   return Boolean(
     item?.queueSessionId &&
-      item.queueSessionId === queueSessionId &&
-      (item.errorCode === UPLOAD_QUEUE_ERROR.OFFLINE ||
-        item.errorCode === UPLOAD_QUEUE_ERROR.NETWORK ||
-        item.errorCode === UPLOAD_QUEUE_ERROR.AUTH_TEMPORARY),
+    item.queueSessionId === queueSessionId &&
+    (item.errorCode === UPLOAD_QUEUE_ERROR.OFFLINE ||
+      item.errorCode === UPLOAD_QUEUE_ERROR.NETWORK ||
+      item.errorCode === UPLOAD_QUEUE_ERROR.AUTH_TEMPORARY),
   );
 }
 
