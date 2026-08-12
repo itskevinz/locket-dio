@@ -659,7 +659,7 @@ export async function resetStuckPostingDrafts(ownerUid) {
 }
 
 export function draftMediaToFile(media, meta = {}) {
-  if (!media?.blob) return null;
+  if (!media?.blob || media.blob.size === 0) return null;
   const type =
     media.mimeType || media.blob.type || "application/octet-stream";
   const name =

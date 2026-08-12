@@ -569,6 +569,12 @@ export const useMomentDraftStore = create((set, get) => ({
 
     setRestoreInProgress(true);
     try {
+      // Download full media if only cloud shell present (same as restoreDraftIntoStudio)
+      try {
+        await ensureLocalMedia(draftId);
+      } catch (e) {
+        console.warn("[moment-draft] ensureLocalMedia (post)", e?.message || e);
+      }
       const loaded = await getDraftFull(draftId);
       if (!loaded?.meta || loaded.corrupt || !loaded.media) {
         throw new Error("Bản nháp không đọc được");
