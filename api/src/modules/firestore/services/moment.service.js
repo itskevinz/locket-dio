@@ -74,7 +74,9 @@ const uploadMomentImage = async (localId, idToken, fileBuffer, mediaId) => {
 
     // Bước 5: Upload dữ liệu binary lên Firebase Storage bằng resumable upload POST
     try {
-      await instanceFirestoreUpload.post(resumableUploadUrl, imageBuffer);
+      await instanceFirestoreUpload.post(resumableUploadUrl, imageBuffer, {
+        meta: { idToken },
+      });
     } catch (err) {
       console.error("Upload error detail:", err);
       throw new Error("Failed to upload moment image to Firebase Storage");
@@ -177,7 +179,9 @@ const uploadMomentVideo = async (localId, idToken, fileBuffer, mediaId) => {
 
     // Bước 5: Thực hiện POST dữ liệu binary video lên Firebase Storage
     try {
-      await instanceFirestoreUpload.post(resumableUploadUrl, videoBuffer);
+      await instanceFirestoreUpload.post(resumableUploadUrl, videoBuffer, {
+        meta: { idToken },
+      });
     } catch (err) {
       console.error("Upload error detail:", err);
       throw new Error("Failed to upload moment video to Firebase Storage");
@@ -218,42 +222,7 @@ const uploadMomentVideo = async (localId, idToken, fileBuffer, mediaId) => {
   }
 };
 
-/**
- * Tải tệp hình ảnh thumbnail của video lên Firebase Storage.
- *
- * @param {string} localId - ID người dùng sở hữu video
- * @param {string} idToken - Firebase ID token dùng để xác thực
- * @param {Object} video - Đối tượng video liên quan (không dùng trực tiếp, giữ để tương thích)
- * @param {File|Buffer} thumbnail - Tệp hình ảnh thu nhỏ (thumbnail) của video
- * @param {string} [mediaId] - (Tuỳ chọn) ID dùng làm tên file. Truyền cùng ID với uploadMomentVideo
- *                             để thumbnail và video có cùng tên base (chỉ khác đuôi .webp / .mp4).
- * @returns {Promise<string|null>} Trả về liên kết ảnh thumbnail hoặc null nếu tải lên thất bại
- */
-const uploadMomentVideoThumbnail = async (localId, idToken, video, thumbnail, mediaId) => {
-  try {
-    logInfo("uploadMomentVideoThumbnail", "Start uploading thumbnail", { mediaId });
-
-    // Truyền mediaId vào uploadMomentImage để thumbnail có cùng tên base với video
-    const uploadedThumbnailUrl = await uploadMomentImage(
-      localId,
-      idToken,
-      thumbnail,
-      mediaId,
-    );
-
-    if (!uploadedThumbnailUrl) {
-      throw new Error("Failed to upload thumbnail image via uploadMomentImage");
-    }
-
-    return uploadedThumbnailUrl;
-  } catch (error) {
-    logError("uploadMomentVideoThumbnail", error.message);
-    return null;
-  }
-};
-
 module.exports = {
   uploadMomentImage,
   uploadMomentVideo,
-  uploadMomentVideoThumbnail,
 };
