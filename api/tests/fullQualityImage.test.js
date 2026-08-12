@@ -1,23 +1,51 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const sharp = require("sharp");
 const {
   processImageBuffer,
 } = require("../src/utils/process/processImageBuffer");
 const tempMedia = require("../src/modules/storage/tempMediaStore");
-const fs = require("node:fs");
-const path = require("node:path");
+const {
+  LOCKET_IMAGE_OUTPUT_MAX_MB,
+  LOCKET_IMAGE_OUTPUT_MAX_BYTES,
+  assertLocketImageOutput,
+} = require("../src/config/imageUploadPolicy");
 
 test("moment uploads keep the reliable one-megabyte Locket output budget", () => {
-  const controllerSource = fs.readFileSync(
-    path.resolve(__dirname, "../src/modules/moment/controllers/post.controller.js"),
+  assert.equal(LOCKET_IMAGE_OUTPUT_MAX_MB, 1);
+  assert.equal(LOCKET_IMAGE_OUTPUT_MAX_BYTES, 1024 * 1024);
+  assert.doesNotThrow(() =>
+    assertLocketImageOutput(Buffer.alloc(LOCKET_IMAGE_OUTPUT_MAX_BYTES)),
+  );
+  assert.throws(
+    () =>
+      assertLocketImageOutput(
+        Buffer.alloc(LOCKET_IMAGE_OUTPUT_MAX_BYTES + 1),
+      ),
+    (error) =>
+      error?.status === 422 &&
+      error?.code === "IMAGE_OUTPUT_BUDGET_EXCEEDED",
+  );
+});
+
+test("Firebase image upload enforces the output budget before opening a session", () => {
+  const source = fs.readFileSync(
+    path.resolve(__dirname, "../src/modules/firestore/services/moment.service.js"),
     "utf8",
   );
-
-  assert.match(
-    controllerSource,
-    /processImageBuffer\(\{[\s\S]*?maxSizeMB:\s*1,[\s\S]*?resolution/,
+  const imageUpload = source.slice(
+    source.indexOf("const uploadMomentImage"),
+    source.indexOf("const uploadMomentVideo"),
   );
+  const guardIndex = imageUpload.indexOf(
+    "assertLocketImageOutput(imageBuffer)",
+  );
+  const sessionIndex = imageUpload.indexOf("initResumableSession(");
+
+  assert.ok(guardIndex >= 0, "missing pre-upload image budget guard");
+  assert.ok(sessionIndex > guardIndex, "Firebase session opens before size guard");
 });
 
 test("image processing keeps smaller native square images without upscaling", async () => {
@@ -34,7 +62,7 @@ test("image processing keeps smaller native square images without upscaling", as
 
   const output = await processImageBuffer({
     imageBuffer: input,
-    maxSizeMB: 1,
+    maxSizeMB: LOCKET_IMAGE_OUTPUT_MAX_MB,
     resolution: 2048,
   });
 
@@ -42,7 +70,7 @@ test("image processing keeps smaller native square images without upscaling", as
   assert.equal(metadata.format, "webp");
   assert.equal(metadata.width, 1200);
   assert.equal(metadata.height, 1200);
-  assert.ok(output.length <= 1 * 1024 * 1024);
+  assert.ok(output.length <= LOCKET_IMAGE_OUTPUT_MAX_BYTES);
 });
 
 test("4K phone sources are accepted and normalized to a safe Locket object", async () => {
@@ -59,14 +87,14 @@ test("4K phone sources are accepted and normalized to a safe Locket object", asy
 
   const output = await processImageBuffer({
     imageBuffer: input,
-    maxSizeMB: 1,
+    maxSizeMB: LOCKET_IMAGE_OUTPUT_MAX_MB,
     resolution: 2048,
   });
 
   const metadata = await sharp(output).metadata();
   assert.equal(metadata.width, 2048);
   assert.equal(metadata.height, 2048);
-  assert.ok(output.length <= 1 * 1024 * 1024);
+  assert.ok(output.length <= LOCKET_IMAGE_OUTPUT_MAX_BYTES);
 });
 
 test("dark noisy close-up style images cannot exceed the Firebase output budget", async () => {
@@ -88,7 +116,9 @@ test("dark noisy close-up style images cannot exceed the Firebase output budget"
   assert.ok(input.length <= 10 * 1024 * 1024);
   const output = await processImageBuffer({
     imageBuffer: input,
-    maxSizeMB: 1,
+    // Simulate a future caller raising quality/output size. The shared policy
+    // must clamp this request back to the reliable one-megabyte ceiling.
+    maxSizeMB: 2.5,
     resolution: 2048,
   });
 
@@ -96,7 +126,7 @@ test("dark noisy close-up style images cannot exceed the Firebase output budget"
   assert.equal(metadata.format, "webp");
   assert.ok(metadata.width <= 2048);
   assert.ok(metadata.height <= 2048);
-  assert.ok(output.length <= 1 * 1024 * 1024);
+  assert.ok(output.length <= LOCKET_IMAGE_OUTPUT_MAX_BYTES);
 });
 
 test("temporary media transport leaves headroom below the 25 MB raw endpoint", () => {

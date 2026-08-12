@@ -7,6 +7,9 @@ const {
 } = require("../utils/http");
 const { generateFirestoreId } = require("../../../utils");
 const { buildResumableUploadUrl } = require("../utils/resumableUpload");
+const {
+  assertLocketImageOutput,
+} = require("../../../config/imageUploadPolicy");
 
 const createStorageUploadError = (
   message,
@@ -152,9 +155,16 @@ const uploadMomentImage = async (
   try {
     logInfo("uploadMomentImage", "Start");
 
+    const imageBuffer = fileBuffer instanceof Buffer
+      ? fileBuffer
+      : fs.readFileSync(fileBuffer.path);
+    // Defense in depth: never create a Firebase session for an image that
+    // skipped or regressed past the normalization policy.
+    assertLocketImageOutput(imageBuffer);
+
     const imageId = mediaId || generateFirestoreId();
     const imageName = `${imageId}.webp`;
-    const fileSize = fileBuffer.size || fileBuffer.length;
+    const fileSize = imageBuffer.length;
 
     logInfo("uploadMomentImage", "Create name Image", {
       localId,
@@ -197,13 +207,6 @@ const uploadMomentImage = async (
         err,
         { stage: "init", fileSize },
       );
-    }
-
-    let imageBuffer;
-    if (fileBuffer instanceof Buffer) {
-      imageBuffer = fileBuffer;
-    } else {
-      imageBuffer = fs.readFileSync(fileBuffer.path);
     }
 
     // Finalize: upload binary data via the resumable URL.

@@ -1,6 +1,11 @@
 const sharp = require("sharp");
 const heicConvert = require("heic-convert");
 const { logSuccess } = require("../logEventUtils");
+const {
+  LOCKET_IMAGE_OUTPUT_MAX_MB,
+  LOCKET_IMAGE_OUTPUT_MAX_BYTES,
+  assertLocketImageOutput,
+} = require("../../config/imageUploadPolicy");
 
 const logInfo = (tag, message) => {
   console.log(`[${tag.toUpperCase()}] ${message}`);
@@ -84,7 +89,7 @@ async function encodeHighQualityWebp(basePipeline, side, quality) {
  */
 const processImageBuffer = async ({
   imageBuffer,
-  maxSizeMB = 1,
+  maxSizeMB = LOCKET_IMAGE_OUTPUT_MAX_MB,
   resolution = 2048,
 }) => {
   try {
@@ -134,7 +139,17 @@ const processImageBuffer = async ({
         : `Keep native square ${outSide}px (no upscale)`,
     );
 
-    const maxBytes = Math.max(0.5, Number(maxSizeMB) || 1) * 1024 * 1024;
+    // A caller may request a smaller output, but can never raise the proven
+    // Locket/Firebase ceiling and silently reintroduce finalize 403s.
+    const requestedMaxBytes =
+      Math.max(
+        0.5,
+        Number(maxSizeMB) || LOCKET_IMAGE_OUTPUT_MAX_MB,
+      ) * 1024 * 1024;
+    const maxBytes = Math.min(
+      requestedMaxBytes,
+      LOCKET_IMAGE_OUTPUT_MAX_BYTES,
+    );
     let processedBuffer;
 
     // Preserve the selected resolution first and lower quality gradually.
@@ -149,7 +164,7 @@ const processImageBuffer = async ({
           "processImageBuffer",
           `✅ End processing image buffer (${outSide}px q${quality}).`,
         );
-        return processedBuffer;
+        return assertLocketImageOutput(processedBuffer);
       }
     }
 
@@ -169,7 +184,7 @@ const processImageBuffer = async ({
           "processImageBuffer",
           `✅ End processing image buffer (${side}px q${quality}).`,
         );
-        return processedBuffer;
+        return assertLocketImageOutput(processedBuffer);
       }
     }
 

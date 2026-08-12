@@ -16,6 +16,9 @@ const {
   processImageBuffer,
 } = require("../../../utils/process/processImageBuffer");
 const {
+  LOCKET_IMAGE_OUTPUT_MAX_MB,
+} = require("../../../config/imageUploadPolicy");
+const {
   processVideoBuffer,
   generateThumbnail,
 } = require("../../../utils/process/processVideoBuffer");
@@ -294,7 +297,7 @@ const uploadMediaV3 = async (req, res, next) => {
           });
           processedBuffer = await processImageBuffer({
             imageBuffer: mediaBuffer,
-            maxSizeMB: 1,
+            maxSizeMB: LOCKET_IMAGE_OUTPUT_MAX_MB,
             resolution,
           });
         } else if (type === "video") {
