@@ -8,6 +8,16 @@ const {
 const { generateFirestoreId } = require("../../../utils");
 const { buildResumableUploadUrl } = require("../utils/resumableUpload");
 
+const createStorageUploadError = (message, cause) => {
+  const error = new Error(message);
+  const status = Number(cause?.response?.status || cause?.status || 0);
+  if (status >= 400 && status <= 599) {
+    error.status = status;
+  }
+  error.code = status === 403 ? "FIREBASE_STORAGE_FORBIDDEN" : "FIREBASE_STORAGE_UPLOAD_FAILED";
+  return error;
+};
+
 /**
  * Tải hình ảnh khoảnh khắc (moment image) lên Firebase Storage.
  *
@@ -77,7 +87,10 @@ const uploadMomentImage = async (localId, idToken, fileBuffer, mediaId) => {
       await instanceFirestoreUpload.put(resumableUploadUrl, imageBuffer);
     } catch (err) {
       console.error("Upload error detail:", err);
-      throw new Error("Failed to upload moment image to Firebase Storage");
+      throw createStorageUploadError(
+        "Failed to upload moment image to Firebase Storage",
+        err,
+      );
     }
 
     // Bước 6: Lấy metadata để lấy token downloadToken
@@ -180,7 +193,10 @@ const uploadMomentVideo = async (localId, idToken, fileBuffer, mediaId) => {
       await instanceFirestoreUpload.put(resumableUploadUrl, videoBuffer);
     } catch (err) {
       console.error("Upload error detail:", err);
-      throw new Error("Failed to upload moment video to Firebase Storage");
+      throw createStorageUploadError(
+        "Failed to upload moment video to Firebase Storage",
+        err,
+      );
     }
 
     // Bước 6: Gọi API GET để kiểm tra sự tồn tại và lấy download token
