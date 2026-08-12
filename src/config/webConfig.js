@@ -2,16 +2,20 @@
 
 export const CONFIG = {
   api: {
-    baseUrl: import.meta.env.VITE_BASE_API_URL,
-    authUrl: import.meta.env.VITE_AUTH_API_URL,
-    storage: import.meta.env.VITE_STORAGE_API_URL,
-    data: import.meta.env.VITE_DATA_API_URL,
-    payment: import.meta.env.VITE_PAYMENT_API_URL,
-    cdnUrl: import.meta.env.VITE_CDN_URL,
-    locketApi: import.meta.env.VITE_LOCKET_API_URL,
-    exportApi: import.meta.env.VITE_EXPORTS_API_URL,
-    convertApi: import.meta.env.VITE_CONVERTS_API_URL,
-    extenApi: import.meta.env.VITE_EXTENS_API_URL,
+    // `vite dev` does not load `.env.production`. These same-origin defaults
+    // keep local development on the proxy routes declared in vite.config.js
+    // instead of accidentally sending API calls to the frontend origin.
+    baseUrl: import.meta.env.VITE_BASE_API_URL || "/dio-api",
+    authUrl: import.meta.env.VITE_AUTH_API_URL || "/dio-api",
+    storage: import.meta.env.VITE_STORAGE_API_URL || "/dio-storage",
+    data: import.meta.env.VITE_DATA_API_URL || "/dio-data",
+    payment: import.meta.env.VITE_PAYMENT_API_URL || "/dio-payment",
+    cdnUrl: import.meta.env.VITE_CDN_URL || "/dio-cdn",
+    locketApi:
+      import.meta.env.VITE_LOCKET_API_URL || "https://api.locketcamera.com",
+    exportApi: import.meta.env.VITE_EXPORTS_API_URL || "/dio-export",
+    convertApi: import.meta.env.VITE_CONVERTS_API_URL || "/dio-media",
+    extenApi: import.meta.env.VITE_EXTENS_API_URL || "/dio-api",
   },
 
   keys: {

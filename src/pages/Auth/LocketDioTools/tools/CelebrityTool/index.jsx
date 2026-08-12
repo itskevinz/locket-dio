@@ -33,7 +33,8 @@ import {
   normalizeCelebrityRecords,
 } from "./celebrityUtils";
 
-const DETAIL_CONCURRENCY = 6;
+const DETAIL_CONCURRENCY = 10;
+const DETAIL_UPDATE_BATCH_SIZE = 5;
 
 function getLoadError(error) {
   const status = error?.response?.status;
@@ -68,6 +69,7 @@ export default function CelebrateTool() {
   const [loadState, setLoadState] = useState("idle");
   const [loadError, setLoadError] = useState("");
   const [unavailableCount, setUnavailableCount] = useState(0);
+  const [detailProgress, setDetailProgress] = useState({ completed: 0, total: 0 });
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [processingUid, setProcessingUid] = useState(null);
@@ -127,6 +129,7 @@ export default function CelebrateTool() {
           setCatalog(null);
           setUserDetails([]);
           setUnavailableCount(0);
+          setDetailProgress({ completed: 0, total: 0 });
           setLoadState("error");
           setLoadError(getLoadError(error));
         }
@@ -176,21 +179,60 @@ export default function CelebrateTool() {
       detailSequenceRef.current += 1;
       setUserDetails([]);
       setUnavailableCount(0);
+      setDetailProgress({ completed: 0, total: 0 });
       setLoadState("empty");
       return;
     }
 
     const sequence = ++detailSequenceRef.current;
-    setLoadState("loading");
     setLoadError("");
 
+    const cachedDetails = new Map();
+    const recordsToHydrate = [];
+    const initialDetails = currentCatalog.map((record) => {
+      const cached = userCacheRef.current.get(record.uid);
+      if (cached) {
+        const merged = mergeCelebrityWithUser(record, cached);
+        cachedDetails.set(record.uid, merged);
+        return merged;
+      }
+
+      recordsToHydrate.push(record);
+      return mergeCelebrityWithUser(record, null);
+    });
+
+    setUserDetails(initialDetails);
+    setUnavailableCount(0);
+    setDetailProgress({
+      completed: cachedDetails.size,
+      total: currentCatalog.length,
+    });
+    setLoadState("success");
+
+    if (recordsToHydrate.length === 0) return;
+
+    const pendingUpdates = new Map();
+    let settledSinceFlush = 0;
+    let completed = cachedDetails.size;
+    let failedCount = 0;
+
+    const flushProgress = () => {
+      if (!mountedRef.current || sequence !== detailSequenceRef.current) return;
+      if (pendingUpdates.size > 0) {
+        const updates = new Map(pendingUpdates);
+        pendingUpdates.clear();
+        setUserDetails((previous) =>
+          previous.map((user) => updates.get(user.uid) || user),
+        );
+      }
+      setDetailProgress({ completed, total: currentCatalog.length });
+      settledSinceFlush = 0;
+    };
+
     mapWithConcurrencySettled(
-      currentCatalog,
+      recordsToHydrate,
       DETAIL_CONCURRENCY,
       async (record) => {
-        const cached = userCacheRef.current.get(record.uid);
-        if (cached) return cached;
-
         const liveUser = await fetchUserById(record.uid);
         if (!liveUser) {
           const error = new Error("CELEBRITY_DETAILS_UNAVAILABLE");
@@ -199,33 +241,39 @@ export default function CelebrateTool() {
         }
         return mergeCelebrityWithUser(record, liveUser);
       },
+      (result, record) => {
+        completed += 1;
+        settledSinceFlush += 1;
+        if (result.status === "fulfilled") {
+          userCacheRef.current.set(record.uid, result.value);
+          pendingUpdates.set(record.uid, result.value);
+        } else {
+          failedCount += 1;
+        }
+        if (
+          settledSinceFlush >= DETAIL_UPDATE_BATCH_SIZE ||
+          completed >= currentCatalog.length
+        ) {
+          flushProgress();
+        }
+      },
     )
-      .then((results) => {
+      .then(() => {
         if (!mountedRef.current || sequence !== detailSequenceRef.current) {
           return;
         }
-        const details = results
-          .filter((result) => result.status === "fulfilled")
-          .map((result) => result.value);
-        const failedCount = results.length - details.length;
-        if (details.length === 0) {
-          throw new Error("CELEBRITY_DETAILS_UNAVAILABLE");
-        }
-        details.forEach((user) => userCacheRef.current.set(user.uid, user));
-        setUserDetails(details);
+        flushProgress();
         setUnavailableCount(failedCount);
-        setLoadState("success");
       })
       .catch(() => {
         if (!mountedRef.current || sequence !== detailSequenceRef.current) {
           return;
         }
-        setUserDetails([]);
-        setUnavailableCount(0);
-        setLoadState("error");
-        setLoadError(
-          "Không thể tải trạng thái Celebrity từ Locket. Vui lòng thử lại.",
+        flushProgress();
+        setUnavailableCount(
+          Math.max(failedCount, currentCatalog.length - cachedDetails.size),
         );
+        // Keep the catalog visible even if the optional live detail pass fails.
       });
   }, [catalog, currentCatalog]);
 
@@ -361,7 +409,10 @@ export default function CelebrateTool() {
   }
 
   const isLoading = loadState === "loading" || loadState === "idle";
-  const canExport = loadState === "success" && userDetails.length > 0;
+  const isHydratingDetails =
+    loadState === "success" && detailProgress.completed < detailProgress.total;
+  const canExport =
+    loadState === "success" && userDetails.length > 0 && !isHydratingDetails;
 
   return (
     <div>
@@ -476,6 +527,13 @@ export default function CelebrateTool() {
               <p className="text-xs text-warning mt-1">
                 Tạm bỏ qua {unavailableCount} hồ sơ Locket chưa phản hồi; các hồ sơ
                 còn lại vẫn dùng bình thường.
+              </p>
+            )}
+            {isHydratingDetails && (
+              <p className="text-xs opacity-60 mt-1">
+                {"\u0110ang c\u1eadp nh\u1eadt tr\u1ea1ng th\u00e1i "}
+                {detailProgress.completed}/{detailProgress.total} Celebrity;
+                {" danh s\u00e1ch v\u1eabn c\u00f3 th\u1ec3 xem ngay."}
               </p>
             )}
           </div>

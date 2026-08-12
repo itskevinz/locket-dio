@@ -15,7 +15,9 @@ const {
 const {
   MAX_AUTO_REQUEST_ATTEMPTS,
   getAutoRequestRetryDelayMs,
+  hasEnabledAutoRequest,
   normalizeAutoRequestFailure,
+  shouldAttemptAutoRequest,
 } = require("./autoRequestPolicy");
 const {
   DEFAULT_NORMAL_INTERVAL_MS,
@@ -37,7 +39,6 @@ const POLL_INTERVAL_MS = clampNormalIntervalMs(
 const CELEB_BATCH_SIZE = 4;
 const USER_ACTION_BATCH_SIZE = 4;
 const BATCH_DELAY_MS = 50;
-const AUTO_REQUEST_RETRY_COOLDOWN_MS = 5_000;
 const ID_TOKEN_CACHE_MS = 45 * 60 * 1000;
 const VAPID_CONFIG_KEY = "slot_monitor_vapid_v1";
 let vapidPromise = null;
@@ -51,40 +52,6 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function errorStatus(error) {
   const value = Number(error?.status || error?.response?.status || 0);
   return Number.isFinite(value) && value > 0 ? value : null;
-}
-
-function autoRequestAlreadySent(watch) {
-  return String(watch?.last_auto_request_status || "").toUpperCase() === "SENT";
-}
-
-function autoRequestLastAttemptMs(watch) {
-  const parsed = watch?.last_auto_request_at
-    ? new Date(watch.last_auto_request_at).getTime()
-    : 0;
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function shouldAttemptAutoRequest(watch, availableSlots, now = Date.now()) {
-  if (!watch?.auto_request_enabled || Number(availableSlots) <= 0) return false;
-  if (autoRequestAlreadySent(watch)) return false;
-
-  const lastStatus = String(watch?.last_auto_request_status || "").toUpperCase();
-  const lastAttemptAt = autoRequestLastAttemptMs(watch);
-  if (
-    lastStatus === "FAILED" &&
-    lastAttemptAt > 0 &&
-    Number(now) - lastAttemptAt < AUTO_REQUEST_RETRY_COOLDOWN_MS
-  ) {
-    return false;
-  }
-
-  return true;
-}
-
-function hasPendingAutoRequest(watches = []) {
-  return watches.some(
-    (watch) => Boolean(watch?.auto_request_enabled) && !autoRequestAlreadySent(watch),
-  );
 }
 
 function cacheUserIdToken(userUid, idToken) {
@@ -464,7 +431,11 @@ async function processWatchSnapshot(
     // Auto-request chạy độc lập với notification transition: chỉ cần còn >= 1 slot,
     // auto được bật và request chưa từng SENT thì Railway gửi request Celeb thật.
     // Nếu lỗi tạm thời, DB đánh dấu FAILED và worker sẽ thử lại sau cooldown ngắn.
-    if (shouldAttemptAutoRequest(watch, transition.availableSlots)) {
+    if (
+      shouldAttemptAutoRequest(watch, transition.availableSlots, {
+        isNewSlotEvent: transition.shouldNotify,
+      })
+    ) {
       let requestIdToken = idToken;
       if (!requestIdToken) {
         try {
@@ -630,7 +601,9 @@ async function fetchSharedCelebritySnapshot(watches) {
 }
 
 async function checkCelebrityGroup(celebUid, watches) {
-  const turboPolling = hasPendingAutoRequest(watches);
+  // Auto watches stay on the fast poll even after a previous successful send.
+  // Otherwise SENT would slow future full -> open episodes back to 30 seconds.
+  const turboPolling = hasEnabledAutoRequest(watches);
   const lookup = await fetchSharedCelebritySnapshot(watches);
   if (!lookup.ok) {
     return {

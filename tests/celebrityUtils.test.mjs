@@ -51,6 +51,11 @@ test("merges live friendship data without changing catalog identity", () => {
   assert.equal(merged.uid, "vn-1");
   assert.equal(merged.username, "live_name");
   assert.equal(merged.country_code, "VN");
+  assert.equal(merged.live_details_loaded, true);
+  assert.equal(
+    mergeCelebrityWithUser(records[0], null).live_details_loaded,
+    false,
+  );
 });
 
 test("quick-filter counters only use known live slot data", () => {
@@ -82,15 +87,32 @@ test("detail hydration honors its concurrency cap", async () => {
 });
 
 test("detail hydration keeps available Celebrity profiles", async () => {
-  const results = await mapWithConcurrencySettled([1, 2, 3], 2, async (item) => {
-    if (item === 2) throw new Error("profile unavailable");
-    return item * 10;
-  });
+  const settled = [];
+  const results = await mapWithConcurrencySettled(
+    [1, 2, 3],
+    2,
+    async (item) => {
+      if (item === 2) throw new Error("profile unavailable");
+      return item * 10;
+    },
+    (result, item) => {
+      settled.push([item, result.status]);
+    },
+  );
 
   assert.deepEqual(
     results.map((result) =>
       result.status === "fulfilled" ? result.value : result.status,
     ),
     [10, "rejected", 30],
+  );
+  assert.equal(settled.length, 3);
+  assert.deepEqual(
+    settled.sort((left, right) => left[0] - right[0]),
+    [
+      [1, "fulfilled"],
+      [2, "rejected"],
+      [3, "fulfilled"],
+    ],
   );
 });

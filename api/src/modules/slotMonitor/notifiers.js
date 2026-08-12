@@ -135,10 +135,10 @@ function buildEmailSubject(payload, message) {
     return `${EMAIL_BRAND} | Xác nhận kết nối Canh Slot`;
   }
   if (payload?.type === "slot-open" && message.username) {
-    if (payload?.autoRequest?.attempted && payload?.autoRequest?.success === true) {
+    if (payload?.autoRequest?.enabled && payload?.autoRequest?.success === true) {
       return `${EMAIL_BRAND} | @${message.username} request Celeb thành công`.slice(0, 200);
     }
-    if (payload?.autoRequest?.attempted && payload?.autoRequest?.success === false) {
+    if (payload?.autoRequest?.enabled && payload?.autoRequest?.success === false) {
       return `${EMAIL_BRAND} | @${message.username} request Celeb chưa thành công`.slice(0, 200);
     }
     return `${EMAIL_BRAND} | @${message.username} vừa mở slot`.slice(0, 200);
@@ -175,10 +175,10 @@ function buildEmailText(payload, message) {
 
 function buildEmailHtml(payload, message) {
   const isTest = payload?.type === "slot-test";
-  const autoAttempted = Boolean(payload?.autoRequest?.attempted);
+  const autoEnabled = Boolean(payload?.autoRequest?.enabled);
   const heading = isTest
     ? "Kết nối Gmail thành công"
-    : autoAttempted
+    : autoEnabled
       ? stripEmailSymbols(message.title) || "Kết quả tự gửi request Celeb"
       : message.username
         ? `@${message.username} vừa mở slot`

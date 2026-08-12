@@ -61,6 +61,7 @@ export function mergeCelebrityWithUser(record, user) {
     celebrity_record_id: record.id,
     locket_url: record.locketUrl,
     country_code: record.countryCode,
+    live_details_loaded: Boolean(user),
   };
 }
 
@@ -112,12 +113,23 @@ export async function mapWithConcurrency(items, limit, mapper) {
   return results;
 }
 
-export async function mapWithConcurrencySettled(items, limit, mapper) {
+export async function mapWithConcurrencySettled(
+  items,
+  limit,
+  mapper,
+  onSettled,
+) {
   return mapWithConcurrency(items, limit, async (item, index) => {
+    let result;
     try {
-      return { status: "fulfilled", value: await mapper(item, index) };
+      result = { status: "fulfilled", value: await mapper(item, index) };
     } catch (reason) {
-      return { status: "rejected", reason };
+      result = { status: "rejected", reason };
     }
+
+    if (typeof onSettled === "function") {
+      await onSettled(result, item, index);
+    }
+    return result;
   });
 }

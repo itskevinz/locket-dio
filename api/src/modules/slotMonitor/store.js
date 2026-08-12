@@ -243,11 +243,10 @@ async function setWatchAutoRequestEnabled(userUid, celebUid, enabled) {
 
 async function markAutoRequestResult(userUid, celebUid, result = {}) {
   await ensureSchema();
-  const requestedStatus = String(result.status || "FAILED").slice(0, 40).toUpperCase();
-  // FAILED trong Auto Celeb không phải trạng thái kết thúc: worker phải đọc lại
-  // snapshot ở vòng Turbo kế tiếp. RETRYING tránh cooldown FAILED cũ, nên nếu
-  // vẫn còn slot thì gửi tiếp; nếu full thì không gửi cho tới khi slot mở lại.
-  const status = requestedStatus === "FAILED" ? "RETRYING" : requestedStatus;
+  // Keep FAILED as FAILED so the worker observes its cooldown and the UI/event
+  // history can report the real outcome. It may retry after the cooldown while
+  // the slot remains open.
+  const status = String(result.status || "FAILED").slice(0, 40).toUpperCase();
   const errorText = result.error
     ? String(result.error).slice(0, 500)
     : null;

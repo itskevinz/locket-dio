@@ -4,8 +4,10 @@ const assert = require("node:assert/strict");
 const {
   MAX_AUTO_REQUEST_ATTEMPTS,
   getAutoRequestRetryDelayMs,
+  hasEnabledAutoRequest,
   isRetryableAutoRequestFailure,
   normalizeAutoRequestFailure,
+  shouldAttemptAutoRequest,
 } = require("../src/modules/slotMonitor/autoRequestPolicy");
 
 test("Celeb auto-request only retries transient failures", () => {
@@ -56,4 +58,57 @@ test("retry delay backs off and gives 429 extra space", () => {
   assert.ok(second >= 900 && second <= 1050);
   assert.equal(getAutoRequestRetryDelayMs(1, 429), 1500);
   assert.equal(getAutoRequestRetryDelayMs(2, 429), 3000);
+});
+
+test("a SENT result only blocks duplicates inside the same open-slot episode", () => {
+  const watch = {
+    auto_request_enabled: true,
+    last_auto_request_status: "SENT",
+    last_auto_request_at: new Date(10_000).toISOString(),
+  };
+
+  assert.equal(
+    shouldAttemptAutoRequest(watch, 1, {
+      isNewSlotEvent: false,
+      now: 20_000,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldAttemptAutoRequest(watch, 1, {
+      isNewSlotEvent: true,
+      now: 20_000,
+    }),
+    true,
+  );
+});
+
+test("successful Auto watches keep fast polling for the next slot episode", () => {
+  assert.equal(
+    hasEnabledAutoRequest([
+      { auto_request_enabled: true, last_auto_request_status: "SENT" },
+    ]),
+    true,
+  );
+  assert.equal(
+    hasEnabledAutoRequest([{ auto_request_enabled: false }]),
+    false,
+  );
+});
+
+test("FAILED auto requests wait for cooldown before the background retry", () => {
+  const watch = {
+    auto_request_enabled: true,
+    last_auto_request_status: "FAILED",
+    last_auto_request_at: new Date(10_000).toISOString(),
+  };
+
+  assert.equal(
+    shouldAttemptAutoRequest(watch, 1, { now: 12_000, retryCooldownMs: 5_000 }),
+    false,
+  );
+  assert.equal(
+    shouldAttemptAutoRequest(watch, 1, { now: 16_000, retryCooldownMs: 5_000 }),
+    true,
+  );
 });

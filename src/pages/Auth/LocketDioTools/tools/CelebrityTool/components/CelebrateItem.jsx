@@ -3,6 +3,7 @@ import { Plus, UserRoundCheck } from "lucide-react";
 import { SonnerSuccess } from "@/components/uikit/SonnerToast";
 
 export default function CelebrateItem({ user, slotdata, onAdd, loadingUid }) {
+  const liveDetailsLoaded = user?.live_details_loaded !== false;
   // Tính % bạn bè (nếu có dữ liệu)
   const percent =
     slotdata?.max_friends && slotdata?.friend_count
@@ -39,6 +40,8 @@ export default function CelebrateItem({ user, slotdata, onAdd, loadingUid }) {
             <img
               src={user.profile_picture_url || "./default-avatar.png"}
               alt={`${user.first_name} ${user.last_name}`}
+              loading="lazy"
+              decoding="async"
               className="w-12 h-12 rounded-full border-[3.5px] p-0.5 border-amber-400 object-cover"
             />
 
@@ -79,7 +82,15 @@ export default function CelebrateItem({ user, slotdata, onAdd, loadingUid }) {
         </div>
 
         {/* Bên phải: render theo friendship_status */}
-        {user.friendship_status === "friends" ? (
+        {!liveDetailsLoaded ? (
+          <button
+            type="button"
+            disabled
+            className="flex items-center gap-1 px-2 py-1 rounded-2xl font-semibold bg-gray-300 text-gray-500 cursor-wait"
+          >
+            {"\u0110ang t\u1ea3i..."}
+          </button>
+        ) : user.friendship_status === "friends" ? (
           <div className="flex flex-row items-center gap-1 text-white bg-primary px-2 py-1 rounded-2xl">
             <UserRoundCheck className="w-5 h-5" />
             <span className="text-sm font-semibold">Bạn bè</span>

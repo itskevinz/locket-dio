@@ -1,4 +1,5 @@
-const MAX_AUTO_REQUEST_ATTEMPTS = 1;
+const MAX_AUTO_REQUEST_ATTEMPTS = 3;
+const DEFAULT_RETRY_COOLDOWN_MS = 5_000;
 
 const RETRYABLE_STATUS_CODES = new Set([408, 425, 429]);
 const RETRYABLE_ERROR_CODES = new Set([
@@ -82,9 +83,65 @@ function getAutoRequestRetryDelayMs(attempt, status = null) {
   return base + Math.floor(Math.random() * 151);
 }
 
+function autoRequestAlreadySent(watch) {
+  return String(
+    watch?.last_auto_request_status || watch?.lastAutoRequestStatus || "",
+  ).toUpperCase() === "SENT";
+}
+
+function autoRequestLastAttemptMs(watch) {
+  const value = watch?.last_auto_request_at || watch?.lastAutoRequestAt;
+  const parsed = value ? new Date(value).getTime() : 0;
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function hasEnabledAutoRequest(watches = []) {
+  return watches.some((watch) =>
+    Boolean(watch?.auto_request_enabled ?? watch?.autoRequestEnabled),
+  );
+}
+
+function shouldAttemptAutoRequest(
+  watch,
+  availableSlots,
+  {
+    isNewSlotEvent = false,
+    now = Date.now(),
+    retryCooldownMs = DEFAULT_RETRY_COOLDOWN_MS,
+  } = {},
+) {
+  const enabled = Boolean(
+    watch?.auto_request_enabled ?? watch?.autoRequestEnabled,
+  );
+  if (!enabled || Number(availableSlots) <= 0) return false;
+
+  // SENT only protects one open-slot episode. A later full -> open transition
+  // or a capacity increase is a new opportunity and must send again.
+  if (isNewSlotEvent) return true;
+  if (autoRequestAlreadySent(watch)) return false;
+
+  const lastStatus = String(
+    watch?.last_auto_request_status || watch?.lastAutoRequestStatus || "",
+  ).toUpperCase();
+  const lastAttemptAt = autoRequestLastAttemptMs(watch);
+  if (
+    lastStatus === "FAILED" &&
+    lastAttemptAt > 0 &&
+    Number(now) - lastAttemptAt < retryCooldownMs
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
 module.exports = {
+  DEFAULT_RETRY_COOLDOWN_MS,
   MAX_AUTO_REQUEST_ATTEMPTS,
+  autoRequestAlreadySent,
   getAutoRequestRetryDelayMs,
+  hasEnabledAutoRequest,
   isRetryableAutoRequestFailure,
   normalizeAutoRequestFailure,
+  shouldAttemptAutoRequest,
 };

@@ -89,9 +89,21 @@ export const getListCelebrity = async () => {
   }
 };
 
+const CELEBRITY_CATALOG_CACHE_TTL_MS = 60 * 1000;
+let celebrityCatalogCache = null;
+let celebrityCatalogCachedAt = 0;
+
 export const getListCelebrityV2 = async (config = {}) => {
   try {
     const { refresh = false, ...requestConfig } = config;
+    if (
+      !refresh &&
+      celebrityCatalogCache &&
+      Date.now() - celebrityCatalogCachedAt < CELEBRITY_CATALOG_CACHE_TTL_MS
+    ) {
+      return celebrityCatalogCache;
+    }
+
     const res = await instanceMain.get("api/celebrities", {
       ...requestConfig,
       params: {
@@ -104,7 +116,9 @@ export const getListCelebrityV2 = async (config = {}) => {
       error.code = "INVALID_CELEBRITY_RESPONSE";
       throw error;
     }
-    return res.data.data;
+    celebrityCatalogCache = res.data.data;
+    celebrityCatalogCachedAt = Date.now();
+    return celebrityCatalogCache;
   } catch (error) {
     console.error("[celebrity] list request failed", {
       status: error?.response?.status || null,

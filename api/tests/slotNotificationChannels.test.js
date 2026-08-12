@@ -138,3 +138,31 @@ test("Gmail test mail has official confirmation subject", () => {
     "Duchi Locket | Xác nhận kết nối Canh Slot",
   );
 });
+
+test("Gmail reports Auto failure even when the saved session failed before sending", () => {
+  const payload = {
+    type: "slot-open",
+    title: "⚠️ Có slot nhưng tự kết bạn chưa thành công",
+    body: "@celeb còn 1 slot. Phiên nền chưa sẵn sàng.",
+    url: "/friends?slot=1&username=celeb",
+    celeb: {
+      username: "celeb",
+      availableSlots: 1,
+      friendCount: 999,
+      maxFriends: 1000,
+    },
+    autoRequest: {
+      enabled: true,
+      attempted: false,
+      success: false,
+      code: "SLOT_SESSION_ERROR",
+    },
+  };
+  const message = buildSlotMessage(payload);
+
+  assert.equal(
+    buildEmailSubject(payload, message),
+    "Duchi Locket | @celeb request Celeb chưa thành công",
+  );
+  assert.match(buildEmailHtml(payload, message), /tự kết bạn chưa thành công/i);
+});

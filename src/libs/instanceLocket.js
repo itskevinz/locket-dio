@@ -6,7 +6,11 @@ import { loginHeader } from "@/constants/constrain";
 import { getToken, saveToken } from "@/utils";
 import { instanceAuth } from "./instanceAuth";
 
-export const BASE_URL_LOCKET = CONFIG.api.locketApi;
+// Vite development does not load `.env.production`. Keep the official Locket
+// host as a safe default so local login does not accidentally POST to the
+// frontend origin (for example `/validateEmailAddress` on localhost).
+export const BASE_URL_LOCKET =
+  CONFIG.api.locketApi || "https://api.locketcamera.com";
 
 export const instanceLocket = axios.create({
   baseURL: BASE_URL_LOCKET,
