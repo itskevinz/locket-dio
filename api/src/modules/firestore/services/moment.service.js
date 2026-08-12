@@ -72,11 +72,9 @@ const uploadMomentImage = async (localId, idToken, fileBuffer, mediaId) => {
       imageBuffer = fs.readFileSync(fileBuffer.path);
     }
 
-    // Bước 5: Upload dữ liệu binary lên Firebase Storage bằng resumable upload POST
+    // Bước 5: Upload dữ liệu binary lên Firebase Storage theo finalization request của Locket/iOS
     try {
-      await instanceFirestoreUpload.post(resumableUploadUrl, imageBuffer, {
-        meta: { idToken },
-      });
+      await instanceFirestoreUpload.put(resumableUploadUrl, imageBuffer);
     } catch (err) {
       console.error("Upload error detail:", err);
       throw new Error("Failed to upload moment image to Firebase Storage");
@@ -177,11 +175,9 @@ const uploadMomentVideo = async (localId, idToken, fileBuffer, mediaId) => {
       videoBuffer = fs.readFileSync(fileBuffer.path);
     }
 
-    // Bước 5: Thực hiện POST dữ liệu binary video lên Firebase Storage
+    // Bước 5: Thực hiện PUT dữ liệu binary video lên Firebase Storage
     try {
-      await instanceFirestoreUpload.post(resumableUploadUrl, videoBuffer, {
-        meta: { idToken },
-      });
+      await instanceFirestoreUpload.put(resumableUploadUrl, videoBuffer);
     } catch (err) {
       console.error("Upload error detail:", err);
       throw new Error("Failed to upload moment video to Firebase Storage");
