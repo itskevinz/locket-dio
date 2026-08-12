@@ -2,6 +2,9 @@
 [build]
   builder = "DOCKERFILE"
   dockerfilePath = "Dockerfile"
+  # The API lives in an isolated monorepo directory. Frontend-only commits must
+  # not restart the API and erase short-lived upstream credentials from memory.
+  watchPatterns = ["/api/**"]
 
 [deploy]
   healthcheckPath = "/health"

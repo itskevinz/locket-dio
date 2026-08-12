@@ -170,8 +170,11 @@ const processImageBuffer = async ({
       return processedBuffer;
     }
 
-    // 2) Keep every pixel before considering any resize.
-    for (const quality of [100, 98, 96]) {
+    // 2) Keep every pixel before considering any resize. Detailed phone photos
+    // can expand dramatically when the JPEG source becomes lossless WebP, so
+    // continue through visually high quality encodes until the Storage budget
+    // is actually met.
+    for (const quality of [100, 98, 96, 94, 92, 90, 88]) {
       processedBuffer = await encodeHighQualityWebp(squared, outSide, quality);
       logInfo(
         "processImageBuffer",
@@ -189,15 +192,30 @@ const processImageBuffer = async ({
     // 3) Emergency only: extremely large images can consume hundreds of MB in
     // Sharp/Railway memory. Keep a high resolution and high quality instead of
     // the old 1440/1080 fallbacks.
-    const emergencySides = [4096, 3072].filter((side) => outSide > side);
+    const emergencySides = [4096, 3072, 2560, 2048, 1600, 1440, 1080, 960, 720]
+      .filter((side) => outSide > side);
     for (const side of emergencySides) {
-      const quality = side === 4096 ? 98 : 96;
+      const quality = side >= 4096
+        ? 96
+        : side >= 3072
+          ? 94
+          : side >= 2048
+            ? 92
+            : side >= 1440
+              ? 90
+              : 86;
       processedBuffer = await encodeHighQualityWebp(squared, side, quality);
       logInfo(
         "processImageBuffer",
         `Emergency ${side}px q${quality} → ${(processedBuffer.length / 1024 / 1024).toFixed(2)}MB`,
       );
       if (processedBuffer.length <= maxBytes) break;
+    }
+
+    if (processedBuffer.length > maxBytes) {
+      throw new Error(
+        `Processed WebP remains above upload budget (${(processedBuffer.length / 1024 / 1024).toFixed(2)}MB > ${(maxBytes / 1024 / 1024).toFixed(2)}MB)`,
+      );
     }
 
     const finalSize = (processedBuffer.length / 1024 / 1024).toFixed(2);

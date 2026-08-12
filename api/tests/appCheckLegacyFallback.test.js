@@ -25,6 +25,7 @@ function loadService({
   deviceToken = null,
   cachedToken = null,
   onPost = null,
+  onSaveToken = null,
 } = {}) {
   delete require.cache[require.resolve(servicePath)];
 
@@ -35,7 +36,9 @@ function loadService({
     redisStore: {
       getDeviceToken: async () => deviceToken,
       getAppCheckToken: async () => cachedToken,
-      saveAppCheckToken: async () => {},
+      saveAppCheckToken: async (token, ttl) => {
+        if (onSaveToken) onSaveToken(token, ttl);
+      },
       saveDeviceToken: async () => {},
     },
   });
@@ -100,10 +103,14 @@ test("exchanges stored DeviceCheck token using Firebase REST camelCase fields", 
   await withEnv("LOCKET_APP_CHECK_TOKEN", undefined, async () => {
     await withEnv("LOCKET_APP_CHECK_DEVICE_TOKEN", undefined, async () => {
       let request = null;
+      let savedToken = null;
       const service = loadService({
         deviceToken: { device_token: "device-check", limited_use: true },
         onPost: (url, body) => {
           request = { url, body };
+        },
+        onSaveToken: (token, ttl) => {
+          savedToken = { token, ttl };
         },
       });
 
@@ -114,6 +121,7 @@ test("exchanges stored DeviceCheck token using Firebase REST camelCase fields", 
         limitedUse: true,
       });
       assert.equal("device_token" in request.body, false);
+      assert.deepEqual(savedToken, { token: "generated", ttl: "3600s" });
     });
   });
 });

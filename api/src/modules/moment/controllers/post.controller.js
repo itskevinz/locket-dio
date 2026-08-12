@@ -289,9 +289,16 @@ const uploadMediaV3 = async (req, res, next) => {
             normal: 8192,
             member: 8192,
           });
+          // The source picker limit is 10 MB, but a JPEG can expand well above
+          // that when re-encoded as lossless WebP. Keep final Storage bytes
+          // below the same boundary with a little protocol/metadata headroom.
+          const firebaseImageBudgetMB = Math.max(
+            1,
+            Math.min(9.5, Number(limits.maxImageSize) || 10),
+          );
           processedBuffer = await processImageBuffer({
             imageBuffer: mediaBuffer,
-            maxSizeMB: 32,
+            maxSizeMB: firebaseImageBudgetMB,
             resolution,
           });
         } else if (type === "video") {

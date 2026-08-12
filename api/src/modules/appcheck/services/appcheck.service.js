@@ -169,7 +169,7 @@ const getOrCreateAppCheckToken = async () => {
   // 4. Exchange DeviceCheck -> Firebase App Check and cache the short-lived
   // App Check token. Never send a raw DeviceCheck token to Locket as a header.
   const generated = await generateAppCheckToken(deviceToken);
-  await redisStore.saveAppCheckToken(generated.token);
+  await redisStore.saveAppCheckToken(generated.token, generated.ttl);
 
   return generated.token;
 };

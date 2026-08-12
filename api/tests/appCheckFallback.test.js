@@ -44,3 +44,16 @@ test("App Check device token is serialized and persisted encrypted for redeploy 
   assert.match(source, /readPersistedDeviceToken/);
   assert.match(source, /redisAppCheck\.set\(DEVICE_KEY, serializedToken/);
 });
+
+test("App Check access token is persisted encrypted for redeploy recovery", () => {
+  const source = fs.readFileSync(
+    path.resolve(__dirname, "../src/modules/appcheck/redis/appcheck.redis.js"),
+    "utf8",
+  );
+
+  assert.match(source, /PERSISTED_TOKEN_KEY\s*=\s*"appcheck_token_v1"/);
+  assert.match(source, /persistAppCheckToken\(token, ttlSeconds\)/);
+  assert.match(source, /slotStore\.setConfigValue\(PERSISTED_TOKEN_KEY, encryptSecret\(payload\)\)/);
+  assert.match(source, /readPersistedAppCheckToken/);
+  assert.match(source, /redisAppCheck\.set\(TOKEN_KEY, persisted\.token/);
+});
