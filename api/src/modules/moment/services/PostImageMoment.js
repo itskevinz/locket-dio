@@ -176,16 +176,27 @@ const postImageToLocketV2 = async ({
     return data;
   } catch (error) {
     logError("postImageToLocketV2", error.message);
-    console.error("Status:", error.response?.status);
-    console.error("Response:", error.response?.data);
-    console.error("Message:", error.message);
 
-    throw new Error(
-      error.response?.data?.message ||
-        error.response?.data?.error ||
-        error.message ||
-        "Failed to create post",
-    );
+    const responseData = error?.response?.data;
+    const upstreamError = responseData?.error;
+    const message =
+      responseData?.message ||
+      upstreamError?.message ||
+      (typeof upstreamError === "string" ? upstreamError : null) ||
+      error.message ||
+      "Failed to create post";
+    const status = Number(error?.response?.status || error?.status || 500);
+
+    console.error("postImageToLocketV2 failed", {
+      status,
+      code: upstreamError?.code || error?.code,
+      message,
+    });
+
+    const wrapped = new Error(message);
+    wrapped.status = status >= 400 && status <= 599 ? status : 500;
+    wrapped.code = upstreamError?.code || error?.code || "POST_MOMENT_FAILED";
+    throw wrapped;
   }
 };
 
