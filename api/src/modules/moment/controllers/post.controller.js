@@ -282,10 +282,11 @@ const uploadMediaV3 = async (req, res, next) => {
 
       try {
         if (type === "image") {
-          // Accept 4K/high-resolution phone sources, then normalize the final
-          // Locket object. Dark/noisy close-ups expand dramatically as
-          // lossless WebP, so native 32 MB outputs can be rejected by Firebase
-          // Storage Rules with a content-dependent 403.
+          // Accept source images up to the separate 10 MB input limit, then
+          // normalize the object sent to Locket to its reliable 1 MB budget.
+          // Detailed/noisy close-ups compress less efficiently than distant
+          // scenes, so a larger 2.5 MB output budget caused content-dependent
+          // Firebase finalize 403s even on the same phone.
           const resolution = getResolution({
             planData,
             normal: 1920,
@@ -293,7 +294,7 @@ const uploadMediaV3 = async (req, res, next) => {
           });
           processedBuffer = await processImageBuffer({
             imageBuffer: mediaBuffer,
-            maxSizeMB: 2.5,
+            maxSizeMB: 1,
             resolution,
           });
         } else if (type === "video") {

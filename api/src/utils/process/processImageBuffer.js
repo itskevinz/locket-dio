@@ -84,7 +84,7 @@ async function encodeHighQualityWebp(basePipeline, side, quality) {
  */
 const processImageBuffer = async ({
   imageBuffer,
-  maxSizeMB = 2.5,
+  maxSizeMB = 1,
   resolution = 2048,
 }) => {
   try {
@@ -134,7 +134,7 @@ const processImageBuffer = async ({
         : `Keep native square ${outSide}px (no upscale)`,
     );
 
-    const maxBytes = Math.max(0.5, Number(maxSizeMB) || 2.5) * 1024 * 1024;
+    const maxBytes = Math.max(0.5, Number(maxSizeMB) || 1) * 1024 * 1024;
     let processedBuffer;
 
     // Preserve the selected resolution first and lower quality gradually.

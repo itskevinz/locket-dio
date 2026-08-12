@@ -5,6 +5,20 @@ const {
   processImageBuffer,
 } = require("../src/utils/process/processImageBuffer");
 const tempMedia = require("../src/modules/storage/tempMediaStore");
+const fs = require("node:fs");
+const path = require("node:path");
+
+test("moment uploads keep the reliable one-megabyte Locket output budget", () => {
+  const controllerSource = fs.readFileSync(
+    path.resolve(__dirname, "../src/modules/moment/controllers/post.controller.js"),
+    "utf8",
+  );
+
+  assert.match(
+    controllerSource,
+    /processImageBuffer\(\{[\s\S]*?maxSizeMB:\s*1,[\s\S]*?resolution/,
+  );
+});
 
 test("image processing keeps smaller native square images without upscaling", async () => {
   const input = await sharp({
@@ -20,7 +34,7 @@ test("image processing keeps smaller native square images without upscaling", as
 
   const output = await processImageBuffer({
     imageBuffer: input,
-    maxSizeMB: 2.5,
+    maxSizeMB: 1,
     resolution: 2048,
   });
 
@@ -28,7 +42,7 @@ test("image processing keeps smaller native square images without upscaling", as
   assert.equal(metadata.format, "webp");
   assert.equal(metadata.width, 1200);
   assert.equal(metadata.height, 1200);
-  assert.ok(output.length <= 2.5 * 1024 * 1024);
+  assert.ok(output.length <= 1 * 1024 * 1024);
 });
 
 test("4K phone sources are accepted and normalized to a safe Locket object", async () => {
@@ -45,14 +59,14 @@ test("4K phone sources are accepted and normalized to a safe Locket object", asy
 
   const output = await processImageBuffer({
     imageBuffer: input,
-    maxSizeMB: 2.5,
+    maxSizeMB: 1,
     resolution: 2048,
   });
 
   const metadata = await sharp(output).metadata();
   assert.equal(metadata.width, 2048);
   assert.equal(metadata.height, 2048);
-  assert.ok(output.length <= 2.5 * 1024 * 1024);
+  assert.ok(output.length <= 1 * 1024 * 1024);
 });
 
 test("dark noisy close-up style images cannot exceed the Firebase output budget", async () => {
@@ -74,7 +88,7 @@ test("dark noisy close-up style images cannot exceed the Firebase output budget"
   assert.ok(input.length <= 10 * 1024 * 1024);
   const output = await processImageBuffer({
     imageBuffer: input,
-    maxSizeMB: 2.5,
+    maxSizeMB: 1,
     resolution: 2048,
   });
 
@@ -82,7 +96,7 @@ test("dark noisy close-up style images cannot exceed the Firebase output budget"
   assert.equal(metadata.format, "webp");
   assert.ok(metadata.width <= 2048);
   assert.ok(metadata.height <= 2048);
-  assert.ok(output.length <= 2.5 * 1024 * 1024);
+  assert.ok(output.length <= 1 * 1024 * 1024);
 });
 
 test("temporary media transport leaves headroom below the 25 MB raw endpoint", () => {
