@@ -44,6 +44,9 @@ const MomentInteraction = () => {
   const syncForSelectedMoment = useMomentActivityStore(
     (s) => s.syncForSelectedMoment,
   );
+  const fetchActivityForMoment = useMomentActivityStore(
+    (s) => s.fetchActivityForMoment,
+  );
   const clearActive = useMomentActivityStore((s) => s.clearActive);
   const activityEntry = useMomentActivityStore((s) =>
     selectedMomentId ? s.byMomentId[selectedMomentId] : null,
@@ -123,6 +126,50 @@ const MomentInteraction = () => {
     knownOwnerFromList,
     syncForSelectedMoment,
     clearActive,
+  ]);
+
+  // Keep the owner's public poll totals fresh while the moment is visible.
+  // Votes are written by friends through Locket, so this lightweight refresh
+  // makes their choices appear without forcing the owner to close/reopen it.
+  useEffect(() => {
+    if (
+      !selectedMomentId ||
+      !myUid ||
+      !ownerUid ||
+      !isOwnMoment ||
+      isPublic !== true ||
+      !pollCounts?.isPoll
+    ) {
+      return undefined;
+    }
+
+    const refreshActivity = () => {
+      fetchActivityForMoment({
+        momentId: selectedMomentId,
+        myUid,
+        ownerUid,
+      });
+    };
+
+    const intervalId = window.setInterval(refreshActivity, 10_000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") refreshActivity();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [
+    selectedMomentId,
+    myUid,
+    ownerUid,
+    isOwnMoment,
+    isPublic,
+    pollCounts?.isPoll,
+    fetchActivityForMoment,
   ]);
 
   const showSeenMoments = useUserSetting((s) => s.showSeenMoments);

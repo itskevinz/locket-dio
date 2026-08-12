@@ -8,6 +8,10 @@ export const SendReactMoment = async (emoji, selectedMomentId, power) => {
   try {
     const { localId } = getToken();
 
+    if (!localId || !selectedMomentId) {
+      throw new Error("Thiếu thông tin tài khoản hoặc bài đăng để gửi tương tác.");
+    }
+
     const body = {
       data: {
         intensity: power || 0,
@@ -27,6 +31,9 @@ export const SendReactMoment = async (emoji, selectedMomentId, power) => {
     return response.data;
   } catch (err) {
     console.warn("❌ React Failed", err);
+    // Callers need the rejection to avoid showing a false success toast when
+    // Locket rejects the vote/reaction (401, 403, rate limit, network error...).
+    throw err;
   }
 };
 

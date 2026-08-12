@@ -46,10 +46,10 @@ function PollOverlay({
       await SendReactMoment(emoji, momentId, 0);
       setMyVote(emoji);
       triggerReaction(emoji);
-      SonnerSuccess("Đã gửi vote!");
+      SonnerSuccess("Đã ghi nhận bình chọn!");
     } catch (err) {
       console.error("Poll vote failed:", err);
-      SonnerError("Gửi vote thất bại!");
+      SonnerError("Chưa gửi được bình chọn. Vui lòng thử lại!");
     } finally {
       setVotingEmoji(null);
     }
@@ -127,6 +127,7 @@ function PollOverlay({
                 type="button"
                 disabled={Boolean(votingEmoji)}
                 onClick={() => handleVote(leftEmoji)}
+                aria-label={`Bình chọn ${leftEmoji}`}
                 className={`${optionBase} bg-white/10 active:scale-95 hover:bg-white/20 disabled:opacity-60 ${
                   myVote === leftEmoji ? "ring-2 ring-white/80" : ""
                 }`}
@@ -140,6 +141,7 @@ function PollOverlay({
                 type="button"
                 disabled={Boolean(votingEmoji)}
                 onClick={() => handleVote(rightEmoji)}
+                aria-label={`Bình chọn ${rightEmoji}`}
                 className={`${optionBase} bg-white/10 active:scale-95 hover:bg-white/20 disabled:opacity-60 ${
                   myVote === rightEmoji ? "ring-2 ring-white/80" : ""
                 }`}
