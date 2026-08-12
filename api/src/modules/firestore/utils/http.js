@@ -37,13 +37,6 @@ const instanceFirestoreUpload = axios.create({
   },
 });
 
-instanceFirestoreUpload.interceptors.request.use((config) => {
-  if (config.meta?.idToken) {
-    config.headers.Authorization = `Bearer ${config.meta.idToken}`;
-  }
-  return config;
-});
-
 /**
  * Axios client instance for initiating resumable upload sessions to Firebase Storage.
  */
