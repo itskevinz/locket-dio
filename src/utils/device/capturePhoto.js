@@ -14,14 +14,43 @@
  *   looks like the picture suddenly zooms after capture, so Android snapshots
  *   the actual live <video> element at full negotiated track resolution.
  * - Rear native stills on non-Android are not re-encoded when they already fit
- *   the upload transport budget. The API performs the center-square crop.
- * - Canvas fallbacks prefer PNG (lossless). JPEG quality=1 is used only when a
- *   lossless PNG would exceed the safe client upload budget.
+ *   the reliable inline-upload budget. The API performs the center-square crop.
+ * - Canvas fallbacks prefer PNG only while it still fits the inline path. Large
+ *   mobile PNGs are encoded as high-quality JPEG so they do not fall into the
+ *   less reliable large-file proxy route.
  */
 
-const JPEG_QUALITY_MAX = 1;
-// API raw endpoint is 25 MB and temp storage has a little safety headroom.
-const SAFE_CLIENT_IMAGE_BYTES = 23 * 1024 * 1024;
+// StorageServices sends images up to 4.5 MB inline. Keep a little headroom so
+// camera metadata / browser encoder differences never switch Android captures
+// to the temporary PUT route used by large media.
+export const CAMERA_INLINE_TARGET_BYTES = Math.floor(4.25 * 1024 * 1024);
+
+const NATIVE_JPEG_QUALITIES = [0.96, 0.9, 0.84];
+const RESIZED_JPEG_QUALITIES = [0.92, 0.84];
+const FALLBACK_SIDES = [2560, 2048, 1600];
+
+export function cameraJpegEncodingPlan(nativeSide) {
+  const side = Math.max(1, Math.floor(Number(nativeSide) || 1));
+  const plan = NATIVE_JPEG_QUALITIES.map((quality) => ({ side, quality }));
+
+  for (const fallbackSide of FALLBACK_SIDES) {
+    if (fallbackSide >= side) continue;
+    for (const quality of RESIZED_JPEG_QUALITIES) {
+      plan.push({ side: fallbackSide, quality });
+    }
+  }
+
+  const finalSide = Math.min(side, FALLBACK_SIDES.at(-1));
+  plan.push({ side: finalSide, quality: 0.72 });
+  return plan.filter(
+    (attempt, index, all) =>
+      all.findIndex(
+        (candidate) =>
+          candidate.side === attempt.side &&
+          candidate.quality === attempt.quality,
+      ) === index,
+  );
+}
 
 function isAndroidBrowser() {
   try {
@@ -55,6 +84,53 @@ function canvasToBlob(canvas, type, quality) {
       quality,
     );
   });
+}
+
+function resizeSquareCanvas(sourceCanvas, side) {
+  if (sourceCanvas.width === side && sourceCanvas.height === side) {
+    return sourceCanvas;
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = side;
+  canvas.height = side;
+  const ctx = canvas.getContext("2d", {
+    alpha: false,
+    desynchronized: true,
+    willReadFrequently: false,
+  });
+  if (!ctx) throw new Error("no 2d context");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(sourceCanvas, 0, 0, side, side);
+  return canvas;
+}
+
+export async function encodeSquareCanvasForUpload(canvas) {
+  try {
+    const png = await canvasToBlob(canvas, "image/png");
+    if (png.size <= CAMERA_INLINE_TARGET_BYTES) return png;
+  } catch {
+    /* JPEG attempts below */
+  }
+
+  let lastBlob = null;
+  let lastSide = null;
+  let workingCanvas = canvas;
+  for (const attempt of cameraJpegEncodingPlan(canvas.width)) {
+    if (attempt.side !== lastSide) {
+      workingCanvas = resizeSquareCanvas(canvas, attempt.side);
+      lastSide = attempt.side;
+    }
+    lastBlob = await canvasToBlob(
+      workingCanvas,
+      "image/jpeg",
+      attempt.quality,
+    );
+    if (lastBlob.size <= CAMERA_INLINE_TARGET_BYTES) return lastBlob;
+  }
+
+  return lastBlob;
 }
 
 /**
@@ -103,16 +179,7 @@ async function cropSourceToSquareBlob(source, srcW, srcH, opts = {}) {
     nativeSide,
   );
 
-  // Lossless first. Typical 1080p/1440p/1920p square frames remain safely
-  // below the transport limit. Very large/noisy photos fall back to max JPEG.
-  try {
-    const png = await canvasToBlob(canvas, "image/png");
-    if (png.size <= SAFE_CLIENT_IMAGE_BYTES) return png;
-  } catch {
-    /* JPEG fallback below */
-  }
-
-  return canvasToBlob(canvas, "image/jpeg", JPEG_QUALITY_MAX);
+  return encodeSquareCanvasForUpload(canvas);
 }
 
 async function cropBlobToSquareBlob(blob, opts = {}) {
@@ -295,7 +362,7 @@ export async function captureSharpSquarePhoto(video, opts = {}) {
       // Rear camera: keep native bytes when possible. Backend does the square
       // center crop with a lossless-first WebP pipeline, avoiding browser JPEG
       // recompression entirely.
-      if (!mirror && raw.size <= SAFE_CLIENT_IMAGE_BYTES) {
+      if (!mirror && raw.size <= CAMERA_INLINE_TARGET_BYTES) {
         emitPreview(raw);
         return toResult(raw, "ImageCapture.takePhoto.native");
       }
