@@ -5,6 +5,7 @@ export const UPLOAD_QUEUE_ERROR = Object.freeze({
   IN_PROGRESS: "UPLOAD_IN_PROGRESS",
   RATE_LIMITED: "RATE_LIMITED",
   SERVER: "SERVER_ERROR",
+  STORAGE_REJECTED: "STORAGE_REJECTED",
   MEDIA_EXPIRED: "MEDIA_EXPIRED",
   INVALID_RESPONSE: "INVALID_UPLOAD_RESPONSE",
   FAILED: "UPLOAD_FAILED",
@@ -37,10 +38,27 @@ export function classifyUploadFailure(error, { online = true } = {}) {
   const responseCode = String(
     error?.response?.data?.code || error?.response?.data?.error || "",
   ).toUpperCase();
+  const responseMessage = String(
+    error?.response?.data?.message || error?.message || "",
+  ).toUpperCase();
 
   if (error?.message === "INVALID_UPLOAD_RESPONSE") {
     return {
       code: UPLOAD_QUEUE_ERROR.INVALID_RESPONSE,
+      autoRetry: false,
+      resumeOnReconnect: false,
+    };
+  }
+
+  // The API currently wraps Firebase Storage permission failures as HTTP 500.
+  // Retrying the same rejected write only makes the camera spin for ~15s and
+  // cannot recover without a change in authorization/storage policy.
+  if (
+    responseMessage.includes("FIREBASE STORAGE") &&
+    (responseMessage.includes("FAILED TO UPLOAD") || status >= 400)
+  ) {
+    return {
+      code: UPLOAD_QUEUE_ERROR.STORAGE_REJECTED,
       autoRetry: false,
       resumeOnReconnect: false,
     };
