@@ -4,6 +4,7 @@ const {
   presignedV3,
   mediaUpload,
   mediaTempGet,
+  publishedMediaGet,
 } = require("./storage.controller");
 
 const storageRoutes = express.Router();
@@ -16,5 +17,8 @@ storageRoutes.put("/media-upload/:id", mediaUpload);
 
 // Public temp download for postMoment
 storageRoutes.get("/media-temp/:id", mediaTempGet);
+
+// Durable public media used as a fallback when Firebase Storage rejects writes.
+storageRoutes.get("/published-media/:filename", publishedMediaGet);
 
 module.exports = { storageRoutes };
