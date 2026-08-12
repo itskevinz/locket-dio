@@ -141,6 +141,15 @@ test("expired media and invalid API responses remain visible without retry", () 
     { message: "INVALID_UPLOAD_RESPONSE" },
     { online: true },
   );
+  const upstreamUnconfirmed = classifyUploadFailure(
+    {
+      response: {
+        status: 502,
+        data: { code: "LOCKET_POST_NOT_CONFIRMED" },
+      },
+    },
+    { online: true },
+  );
 
   assert.deepEqual(expired, {
     code: UPLOAD_QUEUE_ERROR.MEDIA_EXPIRED,
@@ -149,4 +158,6 @@ test("expired media and invalid API responses remain visible without retry", () 
   });
   assert.equal(invalid.code, UPLOAD_QUEUE_ERROR.INVALID_RESPONSE);
   assert.equal(invalid.autoRetry, false);
+  assert.equal(upstreamUnconfirmed.code, UPLOAD_QUEUE_ERROR.INVALID_RESPONSE);
+  assert.equal(upstreamUnconfirmed.autoRetry, false);
 });

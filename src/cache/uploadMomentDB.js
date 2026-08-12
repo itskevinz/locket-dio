@@ -55,6 +55,23 @@ export const getPostedMoments = () => {
     .toArray();
 };
 
+export const removeUnconfirmedLocalPostedMoments = async () => {
+  const stale = await uploadMomentsDB.postedMoments
+    .filter((moment) =>
+      String(moment?.postId || moment?.id || "").startsWith("local_"),
+    )
+    .toArray();
+
+  if (!stale.length) return [];
+
+  await uploadMomentsDB.postedMoments.bulkDelete(
+    stale.map((moment) => moment.id),
+  );
+  return stale
+    .map((moment) => String(moment?.postId || moment?.id || ""))
+    .filter(Boolean);
+};
+
 export const savePostedMomentToDB = async (payload, posted) => {
   if (!posted || !posted.id) {
     throw new Error("INVALID_POSTED_MOMENT");

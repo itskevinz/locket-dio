@@ -1,5 +1,5 @@
 const fs = require("fs");
-const { logInfo, logError, logWarning } = require("../../../utils/logEventUtils");
+const { logInfo, logError } = require("../../../utils/logEventUtils");
 const {
   instanceFirestoreUpload,
   instanceFirestoreInit,
@@ -7,7 +7,6 @@ const {
 } = require("../utils/http");
 const { generateFirestoreId } = require("../../../utils");
 const { buildResumableUploadUrl } = require("../utils/resumableUpload");
-const publishedMedia = require("../../storage/publishedMediaStore");
 
 const createStorageUploadError = (message, cause) => {
   const error = new Error(message);
@@ -36,16 +35,19 @@ const logStorageRejection = (scope, err) => {
 
 /**
  * Tải hình ảnh khoảnh khắc (moment image) lên Firebase Storage.
- * Nếu Firebase từ chối ghi bằng 403, lưu ảnh vào volume bền vững của Huy Locket
- * và trả URL public để postMomentV2 vẫn có thể sử dụng ảnh.
- *
  * @param {string} localId - ID người dùng sở hữu khoảnh khắc
  * @param {string} idToken - Firebase ID token để xác thực
  * @param {File|Buffer} fileBuffer - Dữ liệu tệp hình ảnh (Buffer hoặc đối tượng File chứa thuộc tính path)
  * @param {string} [mediaId] - (Tuỳ chọn) ID dùng làm tên file. Nếu không truyền, sẽ tự sinh ID mới.
- * @returns {Promise<string>} URL ảnh dùng cho postMomentV2
+ * @returns {Promise<string>} URL Firebase đã được Locket chấp nhận để dùng cho postMomentV2
  */
-const uploadMomentImage = async (localId, idToken, fileBuffer, mediaId) => {
+const uploadMomentImage = async (
+  localId,
+  idToken,
+  fileBuffer,
+  mediaId,
+  appCheckToken,
+) => {
   try {
     logInfo("uploadMomentImage", "Start");
 
@@ -76,6 +78,7 @@ const uploadMomentImage = async (localId, idToken, fileBuffer, mediaId) => {
     const response = await instanceFirestoreInit.post(uploadUrl, body, {
       meta: {
         idToken,
+        appCheckToken,
         fileSize,
         contentType: "image/webp",
       },
@@ -94,25 +97,11 @@ const uploadMomentImage = async (localId, idToken, fileBuffer, mediaId) => {
     }
 
     try {
-      await instanceFirestoreUpload.put(resumableUploadUrl, imageBuffer);
+      await instanceFirestoreUpload.put(resumableUploadUrl, imageBuffer, {
+        meta: { appCheckToken },
+      });
     } catch (err) {
       logStorageRejection("uploadMomentImage", err);
-      const status = Number(err?.response?.status || 0);
-
-      if (status === 403) {
-        try {
-          const saved = publishedMedia.publishBuffer(imageBuffer, "image/webp");
-          const fallbackUrl = publishedMedia.buildPublicUrl(saved.filename);
-          logWarning(
-            "uploadMomentImage",
-            `Firebase 403 -> durable fallback ${saved.filename} (${saved.size} bytes)`,
-          );
-          return fallbackUrl;
-        } catch (fallbackErr) {
-          logError("uploadMomentImage fallback", fallbackErr.message);
-        }
-      }
-
       throw createStorageUploadError(
         "Failed to upload moment image to Firebase Storage",
         err,
@@ -120,7 +109,7 @@ const uploadMomentImage = async (localId, idToken, fileBuffer, mediaId) => {
     }
 
     const getRes = await instanceFirestoreGet.get(objectUrl, {
-      meta: { idToken },
+      meta: { idToken, appCheckToken },
     });
 
     if (!getRes?.data?.downloadTokens) {
@@ -153,7 +142,13 @@ const uploadMomentImage = async (localId, idToken, fileBuffer, mediaId) => {
  * @param {string} [mediaId] - (Tuỳ chọn) ID dùng làm tên file. Nếu không truyền, sẽ tự sinh ID mới.
  * @returns {Promise<string>} Trả về URL tải về công khai của video kèm token truy cập
  */
-const uploadMomentVideo = async (localId, idToken, fileBuffer, mediaId) => {
+const uploadMomentVideo = async (
+  localId,
+  idToken,
+  fileBuffer,
+  mediaId,
+  appCheckToken,
+) => {
   try {
     logInfo("uploadMomentVideo", "Start");
 
@@ -184,6 +179,7 @@ const uploadMomentVideo = async (localId, idToken, fileBuffer, mediaId) => {
     const response = await instanceFirestoreInit.post(uploadUrl, body, {
       meta: {
         idToken: idToken,
+        appCheckToken,
         fileSize: videoSize,
         contentType: "video/mp4",
       },
@@ -202,7 +198,9 @@ const uploadMomentVideo = async (localId, idToken, fileBuffer, mediaId) => {
     }
 
     try {
-      await instanceFirestoreUpload.put(resumableUploadUrl, videoBuffer);
+      await instanceFirestoreUpload.put(resumableUploadUrl, videoBuffer, {
+        meta: { appCheckToken },
+      });
     } catch (err) {
       logStorageRejection("uploadMomentVideo", err);
       throw createStorageUploadError(
@@ -212,7 +210,7 @@ const uploadMomentVideo = async (localId, idToken, fileBuffer, mediaId) => {
     }
 
     const getResponse = await instanceFirestoreGet.get(objectUrl, {
-      meta: { idToken },
+      meta: { idToken, appCheckToken },
     });
 
     if (!getResponse?.data?.downloadTokens) {
@@ -240,7 +238,28 @@ const uploadMomentVideo = async (localId, idToken, fileBuffer, mediaId) => {
   }
 };
 
+const uploadMomentVideoThumbnail = async (
+  localId,
+  idToken,
+  _video,
+  thumbnail,
+  mediaId,
+  appCheckToken,
+) => {
+  logInfo("uploadMomentVideoThumbnail", "Start uploading thumbnail", {
+    mediaId,
+  });
+  return uploadMomentImage(
+    localId,
+    idToken,
+    thumbnail,
+    mediaId,
+    appCheckToken,
+  );
+};
+
 module.exports = {
   uploadMomentImage,
   uploadMomentVideo,
+  uploadMomentVideoThumbnail,
 };

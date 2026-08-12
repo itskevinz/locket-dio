@@ -13,6 +13,8 @@ const {
 const {
   preserveSubmittedOverlay,
 } = require("../utils/preserveSubmittedOverlay");
+const { extractConfirmedMoment } = require("../utils/confirmedMoment");
+const { appCheckServices } = require("../../appcheck/services");
 
 const postImageToLocketV2 = async ({
   idToken,
@@ -55,7 +57,14 @@ const postImageToLocketV2 = async ({
   try {
     logInfo("postImageToLocketV2", "Start");
 
-    const imageUrl = await uploadMomentImage(localId, idToken, fileBuffer);
+    const appCheckToken = await appCheckServices.getOrCreateAppCheckToken();
+    const imageUrl = await uploadMomentImage(
+      localId,
+      idToken,
+      fileBuffer,
+      undefined,
+      appCheckToken,
+    );
     const postData = (() => {
       logBanner(`Type đang sử dụng: ${type}`);
       switch (type) {
@@ -157,7 +166,7 @@ const postImageToLocketV2 = async ({
     })();
 
     const postResponse = await instanceLocketV2.post("postMomentV2", postData, {
-      meta: { idToken },
+      meta: { idToken, appCheckToken },
     });
 
     if (!postResponse.data) {
@@ -167,10 +176,8 @@ const postImageToLocketV2 = async ({
     const responseData = await postResponse.data;
     logInfo("postImageToLocketV2", "End");
 
-    const data = preserveSubmittedOverlay(
-      responseData.result?.data || {},
-      postData,
-    );
+    const confirmedMoment = extractConfirmedMoment(responseData);
+    const data = preserveSubmittedOverlay(confirmedMoment, postData);
     data.image_url = imageUrl;
     data.thumbnail_url = imageUrl;
     return data;

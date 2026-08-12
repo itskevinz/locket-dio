@@ -47,7 +47,11 @@ export function classifyUploadFailure(error, { online = true } = {}) {
     error?.response?.data?.message || error?.message || "",
   ).toUpperCase();
 
-  if (error?.message === "INVALID_UPLOAD_RESPONSE") {
+  if (
+    error?.message === "INVALID_UPLOAD_RESPONSE" ||
+    code === "LOCKET_POST_NOT_CONFIRMED" ||
+    responseCode === "LOCKET_POST_NOT_CONFIRMED"
+  ) {
     return {
       code: UPLOAD_QUEUE_ERROR.INVALID_RESPONSE,
       autoRetry: false,

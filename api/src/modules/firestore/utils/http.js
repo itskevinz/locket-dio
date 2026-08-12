@@ -37,6 +37,13 @@ const instanceFirestoreUpload = axios.create({
   },
 });
 
+instanceFirestoreUpload.interceptors.request.use((config) => {
+  if (config.meta?.appCheckToken) {
+    config.headers["X-Firebase-AppCheck"] = config.meta.appCheckToken;
+  }
+  return config;
+});
+
 /**
  * Axios client instance for initiating resumable upload sessions to Firebase Storage.
  */
@@ -63,6 +70,9 @@ instanceFirestoreInit.interceptors.request.use((config) => {
   if (config.meta?.contentType) {
     config.headers["x-goog-upload-content-type"] = config.meta.contentType;
   }
+  if (config.meta?.appCheckToken) {
+    config.headers["X-Firebase-AppCheck"] = config.meta.appCheckToken;
+  }
   return config;
 });
 
@@ -83,6 +93,9 @@ const instanceFirestoreGet = axios.create({
 instanceFirestoreGet.interceptors.request.use((config) => {
   if (config.meta?.idToken) {
     config.headers.Authorization = `Bearer ${config.meta.idToken}`;
+  }
+  if (config.meta?.appCheckToken) {
+    config.headers["X-Firebase-AppCheck"] = config.meta.appCheckToken;
   }
   return config;
 });

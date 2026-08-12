@@ -28,7 +28,9 @@ import {
   loadAllUploadItems,
   getPostedMoments,
   savePostedMomentToDB,
+  removeUnconfirmedLocalPostedMoments,
 } from "../../cache/uploadMomentDB";
+import { deleteMomentsByIds } from "../../cache/momentDB";
 
 export const STATUS_UPLOAD_MOMENT = {
   QUEUED: "queued",
@@ -104,6 +106,11 @@ export const useUploadQueueStore = create((set, get) => ({
 
     set({ uploadItems: safeItems });
 
+    const staleLocalMomentIds = await removeUnconfirmedLocalPostedMoments();
+    await deleteMomentsByIds(staleLocalMomentIds);
+    for (const momentId of staleLocalMomentIds) {
+      await useMomentsStoreV2.getState().removeMoment(momentId);
+    }
     const posted = await getPostedMoments();
     set({ postedMoments: posted });
 
@@ -231,6 +238,14 @@ export const useUploadQueueStore = create((set, get) => ({
         res?.data?.data && typeof res.data.data === "object"
           ? res.data.data
           : res?.data;
+      const confirmedMomentId = String(
+        raw?.canonical_uid || raw?.id || raw?.momentId || "",
+      ).trim();
+      if (!confirmedMomentId || confirmedMomentId.startsWith("local_")) {
+        const invalidResponse = new Error("INVALID_UPLOAD_RESPONSE");
+        invalidResponse.code = "LOCKET_POST_NOT_CONFIRMED";
+        throw invalidResponse;
+      }
       let normalized = normalizeMoment(raw) || normalizeMoment(res?.data);
 
       const od = item?.optionsData || {};
@@ -324,15 +339,9 @@ export const useUploadQueueStore = create((set, get) => ({
         }
       }
 
-      // Nếu API không trả id, vẫn thử gắn id tạm để hiện feed + overlay
+      // Chỉ moment có ID do Locket trả về mới được phép xuất hiện trong feed.
       if (normalized && !normalized.id) {
-        const src = raw || res?.data || {};
-        normalized.id =
-          src.id ||
-          src.canonical_uid ||
-          src.momentId ||
-          src.uid ||
-          `local_${Date.now()}`;
+        throw new Error("INVALID_UPLOAD_RESPONSE");
       }
       // createTime để sort feed — tránh NaN đẩy bài mất
       if (normalized && !normalized.createTime) {
@@ -478,10 +487,11 @@ export const useUploadQueueStore = create((set, get) => ({
         }, 4000);
       } else {
         const fallback =
-          policy.code === UPLOAD_QUEUE_ERROR.MEDIA_EXPIRED ||
-          policy.code === UPLOAD_QUEUE_ERROR.INVALID_RESPONSE
+          policy.code === UPLOAD_QUEUE_ERROR.MEDIA_EXPIRED
             ? "Media không còn — mở Bản nháp để chọn lại file rồi đăng."
-            : `${msg} — bài vẫn được giữ trong hàng đợi để bạn thử lại.`;
+            : policy.code === UPLOAD_QUEUE_ERROR.INVALID_RESPONSE
+              ? "Locket chưa xác nhận đã lưu bài. Bài vẫn được giữ trong hàng đợi."
+              : `${msg} — bài vẫn được giữ trong hàng đợi để bạn thử lại.`;
         SonnerError(
           "Đăng tải thất bại!",
           fallback,

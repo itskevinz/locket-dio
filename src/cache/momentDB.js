@@ -73,6 +73,12 @@ export const deleteMomentById = async (id) => {
   }
 };
 
+export const deleteMomentsByIds = async (ids) => {
+  const safeIds = [...new Set((ids || []).filter(Boolean))];
+  if (!safeIds.length) return;
+  await momentDB.moments.bulkDelete(safeIds);
+};
+
 //Lấy 10 moment mới nhất
 export const getLatestMoments = async (limit = 10) => {
   return await momentDB.moments

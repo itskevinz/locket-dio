@@ -18,12 +18,15 @@ const {
 const {
   preserveSubmittedOverlay,
 } = require("../utils/preserveSubmittedOverlay");
+const { extractConfirmedMoment } = require("../utils/confirmedMoment");
+const { appCheckServices } = require("../../appcheck/services");
 
 const postVideoToLocket = async (
   idToken,
   videoUrl,
   thumbnailUrl,
   rawOptions,
+  appCheckToken,
 ) => {
   try {
     let optionsData = rawOptions || {};
@@ -163,7 +166,7 @@ const postVideoToLocket = async (
     })();
 
     const response = await instanceLocketV2.post("postMomentV2", postData, {
-      meta: { idToken },
+      meta: { idToken, appCheckToken },
     });
 
     if (!response.data) {
@@ -171,10 +174,8 @@ const postVideoToLocket = async (
     }
 
     const responseData = await response.data;
-    const submittedMoment = preserveSubmittedOverlay(
-      responseData.result?.data || {},
-      postData,
-    );
+    const confirmedMoment = extractConfirmedMoment(responseData);
+    const submittedMoment = preserveSubmittedOverlay(confirmedMoment, postData);
 
     logInfo("postVideoToLocket", "End");
     return submittedMoment;
@@ -184,12 +185,18 @@ const postVideoToLocket = async (
     console.error("Response:", error.response?.data);
     console.error("Message:", error.message);
 
-    throw new Error(
+    const responseError = error.response?.data?.error;
+    const wrapped = new Error(
       error.response?.data?.message ||
-        error.response?.data?.error ||
+        responseError?.message ||
+        (typeof responseError === "string" ? responseError : null) ||
         error.message ||
         "Failed to create post",
     );
+    const status = Number(error.response?.status || error.status || 500);
+    wrapped.status = status >= 400 && status <= 599 ? status : 500;
+    wrapped.code = responseError?.code || error.code || "POST_MOMENT_FAILED";
+    throw wrapped;
   }
 };
 
@@ -209,6 +216,7 @@ const postVideoToLocketV2 = async ({
 
     const mediaId = generateFirestoreId();
     logInfo("postVideoToLocketV2", `Shared mediaId: ${mediaId}`);
+    const appCheckToken = await appCheckServices.getOrCreateAppCheckToken();
 
     let videoAsBuffer;
     if (Buffer.isBuffer(fileBuffer)) {
@@ -225,6 +233,7 @@ const postVideoToLocketV2 = async ({
       fileBuffer,
       thumbnail,
       mediaId,
+      appCheckToken,
     );
 
     if (!thumbnailUrl) {
@@ -236,6 +245,7 @@ const postVideoToLocketV2 = async ({
       idToken,
       videoAsBuffer,
       mediaId,
+      appCheckToken,
     );
 
     if (!videoUrl) {
@@ -247,6 +257,7 @@ const postVideoToLocketV2 = async ({
       videoUrl,
       thumbnailUrl,
       optionsData,
+      appCheckToken,
     );
 
     logInfo("postVideoToLocketV2", "End");
