@@ -72,9 +72,9 @@ const uploadMomentImage = async (localId, idToken, fileBuffer, mediaId) => {
       imageBuffer = fs.readFileSync(fileBuffer.path);
     }
 
-    // Bước 5: Upload dữ liệu binary lên Firebase Storage bằng phương thức PUT
+    // Bước 5: Upload dữ liệu binary lên Firebase Storage bằng resumable upload POST
     try {
-      await instanceFirestoreUpload.put(resumableUploadUrl, imageBuffer);
+      await instanceFirestoreUpload.post(resumableUploadUrl, imageBuffer);
     } catch (err) {
       console.error("Upload error detail:", err);
       throw new Error("Failed to upload moment image to Firebase Storage");
@@ -175,9 +175,9 @@ const uploadMomentVideo = async (localId, idToken, fileBuffer, mediaId) => {
       videoBuffer = fs.readFileSync(fileBuffer.path);
     }
 
-    // Bước 5: Thực hiện PUT dữ liệu binary video lên Firebase Storage
+    // Bước 5: Thực hiện POST dữ liệu binary video lên Firebase Storage
     try {
-      await instanceFirestoreUpload.put(resumableUploadUrl, videoBuffer);
+      await instanceFirestoreUpload.post(resumableUploadUrl, videoBuffer);
     } catch (err) {
       console.error("Upload error detail:", err);
       throw new Error("Failed to upload moment video to Firebase Storage");
