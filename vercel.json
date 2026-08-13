@@ -7,242 +7,67 @@
   "outputDirectory": "vercel-static",
   "trailingSlash": false,
   "redirects": [
-    {
-      "source": "/about-dio",
-      "destination": "/about-huy",
-      "permanent": true
-    }
+    { "source": "/about-dio", "destination": "/about-huy", "permanent": true }
   ],
   "rewrites": [
-    {
-      "source": "/dio-api",
-      "destination": "https://huy-locket-api-production.up.railway.app/"
-    },
-    {
-      "source": "/dio-api/:path*",
-      "destination": "https://huy-locket-api-production.up.railway.app/:path*"
-    },
-    {
-      "source": "/api/admin",
-      "destination": "https://huy-locket-api-production.up.railway.app/api/admin"
-    },
-    {
-      "source": "/api/admin/:path*",
-      "destination": "https://huy-locket-api-production.up.railway.app/api/admin/:path*"
-    },
-    {
-      "source": "/api/activity",
-      "destination": "https://huy-locket-api-production.up.railway.app/api/activity"
-    },
-    {
-      "source": "/api/activity/:path*",
-      "destination": "https://huy-locket-api-production.up.railway.app/api/activity/:path*"
-    },
-    {
-      "source": "/dio-auth",
-      "destination": "https://huy-locket-api-production.up.railway.app/"
-    },
-    {
-      "source": "/dio-auth/:path*",
-      "destination": "https://huy-locket-api-production.up.railway.app/:path*"
-    },
-    {
-      "source": "/dio-data",
-      "destination": "https://data.locket-dio.com/"
-    },
-    {
-      "source": "/dio-data/:path*",
-      "destination": "https://data.locket-dio.com/:path*"
-    },
-    {
-      "source": "/dio-storage",
-      "destination": "https://storage.locket-dio.com/"
-    },
-    {
-      "source": "/dio-storage/:path*",
-      "destination": "https://storage.locket-dio.com/:path*"
-    },
-    {
-      "source": "/dio-media",
-      "destination": "https://media.locket-dio.com/"
-    },
-    {
-      "source": "/dio-media/:path*",
-      "destination": "https://media.locket-dio.com/:path*"
-    },
-    {
-      "source": "/dio-export",
-      "destination": "https://export.locket-dio.com/"
-    },
-    {
-      "source": "/dio-export/:path*",
-      "destination": "https://export.locket-dio.com/:path*"
-    },
-    {
-      "source": "/dio-cdn",
-      "destination": "https://cdn.locket-dio.com/"
-    },
-    {
-      "source": "/dio-cdn/:path*",
-      "destination": "https://cdn.locket-dio.com/:path*"
-    },
-    {
-      "source": "/dio-payment",
-      "destination": "https://payment.locket-dio.com/"
-    },
-    {
-      "source": "/dio-payment/:path*",
-      "destination": "https://payment.locket-dio.com/:path*"
-    },
-    {
-      "source": "/api/drive-status",
-      "destination": "https://huy-locket-production.up.railway.app/api/drive-status"
-    },
-    {
-      "source": "/api/drive-config",
-      "destination": "https://huy-locket-production.up.railway.app/api/drive-config"
-    },
-    {
-      "source": "/api/drive-oauth-start",
-      "destination": "https://huy-locket-production.up.railway.app/api/drive-oauth-start"
-    },
-    {
-      "source": "/api/drive-oauth-callback",
-      "destination": "https://huy-locket-production.up.railway.app/api/drive-oauth-callback"
-    },
-    {
-      "source": "/api/drive-backup",
-      "destination": "https://huy-locket-production.up.railway.app/api/drive-backup"
-    },
-    {
-      "source": "/api/media-download",
-      "destination": "https://huy-locket-production.up.railway.app/api/media-download"
-    },
-    {
-      "source": "/((?!api/|assets/|sw\\.js$|workbox-[^/]+\\.js$|manifest\\.webmanifest$|offline\\.html$|version\\.json$|robots\\.txt$|sitemap\\.xml$|favicon[^/]*|android-chrome-[^/]+|apple-touch-icon\\.png$|maskable-icon-[^/]+|icons/|pwa-icons/|fonts/|images/|svg/|.*\\.[a-zA-Z0-9]+$).*)",
-      "destination": "/index.html"
-    }
+    { "source": "/dio-api", "destination": "/api/vercel-backend?__path=/" },
+    { "source": "/dio-api/:path*", "destination": "/api/vercel-backend?__path=/:path*" },
+    { "source": "/api/admin", "destination": "/api/vercel-backend?__path=/api/admin" },
+    { "source": "/api/admin/:path*", "destination": "/api/vercel-backend?__path=/api/admin/:path*" },
+    { "source": "/api/activity", "destination": "/api/vercel-backend?__path=/api/activity" },
+    { "source": "/api/activity/:path*", "destination": "/api/vercel-backend?__path=/api/activity/:path*" },
+    { "source": "/dio-auth", "destination": "/api/vercel-backend?__path=/" },
+    { "source": "/dio-auth/:path*", "destination": "/api/vercel-backend?__path=/:path*" },
+    { "source": "/dio-data", "destination": "https://data.locket-dio.com/" },
+    { "source": "/dio-data/:path*", "destination": "https://data.locket-dio.com/:path*" },
+    { "source": "/dio-storage", "destination": "https://storage.locket-dio.com/" },
+    { "source": "/dio-storage/:path*", "destination": "https://storage.locket-dio.com/:path*" },
+    { "source": "/dio-media", "destination": "https://media.locket-dio.com/" },
+    { "source": "/dio-media/:path*", "destination": "https://media.locket-dio.com/:path*" },
+    { "source": "/dio-export", "destination": "https://export.locket-dio.com/" },
+    { "source": "/dio-export/:path*", "destination": "https://export.locket-dio.com/:path*" },
+    { "source": "/dio-cdn", "destination": "https://cdn.locket-dio.com/" },
+    { "source": "/dio-cdn/:path*", "destination": "https://cdn.locket-dio.com/:path*" },
+    { "source": "/dio-payment", "destination": "https://payment.locket-dio.com/" },
+    { "source": "/dio-payment/:path*", "destination": "https://payment.locket-dio.com/:path*" },
+    { "source": "/api/drive-status", "destination": "https://huy-locket-production.up.railway.app/api/drive-status" },
+    { "source": "/api/drive-config", "destination": "https://huy-locket-production.up.railway.app/api/drive-config" },
+    { "source": "/api/drive-oauth-start", "destination": "https://huy-locket-production.up.railway.app/api/drive-oauth-start" },
+    { "source": "/api/drive-oauth-callback", "destination": "https://huy-locket-production.up.railway.app/api/drive-oauth-callback" },
+    { "source": "/api/drive-backup", "destination": "https://huy-locket-production.up.railway.app/api/drive-backup" },
+    { "source": "/api/media-download", "destination": "https://huy-locket-production.up.railway.app/api/media-download" },
+    { "source": "/((?!api/|assets/|sw\\.js$|workbox-[^/]+\\.js$|manifest\\.webmanifest$|offline\\.html$|version\\.json$|robots\\.txt$|sitemap\\.xml$|favicon[^/]*|android-chrome-[^/]+|apple-touch-icon\\.png$|maskable-icon-[^/]+|icons/|pwa-icons/|fonts/|images/|svg/|.*\\.[a-zA-Z0-9]+$).*)", "destination": "/index.html" }
   ],
   "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        },
-        {
-          "key": "X-Frame-Options",
-          "value": "DENY"
-        },
-        {
-          "key": "X-XSS-Protection",
-          "value": "1; mode=block"
-        },
-        {
-          "key": "Referrer-Policy",
-          "value": "strict-origin-when-cross-origin"
-        },
-        {
-          "key": "Permissions-Policy",
-          "value": "camera=*, microphone=*, geolocation=*, interest-cohort=()"
-        }
-      ]
-    },
-    {
-      "source": "/assets/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=31536000, immutable"
-        }
-      ]
-    },
-    {
-      "source": "/sw.js",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, s-maxage=0"
-        },
-        {
-          "key": "CDN-Cache-Control",
-          "value": "no-store"
-        },
-        {
-          "key": "Vercel-CDN-Cache-Control",
-          "value": "no-store"
-        },
-        {
-          "key": "Content-Type",
-          "value": "application/javascript; charset=utf-8"
-        },
-        {
-          "key": "Service-Worker-Allowed",
-          "value": "/"
-        }
-      ]
-    },
-    {
-      "source": "/version.json",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, s-maxage=0"
-        },
-        {
-          "key": "CDN-Cache-Control",
-          "value": "no-store"
-        },
-        {
-          "key": "Vercel-CDN-Cache-Control",
-          "value": "no-store"
-        }
-      ]
-    },
-    {
-      "source": "/workbox-(.*).js",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=0, must-revalidate"
-        },
-        {
-          "key": "Content-Type",
-          "value": "application/javascript; charset=utf-8"
-        }
-      ]
-    },
-    {
-      "source": "/index.html",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=0, must-revalidate"
-        }
-      ]
-    },
-    {
-      "source": "/offline.html",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=0, must-revalidate"
-        }
-      ]
-    },
-    {
-      "source": "/manifest.webmanifest",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=0, must-revalidate"
-        },
-        {
-          "key": "Content-Type",
-          "value": "application/manifest+json; charset=utf-8"
-        }
-      ]
-    }
+    { "source": "/(.*)", "headers": [
+      { "key": "X-Content-Type-Options", "value": "nosniff" },
+      { "key": "X-Frame-Options", "value": "DENY" },
+      { "key": "X-XSS-Protection", "value": "1; mode=block" },
+      { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+      { "key": "Permissions-Policy", "value": "camera=*, microphone=*, geolocation=*, interest-cohort=()" }
+    ]},
+    { "source": "/assets/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] },
+    { "source": "/sw.js", "headers": [
+      { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, s-maxage=0" },
+      { "key": "CDN-Cache-Control", "value": "no-store" },
+      { "key": "Vercel-CDN-Cache-Control", "value": "no-store" },
+      { "key": "Content-Type", "value": "application/javascript; charset=utf-8" },
+      { "key": "Service-Worker-Allowed", "value": "/" }
+    ]},
+    { "source": "/version.json", "headers": [
+      { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, s-maxage=0" },
+      { "key": "CDN-Cache-Control", "value": "no-store" },
+      { "key": "Vercel-CDN-Cache-Control", "value": "no-store" }
+    ]},
+    { "source": "/workbox-(.*).js", "headers": [
+      { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" },
+      { "key": "Content-Type", "value": "application/javascript; charset=utf-8" }
+    ]},
+    { "source": "/index.html", "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }] },
+    { "source": "/offline.html", "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }] },
+    { "source": "/manifest.webmanifest", "headers": [
+      { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" },
+      { "key": "Content-Type", "value": "application/manifest+json; charset=utf-8" }
+    ]}
   ]
 }
