@@ -7,6 +7,7 @@ const {
   getMomentMusic,
   removeMomentMusic,
   resolveAudioFile,
+  resolvePersistentAudio,
   MAX_AUDIO_BYTES,
 } = require("../services/musicLibrary.service");
 const { searchMusicByQuery } = require("../services/fetchMusicApi");
@@ -157,6 +158,26 @@ async function streamAudioController(req, res) {
   return res.sendFile(filePath);
 }
 
+async function streamPersistentAudioController(req, res) {
+  try {
+    const item = await resolvePersistentAudio(req.params.id);
+    if (!item?.buffer?.length) {
+      return res.status(404).json({ status: "error", message: "File not found" });
+    }
+    res.setHeader("Content-Type", item.contentType || "application/octet-stream");
+    res.setHeader("Content-Length", String(item.buffer.length));
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.setHeader("Accept-Ranges", "bytes");
+    return res.status(200).send(item.buffer);
+  } catch (error) {
+    logError("music.audio", error.message);
+    return res.status(error.status || 502).json({
+      status: "error",
+      message: "Không thể tải file nhạc",
+    });
+  }
+}
+
 /** POST /api/moments/:id/music */
 async function attachMomentMusicController(req, res, next) {
   try {
@@ -183,6 +204,7 @@ async function attachMomentMusicController(req, res, next) {
       endTime,
       volume,
       originalVideoVolume,
+      baseUrl: baseUrl(req),
     });
 
     logInfo("moment.music", `attached ${musicTrackId} → ${momentId}`);
@@ -224,6 +246,7 @@ module.exports = {
   searchTracksController,
   uploadTrackController,
   streamAudioController,
+  streamPersistentAudioController,
   attachMomentMusicController,
   getMomentMusicController,
   deleteMomentMusicController,

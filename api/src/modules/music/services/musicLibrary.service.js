@@ -1,5 +1,10 @@
 const path = require("path");
 const store = require("../store/musicJsonStore");
+const musicDatabase = require("../store/musicDatabase");
+const {
+  uploadPersistentMedia,
+  downloadPersistentMedia,
+} = require("../../vercelDrive");
 const { supabase, isSupabaseConfigured } = require("../../../config/supabase");
 
 const MAX_AUDIO_BYTES = 15 * 1024 * 1024; // 15 MB
@@ -44,6 +49,9 @@ function toPublicTrack(row, baseUrl = "") {
   if (audioUrl.startsWith("file:") || audioUrl.startsWith("audio/")) {
     const fname = path.basename(audioUrl.replace(/^file:/, ""));
     audioUrl = `${baseUrl}/api/music/audio/${fname}`;
+  } else if (audioUrl.startsWith("gdrive:")) {
+    const fileId = audioUrl.slice("gdrive:".length);
+    audioUrl = `${baseUrl}/api/music/audio/drive/${encodeURIComponent(fileId)}`;
   }
   return {
     id: row.id,
@@ -61,6 +69,10 @@ function toPublicTrack(row, baseUrl = "") {
 }
 
 async function listLibraryTracks({ userId, baseUrl } = {}) {
+  if (musicDatabase.isAvailable()) {
+    const rows = await musicDatabase.listTracks({ userId });
+    return rows.map((row) => toPublicTrack(row, baseUrl));
+  }
   // Prefer Supabase if table exists
   if (isSupabaseConfigured) {
     try {
@@ -98,6 +110,12 @@ async function listLibraryTracks({ userId, baseUrl } = {}) {
 }
 
 async function searchLibraryTracks(q, { limit, userId, baseUrl } = {}) {
+  if (musicDatabase.isAvailable()) {
+    const rows = String(q || "").trim()
+      ? await musicDatabase.searchTracks(q, { limit, userId })
+      : await musicDatabase.listTracks({ limit, userId });
+    return rows.map((row) => toPublicTrack(row, baseUrl));
+  }
   if (isSupabaseConfigured) {
     try {
       const term = `%${String(q || "").trim()}%`;
@@ -163,6 +181,26 @@ async function uploadLibraryTrack({
     (mimetype && mimetype.split("/").pop()) ||
     "mp3";
 
+  if (musicDatabase.isAvailable()) {
+    const saved = await uploadPersistentMedia({
+      buffer,
+      contentType: mimetype,
+      filename: originalname || `track.${ext}`,
+      mediaType: "audio",
+    });
+    const row = await musicDatabase.createTrack({
+      title: title || originalname || "Uploaded track",
+      artist: artist || "",
+      audioUrl: `gdrive:${saved.id}`,
+      duration: Number(duration) || 0,
+      coverUrl: coverUrl || "",
+      source: "upload",
+      isPublic: true,
+      createdByUserId: userId || null,
+    });
+    return toPublicTrack(row, baseUrl);
+  }
+
   const saved = store.saveAudioFile(buffer, ext);
   const audioUrl = `audio/${saved.filename}`;
 
@@ -206,15 +244,25 @@ async function attachMomentMusic({
   endTime,
   volume,
   originalVideoVolume,
+  baseUrl,
 }) {
-  const row = store.upsertMomentMusic({
-    momentId,
-    musicTrackId,
-    startTime,
-    endTime,
-    volume,
-    originalVideoVolume,
-  });
+  const row = musicDatabase.isAvailable()
+    ? await musicDatabase.upsertMomentMusic({
+        momentId,
+        musicTrackId,
+        startTime,
+        endTime,
+        volume,
+        originalVideoVolume,
+      })
+    : store.upsertMomentMusic({
+        momentId,
+        musicTrackId,
+        startTime,
+        endTime,
+        volume,
+        originalVideoVolume,
+      });
 
   if (isSupabaseConfigured) {
     try {
@@ -242,12 +290,14 @@ async function attachMomentMusic({
     originalVideoVolume: row.originalVideoVolume,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
-    track: toPublicTrack(row.track),
+    track: toPublicTrack(row.track, baseUrl),
   };
 }
 
 async function getMomentMusic(momentId, baseUrl) {
-  const row = store.getMomentMusic(momentId);
+  const row = musicDatabase.isAvailable()
+    ? await musicDatabase.getMomentMusic(momentId)
+    : store.getMomentMusic(momentId);
   if (!row) return null;
   return {
     id: row.id,
@@ -264,11 +314,17 @@ async function getMomentMusic(momentId, baseUrl) {
 }
 
 async function removeMomentMusic(momentId) {
-  return store.deleteMomentMusic(momentId);
+  return musicDatabase.isAvailable()
+    ? musicDatabase.deleteMomentMusic(momentId)
+    : store.deleteMomentMusic(momentId);
 }
 
 function resolveAudioFile(filename) {
   return store.getAudioAbsolutePath(filename);
+}
+
+async function resolvePersistentAudio(fileId) {
+  return downloadPersistentMedia(fileId);
 }
 
 module.exports = {
@@ -279,6 +335,7 @@ module.exports = {
   getMomentMusic,
   removeMomentMusic,
   resolveAudioFile,
+  resolvePersistentAudio,
   validateAudioFile,
   MAX_AUDIO_BYTES,
   toPublicTrack,

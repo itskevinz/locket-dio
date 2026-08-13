@@ -17,6 +17,7 @@ const {
   searchTracksController,
   uploadTrackController,
   streamAudioController,
+  streamPersistentAudioController,
   attachMomentMusicController,
   getMomentMusicController,
   deleteMomentMusicController,
@@ -49,6 +50,11 @@ musicRoutes.post(
   verifyIdToken,
   upload.single("file"),
   uploadTrackController,
+);
+musicRoutes.get(
+  "/music/audio/drive/:id",
+  generalApiLimit,
+  streamPersistentAudioController,
 );
 musicRoutes.get("/music/audio/:filename", generalApiLimit, streamAudioController);
 

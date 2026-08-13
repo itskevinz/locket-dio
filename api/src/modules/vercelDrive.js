@@ -12,7 +12,7 @@ const ADMIN_IDS = new Set(String(process.env.ADMIN_LOCAL_IDS || process.env.VITE
 let sqlClient = null;
 let driveConfigCache = null;
 let accessTokenCache = { token: "", exp: 0 };
-let folderCache = { root: "", image: "", video: "" };
+let folderCache = { root: "", image: "", video: "", music: "" };
 
 function dbUrl() {
   const raw = String(process.env.DATABASE_URL || process.env.NEON_DATABASE_URL || "").trim();
@@ -92,7 +92,7 @@ async function saveConfig(cfg) {
       updated_by = EXCLUDED.updated_by`;
   driveConfigCache = cfg;
   accessTokenCache = { token: "", exp: 0 };
-  folderCache = { root: "", image: "", video: "" };
+  folderCache = { root: "", image: "", video: "", music: "" };
   return cfg;
 }
 
@@ -165,7 +165,8 @@ async function ensureRootFolder(token, preferredId) {
 }
 
 async function ensureSubfolder(token, rootId, name) {
-  if (folderCache.root === rootId && folderCache[name === "Video" ? "video" : "image"]) return folderCache[name === "Video" ? "video" : "image"];
+  const cacheKey = name === "Video" ? "video" : name === "Music" ? "music" : "image";
+  if (folderCache.root === rootId && folderCache[cacheKey]) return folderCache[cacheKey];
   const q = `name='${name}' and '${rootId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
   const list = await fetch(`https://www.googleapis.com/drive/v3/files?${new URLSearchParams({ q, fields: "files(id,name)", pageSize: "5" })}`, { headers: { authorization: `Bearer ${token}` } });
   const data = await list.json().catch(() => ({}));
@@ -181,13 +182,15 @@ async function ensureSubfolder(token, rootId, name) {
     id = made.id;
   }
   folderCache.root = rootId;
-  folderCache[name === "Video" ? "video" : "image"] = id;
+  folderCache[cacheKey] = id;
   return id;
 }
 
 async function uploadBuffer(token, rootId, buffer, contentType, filename, mediaType) {
   const isVideo = mediaType === "video" || String(contentType).startsWith("video/");
-  const parentId = await ensureSubfolder(token, rootId, isVideo ? "Video" : "Ảnh");
+  const isAudio = mediaType === "audio" || String(contentType).startsWith("audio/");
+  const folderName = isAudio ? "Music" : isVideo ? "Video" : "Ảnh";
+  const parentId = await ensureSubfolder(token, rootId, folderName);
   const boundary = `----HuyLocket${Date.now()}`;
   const metadata = Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name: filename, parents: [parentId] })}\r\n--${boundary}\r\nContent-Type: ${contentType}\r\n\r\n`);
   const tail = Buffer.from(`\r\n--${boundary}--\r\n`);
@@ -199,7 +202,43 @@ async function uploadBuffer(token, rootId, buffer, contentType, filename, mediaT
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data?.error?.message || `Drive upload HTTP ${response.status}`);
-  return { ...data, folder: isVideo ? "Video" : "Ảnh" };
+  return { ...data, folder: folderName };
+}
+
+async function uploadPersistentMedia({ buffer, contentType, filename, mediaType }) {
+  const cfg = await readConfig();
+  if (!cfg.folderId || !cfg.oauth?.refreshToken) {
+    throw Object.assign(new Error("Google Drive is not configured"), { status: 503 });
+  }
+  const token = await getAccessToken(cfg);
+  return uploadBuffer(
+    token,
+    cfg.folderId,
+    buffer,
+    contentType || "application/octet-stream",
+    path.basename(filename || "huy-locket.bin"),
+    mediaType || "file",
+  );
+}
+
+async function downloadPersistentMedia(fileId) {
+  const id = String(fileId || "");
+  if (!/^[A-Za-z0-9_-]{10,200}$/.test(id)) return null;
+  const cfg = await readConfig();
+  if (!cfg.oauth?.refreshToken) return null;
+  const token = await getAccessToken(cfg);
+  const response = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?alt=media`,
+    { headers: { authorization: `Bearer ${token}` } },
+  );
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Drive download HTTP ${response.status}`);
+  const buffer = Buffer.from(await response.arrayBuffer());
+  return {
+    buffer,
+    contentType: response.headers.get("content-type") || "application/octet-stream",
+    size: buffer.length,
+  };
 }
 
 router.get("/drive-status", async (req, res) => {
@@ -351,3 +390,5 @@ router.all("/media-download", async (req, res) => {
 });
 
 module.exports = router;
+module.exports.uploadPersistentMedia = uploadPersistentMedia;
+module.exports.downloadPersistentMedia = downloadPersistentMedia;
