@@ -15,6 +15,37 @@ function short(value) {
   return String(value || "").trim().slice(0, 8);
 }
 
+function presentWebProbe(probe, apiCommit) {
+  if (!probe?.ok) {
+    return {
+      status: "ERROR",
+      detail: `Không đọc được version.json: ${probe?.error || "Không kết nối được"}`,
+      matchesApi: false,
+    };
+  }
+
+  const webCommit = String(probe.commit || "").trim();
+  const normalizedApiCommit = String(apiCommit || "").trim();
+  const hasComparableCommits = Boolean(normalizedApiCommit && webCommit);
+  const matchesApi = Boolean(
+    hasComparableCommits && normalizedApiCommit.startsWith(webCommit.slice(0, 8)),
+  );
+  // Frontend và API có thể được Railway/Vercel bỏ qua hoặc triển khai độc lập.
+  // Commit khác nhau là metadata phiên bản, không phải lỗi sức khỏe dịch vụ.
+  let deploymentNote = "";
+  if (hasComparableCommits) {
+    deploymentNote = matchesApi
+      ? " • cùng phiên bản API"
+      : " • Web/API triển khai độc lập";
+  }
+
+  return {
+    status: "OK",
+    detail: `Phản hồi ${probe.latencyMs}ms • commit ${short(webCommit) || "không rõ"}${deploymentNote}.`,
+    matchesApi,
+  };
+}
+
 async function probeVersion(baseUrl) {
   if (!baseUrl) return { ok: false, latencyMs: null, commit: "", error: "URL chưa cấu hình" };
   const started = Date.now();
@@ -91,12 +122,8 @@ async function getSystemStatus() {
     probeVersion(railwayWebUrl),
   ]);
 
-  const vercelCommitMatches = Boolean(
-    apiCommit && vercelProbe.commit && apiCommit.startsWith(vercelProbe.commit.slice(0, 8)),
-  );
-  const railwayCommitMatches = Boolean(
-    apiCommit && railwayWebProbe.commit && apiCommit.startsWith(railwayWebProbe.commit.slice(0, 8)),
-  );
+  const vercelWebStatus = presentWebProbe(vercelProbe, apiCommit);
+  const railwayWebStatus = presentWebProbe(railwayWebProbe, apiCommit);
 
   const services = [
     item(
@@ -109,19 +136,15 @@ async function getSystemStatus() {
     item(
       "vercel-web",
       "Vercel Web",
-      !vercelProbe.ok ? "ERROR" : apiCommit && vercelProbe.commit && !vercelCommitMatches ? "WARNING" : "OK",
-      !vercelProbe.ok
-        ? `Không đọc được version.json: ${vercelProbe.error}`
-        : `Phản hồi ${vercelProbe.latencyMs}ms • commit ${short(vercelProbe.commit) || "không rõ"}${apiCommit && vercelProbe.commit ? (vercelCommitMatches ? " • đồng bộ API" : " • KHÁC commit API") : ""}.`,
+      vercelWebStatus.status,
+      vercelWebStatus.detail,
       { latencyMs: vercelProbe.latencyMs, commit: vercelProbe.commit, url: vercelUrl },
     ),
     item(
       "railway-web",
       "Railway Web",
-      !railwayWebProbe.ok ? "ERROR" : apiCommit && railwayWebProbe.commit && !railwayCommitMatches ? "WARNING" : "OK",
-      !railwayWebProbe.ok
-        ? `Không đọc được version.json: ${railwayWebProbe.error}`
-        : `Phản hồi ${railwayWebProbe.latencyMs}ms • commit ${short(railwayWebProbe.commit) || "không rõ"}${apiCommit && railwayWebProbe.commit ? (railwayCommitMatches ? " • đồng bộ API" : " • KHÁC commit API") : ""}.`,
+      railwayWebStatus.status,
+      railwayWebStatus.detail,
       { latencyMs: railwayWebProbe.latencyMs, commit: railwayWebProbe.commit, url: railwayWebUrl },
     ),
     item(
@@ -174,11 +197,11 @@ async function getSystemStatus() {
       api: apiCommit,
       vercel: vercelProbe.commit,
       railwayWeb: railwayWebProbe.commit,
-      vercelMatchesApi: vercelCommitMatches,
-      railwayWebMatchesApi: railwayCommitMatches,
+      vercelMatchesApi: vercelWebStatus.matchesApi,
+      railwayWebMatchesApi: railwayWebStatus.matchesApi,
     },
     services,
   };
 }
 
-module.exports = { getSystemStatus };
+module.exports = { getSystemStatus, presentWebProbe };
