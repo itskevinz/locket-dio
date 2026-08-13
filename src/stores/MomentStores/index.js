@@ -8,6 +8,7 @@ import {
   getMomentsByUser,
 } from "@/cache/momentDB";
 import { mergeMomentMediaFields } from "@/utils/moment/momentMediaFields";
+import { mergeStableMomentOrder } from "@/utils/moment/stableMomentOrder";
 
 const { initialVisible, loadMoreLimit } = MOMENTS_CONFIG;
 
@@ -108,6 +109,23 @@ function sortByCreateTimeDesc(list) {
   );
 }
 
+function mergeFreshMomentsStable(existing, incoming) {
+  return mergeStableMomentOrder(
+    existing,
+    sortByCreateTimeDesc(incoming),
+    mergeMoment,
+  );
+}
+
+function appendOlderMomentsStable(existing, incoming) {
+  return mergeStableMomentOrder(
+    existing,
+    sortByCreateTimeDesc(incoming),
+    mergeMoment,
+    { newItemsAt: "end" },
+  );
+}
+
 /* --------------------------------------------------
  * Store
  * -------------------------------------------------- */
@@ -144,7 +162,11 @@ export const useMomentsStoreV2 = create((set, get) => ({
             ...bucket,
             loading: true,
             hasMore: true,
-            visibleCount: initialVisible,
+            // A soft auth/data refresh must not collapse an already expanded
+            // grid; shrinking it changes scrollHeight and jumps the viewport.
+            visibleCount: bucket.moments.length
+              ? Math.max(bucket.visibleCount, initialVisible)
+              : initialVisible,
           },
         },
       };
@@ -159,17 +181,12 @@ export const useMomentsStoreV2 = create((set, get) => ({
       if (localData?.length) {
         set((state) => {
           const bucket = state.momentsByUser[key] ?? defaultBucket();
-          const byId = new Map((bucket.moments || []).map((m) => [m.id, m]));
-          for (const m of localData) {
-            if (!m?.id) continue;
-            byId.set(m.id, mergeMoment(byId.get(m.id), m));
-          }
           return {
             momentsByUser: {
               ...state.momentsByUser,
               [key]: {
                 ...bucket,
-                moments: sortByCreateTimeDesc([...byId.values()]),
+                moments: mergeFreshMomentsStable(bucket.moments, localData),
               },
             },
           };
@@ -195,12 +212,7 @@ export const useMomentsStoreV2 = create((set, get) => ({
 
         set((state) => {
           const bucket = state.momentsByUser[key] ?? defaultBucket();
-          const byId = new Map((bucket.moments || []).map((m) => [m.id, m]));
-          for (const m of apiData) {
-            if (!m?.id) continue;
-            byId.set(m.id, mergeMoment(byId.get(m.id), m));
-          }
-          mergedForCache = sortByCreateTimeDesc([...byId.values()]);
+          mergedForCache = mergeFreshMomentsStable(bucket.moments, apiData);
           
           return {
             momentsByUser: {
@@ -320,19 +332,14 @@ export const useMomentsStoreV2 = create((set, get) => ({
           if (filtered.length > 0) {
             hasNewItems = true;
             
-            // Merge into cache and sort
-            const mergedMoments = [...b.moments];
-            for (const item of filtered) {
-              mergedMoments.push(mergeMoment(null, item));
-            }
-            const newlySortedMoments = sortByCreateTimeDesc(mergedMoments);
-
             return {
               momentsByUser: {
                 ...state.momentsByUser,
                 [key]: {
                   ...b,
-                  moments: newlySortedMoments,
+                  // Pagination only appends genuinely older ids. Re-sorting
+                  // the entire visible grid here used to move the user's row.
+                  moments: appendOlderMomentsStable(b.moments, filtered),
                   nextCursorSeconds: newCursorSeconds,
                 },
               },
@@ -412,6 +419,7 @@ export const useMomentsStoreV2 = create((set, get) => ({
 
     set((state) => {
       const next = { ...state.momentsByUser };
+      const freshByBucket = new Map();
 
       for (const raw of items) {
         if (!raw?.id) continue;
@@ -421,23 +429,24 @@ export const useMomentsStoreV2 = create((set, get) => ({
         };
 
         const ownerUid = m.userUid || m.user || m.owner;
-        const keys = [ownerUid ?? "all", "all"];
+        const keys = new Set([ownerUid ?? "all", "all"]);
 
         for (const key of keys) {
           if (!key) continue;
-
-          const bucket = next[key] ?? defaultBucket();
-          const existing = bucket.moments.find((i) => i.id === m.id);
-          const merged = mergeMoment(existing, m);
-          const rest = bucket.moments.filter((i) => i.id !== m.id);
-
-          next[key] = {
-            ...bucket,
-            moments: sortByCreateTimeDesc([merged, ...rest]),
-          };
+          const pending = freshByBucket.get(key) || [];
+          pending.push(m);
+          freshByBucket.set(key, pending);
         }
 
         dbQueue.push(m);
+      }
+
+      for (const [key, fresh] of freshByBucket) {
+        const bucket = next[key] ?? defaultBucket();
+        next[key] = {
+          ...bucket,
+          moments: mergeFreshMomentsStable(bucket.moments, fresh),
+        };
       }
 
       return { momentsByUser: next };
@@ -471,30 +480,22 @@ export const useMomentsStoreV2 = create((set, get) => ({
       set((state) => {
         const next = { ...state.momentsByUser };
         const bucket = next[key] ?? defaultBucket();
-        const byId = new Map(bucket.moments.map((m) => [m.id, m]));
-
+        const mergedMoments = mergeFreshMomentsStable(bucket.moments, apiData);
+        const mergedById = new Map(mergedMoments.map((m) => [m.id, m]));
         for (const m of apiData) {
-          if (!m?.id) continue;
-          const merged = mergeMoment(byId.get(m.id), m);
-          byId.set(m.id, merged);
-          dbQueue.push(merged);
+          if (m?.id && mergedById.has(m.id)) dbQueue.push(mergedById.get(m.id));
         }
 
         next[key] = {
           ...bucket,
-          moments: sortByCreateTimeDesc([...byId.values()]),
+          moments: mergedMoments,
         };
 
         if (key !== "all") {
           const all = next["all"] ?? defaultBucket();
-          const allById = new Map(all.moments.map((m) => [m.id, m]));
-          for (const m of apiData) {
-            if (!m?.id) continue;
-            allById.set(m.id, mergeMoment(allById.get(m.id), m));
-          }
           next["all"] = {
             ...all,
-            moments: sortByCreateTimeDesc([...allById.values()]),
+            moments: mergeFreshMomentsStable(all.moments, apiData),
           };
         }
 

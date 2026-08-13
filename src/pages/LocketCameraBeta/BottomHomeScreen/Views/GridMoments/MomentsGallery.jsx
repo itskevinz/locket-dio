@@ -1,4 +1,10 @@
-import { useEffect, useState, useRef } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { ImageOff } from "lucide-react";
 import { MdSlowMotionVideo } from "react-icons/md";
 import ScrollReveal from "@/components/Effects/ScrollReveal";
@@ -20,6 +26,7 @@ const MomentsGallery = ({
 }) => {
   const setSelectedMoment = useSelectedStore((s) => s.setSelectedMoment);
   const setSelectedMomentId = useSelectedStore((s) => s.setSelectedMomentId);
+  const selectedMoment = useSelectedStore((s) => s.selectedMoment);
   const selectedFriendUid = useSelectedStore((s) => s.selectedFriendUid);
 
   const [loadedItems, setLoadedItems] = useState([]);
@@ -28,8 +35,101 @@ const MomentsGallery = ({
   const attemptedUrlsRef = useRef(new Map());
   const lastElementRef = useRef(null);
   const observerRef = useRef(null);
+  const scrollAnchorRef = useRef(null);
+  const detailWasOpenRef = useRef(false);
+  const scrollFrameRef = useRef(null);
 
   const visibleMoments = moments.slice(0, visibleCount);
+  const visibleMomentIds = visibleMoments.map((item) => String(item.id)).join("|");
+
+  const getScrollContainer = useCallback(
+    () => document.querySelector('[data-ios-history-scroll="true"]'),
+    [],
+  );
+
+  const captureScrollAnchor = useCallback(() => {
+    const container = getScrollContainer();
+    if (!container) return;
+
+    const containerTop = container.getBoundingClientRect().top;
+    const tiles = Array.from(
+      container.querySelectorAll("[data-history-moment-id]"),
+    );
+    const firstVisible = tiles.find(
+      (tile) => tile.getBoundingClientRect().bottom > containerTop + 1,
+    );
+
+    scrollAnchorRef.current = {
+      momentId: firstVisible?.dataset.historyMomentId || null,
+      offset: firstVisible
+        ? firstVisible.getBoundingClientRect().top - containerTop
+        : 0,
+      scrollTop: container.scrollTop,
+    };
+  }, [getScrollContainer]);
+
+  const restoreScrollAnchor = useCallback(() => {
+    const container = getScrollContainer();
+    const anchor = scrollAnchorRef.current;
+    if (!container || !anchor) return;
+
+    // At the real top, showing a genuinely new post is expected. Anchoring is
+    // only needed once the user has intentionally scrolled into the history.
+    if (anchor.scrollTop <= 1) {
+      container.scrollTop = 0;
+      return;
+    }
+
+    const anchoredTile = Array.from(
+      container.querySelectorAll("[data-history-moment-id]"),
+    ).find((tile) => tile.dataset.historyMomentId === anchor.momentId);
+
+    if (!anchoredTile) {
+      container.scrollTop = anchor.scrollTop;
+      return;
+    }
+
+    const containerTop = container.getBoundingClientRect().top;
+    const currentOffset = anchoredTile.getBoundingClientRect().top - containerTop;
+    const delta = currentOffset - anchor.offset;
+    if (Math.abs(delta) > 0.5) container.scrollTop += delta;
+  }, [getScrollContainer]);
+
+  useEffect(() => {
+    const container = getScrollContainer();
+    if (!container) return undefined;
+
+    const scheduleCapture = () => {
+      if (scrollFrameRef.current) {
+        cancelAnimationFrame(scrollFrameRef.current);
+      }
+      scrollFrameRef.current = requestAnimationFrame(captureScrollAnchor);
+    };
+
+    scheduleCapture();
+    container.addEventListener("scroll", scheduleCapture, { passive: true });
+    return () => {
+      container.removeEventListener("scroll", scheduleCapture);
+      if (scrollFrameRef.current) cancelAnimationFrame(scrollFrameRef.current);
+    };
+  }, [captureScrollAnchor, getScrollContainer]);
+
+  // React may prepend a new socket/API item while the user is halfway down the
+  // grid. Keep the first visible moment at the same pixel instead of jumping.
+  useLayoutEffect(() => {
+    restoreScrollAnchor();
+    scrollFrameRef.current = requestAnimationFrame(captureScrollAnchor);
+    return () => cancelAnimationFrame(scrollFrameRef.current);
+  }, [visibleMomentIds, captureScrollAnchor, restoreScrollAnchor]);
+
+  // The detail viewer overlays the still-mounted grid. Restore by moment id,
+  // not by an index that may have changed during a background refresh.
+  useLayoutEffect(() => {
+    const detailOpen = typeof selectedMoment === "number";
+    if (detailOpen && !detailWasOpenRef.current) captureScrollAnchor();
+    if (!detailOpen && detailWasOpenRef.current) restoreScrollAnchor();
+    detailWasOpenRef.current = detailOpen;
+  }, [selectedMoment, captureScrollAnchor, restoreScrollAnchor]);
 
   // Infinite scroll — tự load thêm khi chạm cuối
   useEffect(() => {
@@ -149,6 +249,7 @@ const MomentsGallery = ({
         return (
           <ScrollReveal
             key={item.id}
+            data-history-moment-id={String(item.id)}
             delay={(index % 6) * 0.05}
             amount={0.1}
           >
@@ -156,6 +257,7 @@ const MomentsGallery = ({
               ref={isLastItem ? lastElementRef : null}
               data-ios-history-tile="true"
               onClick={() => {
+                captureScrollAnchor();
                 setSelectedMoment(index);
                 setSelectedMomentId(item.id);
               }}

@@ -14,9 +14,7 @@ const POLL_ONLINE_MS = isAndroidUA ? 45_000 : 25_000;
 
 const BottomHomeScreen = () => {
   const {
-    isHomeOpen,
     isBottomOpen,
-    isProfileOpen,
   } = useAppNavigation();
 
   const selectedMoment = useSelectedStore((s) => s.selectedMoment);
@@ -35,9 +33,11 @@ const BottomHomeScreen = () => {
   const friendRef = useRef(selectedFriendUid);
   friendRef.current = selectedFriendUid;
 
+  // Changing side panels must not collapse the active history grid. Only a
+  // real account/friend filter change starts that bucket from its first page.
   useEffect(() => {
     resetVisible(selectedFriendUid);
-  }, [isBottomOpen, isHomeOpen, isProfileOpen, selectedFriendUid, resetVisible]);
+  }, [selectedFriendUid, resetVisible]);
 
   // Initial load + when filter friend changes
   useEffect(() => {
