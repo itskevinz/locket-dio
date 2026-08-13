@@ -4,6 +4,9 @@ const constants = require("../../utils/constants");
 const { instanceLocketV2 } = require("../../libs");
 const { createAnalytics } = require("../LocketAnalytics");
 
+const RELATIONSHIP_VERIFY_DELAYS_MS = [0, 250, 700, 1400, 2200];
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const normalizeUpstreamFailure = (error, fallbackMessage) => {
   const status = Number(error?.response?.status) || 502;
   let code = "UPSTREAM_ERROR";
@@ -283,6 +286,22 @@ const rejectOutgoingFriendRequest = async (idToken, uid) => {
  * @returns {object} Kết quả thành công hoặc lỗi
  */
 const SendToFriendRequest = async ({ idToken, friendUid, appcheckToken }) => {
+  const existing = await verifiedRelationship(idToken, friendUid, {
+    allowCelebrityStates: false,
+  });
+  if (existing) {
+    console.log("[friends] normal friend relationship already persisted", {
+      uid: friendUid,
+      relationship: existing.relationship,
+    });
+    return confirmedRequestResult({
+      friendUid,
+      relationship: existing.relationship,
+      sentNow: false,
+      alreadyPersisted: true,
+    });
+  }
+
   const body = {
     data: {
       user_uid: friendUid,
@@ -307,23 +326,47 @@ const SendToFriendRequest = async ({ idToken, friendUid, appcheckToken }) => {
     });
 
     const result = response.data?.result;
-    if (result?.data === null || result?.data === undefined) {
-      return {
-        success: false,
-        status: 400,
-        code: "UPSTREAM_REJECTED",
-        message: "Locket không chấp nhận lời mời kết bạn.",
-      };
+    const verifiedByFallback = confirmedResultFromUpstream(
+      result?.data,
+      friendUid,
+      { allowCelebrityStates: false },
+    );
+    if (verifiedByFallback) return verifiedByFallback;
+
+    const persisted = await waitForVerifiedRelationship(idToken, friendUid, {
+      allowCelebrityStates: false,
+    });
+    if (persisted) {
+      return confirmedRequestResult({
+        friendUid,
+        relationship: persisted.relationship,
+        sentNow: true,
+        upstreamData: result?.data,
+      });
     }
 
     return {
-      success: true,
-      data: result.data,
+      success: false,
+      status: 502,
+      code: "REQUEST_NOT_CONFIRMED",
+      message:
+        "Locket đã phản hồi nhưng chưa ghi nhận lời mời. Hệ thống không báo thành công để tránh sai trạng thái.",
     };
   } catch (error) {
     console.error("[friends] upstream sendFriendRequest failed", {
       status: error?.response?.status || null,
     });
+    const persisted = await waitForVerifiedRelationship(idToken, friendUid, {
+      allowCelebrityStates: false,
+    });
+    if (persisted) {
+      return confirmedRequestResult({
+        friendUid,
+        relationship: persisted.relationship,
+        sentNow: true,
+      });
+    }
+
     return normalizeUpstreamFailure(
       error,
       "Không thể gửi lời mời kết bạn qua Locket.",
@@ -380,6 +423,7 @@ const AcceptToFriendRequest = async (idToken, friend_uid) => {
   }
 };
 
+const NORMAL_GOAL_STATES = new Set(["friends", "outgoing-request"]);
 const CELEB_GOAL_STATES = new Set([
   "friends",
   "outgoing-request",
@@ -387,12 +431,26 @@ const CELEB_GOAL_STATES = new Set([
   "follower-waitlist",
 ]);
 
-function normalizeRelationshipStatus(user) {
-  const status = String(user?.friendship_status || "").trim().toLowerCase();
-  return CELEB_GOAL_STATES.has(status) ? status : "";
+function normalizeRelationshipValue(value) {
+  const status = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, "-");
+  if (status === "friend") return "friends";
+  return status;
 }
 
-async function getCelebrityRelationshipStatus(idToken, friendUid) {
+function normalizeRelationshipStatus(user, { allowCelebrityStates = true } = {}) {
+  const status = normalizeRelationshipValue(user?.friendship_status);
+  const allowed = allowCelebrityStates ? CELEB_GOAL_STATES : NORMAL_GOAL_STATES;
+  return allowed.has(status) ? status : "";
+}
+
+async function getRelationshipStatus(
+  idToken,
+  friendUid,
+  { allowCelebrityStates = true } = {},
+) {
   if (!idToken || !friendUid) return "";
 
   let username = "";
@@ -403,11 +461,13 @@ async function getCelebrityRelationshipStatus(idToken, friendUid) {
       { meta: { idToken } },
     );
     const user = fetched?.data?.result?.data || null;
-    const directStatus = normalizeRelationshipStatus(user);
+    const directStatus = normalizeRelationshipStatus(user, {
+      allowCelebrityStates,
+    });
     if (directStatus) return directStatus;
     username = String(user?.username || "").trim();
   } catch (error) {
-    console.warn("[friends] celeb relationship fetchUserV2 check failed", {
+    console.warn("[friends] relationship fetchUserV2 check failed", {
       status: error?.response?.status || null,
       code: error?.code || null,
     });
@@ -426,9 +486,11 @@ async function getCelebrityRelationshipStatus(idToken, friendUid) {
       },
       { meta: { idToken } },
     );
-    return normalizeRelationshipStatus(found?.data?.result?.data);
+    return normalizeRelationshipStatus(found?.data?.result?.data, {
+      allowCelebrityStates,
+    });
   } catch (error) {
-    console.warn("[friends] celeb relationship username check failed", {
+    console.warn("[friends] relationship username check failed", {
       status: error?.response?.status || null,
       code: error?.code || null,
     });
@@ -436,34 +498,93 @@ async function getCelebrityRelationshipStatus(idToken, friendUid) {
   }
 }
 
-async function verifiedCelebrityRelationship(idToken, friendUid) {
-  const relationship = await getCelebrityRelationshipStatus(idToken, friendUid);
+async function verifiedRelationship(
+  idToken,
+  friendUid,
+  { allowCelebrityStates = true } = {},
+) {
+  const relationship = await getRelationshipStatus(idToken, friendUid, {
+    allowCelebrityStates,
+  });
   if (!relationship) return null;
+  return { relationship };
+}
+
+async function waitForVerifiedRelationship(
+  idToken,
+  friendUid,
+  { allowCelebrityStates = true } = {},
+) {
+  for (const delayMs of RELATIONSHIP_VERIFY_DELAYS_MS) {
+    if (delayMs > 0) await sleep(delayMs);
+    const persisted = await verifiedRelationship(idToken, friendUid, {
+      allowCelebrityStates,
+    });
+    if (persisted) return persisted;
+  }
+  return null;
+}
+
+function confirmedRequestResult({
+  friendUid,
+  relationship,
+  sentNow,
+  alreadyPersisted = false,
+  upstreamData,
+}) {
+  const normalizedRelationship = normalizeRelationshipValue(relationship);
   return {
     success: true,
+    uid: friendUid,
+    relationship: normalizedRelationship,
+    sentNow: Boolean(sentNow),
+    alreadyPersisted: Boolean(alreadyPersisted),
     data: {
       verified: true,
-      relationship,
+      relationship: normalizedRelationship,
+      sentNow: Boolean(sentNow),
+      alreadyPersisted: Boolean(alreadyPersisted),
+      ...(upstreamData !== undefined ? { upstreamData } : {}),
     },
-    uid: friendUid,
-    relationship,
   };
+}
+
+function confirmedResultFromUpstream(
+  data,
+  friendUid,
+  { allowCelebrityStates = true } = {},
+) {
+  if (data?.verified !== true) return null;
+  const relationship = normalizeRelationshipValue(data?.relationship);
+  const allowed = allowCelebrityStates ? CELEB_GOAL_STATES : NORMAL_GOAL_STATES;
+  if (!allowed.has(relationship)) return null;
+
+  const alreadyPersisted = Boolean(data?.alreadyPersisted);
+  return confirmedRequestResult({
+    friendUid,
+    relationship,
+    sentNow: !alreadyPersisted,
+    alreadyPersisted,
+    upstreamData: data?.upstreamData,
+  });
 }
 
 const SendAddCelebrity = async (idToken, friend_uid, token) => {
   // Celeb follow uses a different relationship model from normal friend requests.
   // If a request is already pending/friends, do not spam another mutation just
   // because the slot monitor DB has not yet recorded SENT.
-  const existing = await verifiedCelebrityRelationship(idToken, friend_uid);
+  const existing = await verifiedRelationship(idToken, friend_uid);
   if (existing) {
     console.log("[friends] celebrity relationship already persisted", {
       uid: friend_uid,
       relationship: existing.relationship,
     });
-    return {
-      ...existing,
+    return confirmedRequestResult({
+      friendUid: friend_uid,
+      relationship: existing.relationship,
+      sentNow: false,
       alreadyPersisted: true,
-    };
+    });
   }
 
   const body = {
@@ -479,21 +600,28 @@ const SendAddCelebrity = async (idToken, friend_uid, token) => {
       meta: { idToken, appCheckToken: token },
     });
     const result = response.data?.result;
-    if (result?.data === null || result?.data === undefined) {
-      const persisted = await verifiedCelebrityRelationship(idToken, friend_uid);
-      if (persisted) return persisted;
-      return {
-        success: false,
-        status: 400,
-        code: "UPSTREAM_REJECTED",
-        message: "Locket không chấp nhận yêu cầu theo dõi.",
-      };
+    const verifiedByFallback = confirmedResultFromUpstream(
+      result?.data,
+      friend_uid,
+    );
+    if (verifiedByFallback) return verifiedByFallback;
+
+    const persisted = await waitForVerifiedRelationship(idToken, friend_uid);
+    if (persisted) {
+      return confirmedRequestResult({
+        friendUid: friend_uid,
+        relationship: persisted.relationship,
+        sentNow: true,
+        upstreamData: result?.data,
+      });
     }
 
     return {
-      success: true,
-      data: result.data,
-      uid: friend_uid,
+      success: false,
+      status: 502,
+      code: "REQUEST_NOT_CONFIRMED",
+      message:
+        "Locket đã phản hồi nhưng chưa ghi nhận request Celeb. Hệ thống không báo thành công để tránh sai trạng thái.",
     };
   } catch (error) {
     console.error("[friends] upstream sendFollowRequest failed", {
@@ -505,13 +633,17 @@ const SendAddCelebrity = async (idToken, friend_uid, token) => {
     // represented by friendship_status, not necessarily by the normal
     // outgoing_friend_requests collection, so verify the real Locket relationship
     // before reporting a false failure.
-    const persisted = await verifiedCelebrityRelationship(idToken, friend_uid);
+    const persisted = await waitForVerifiedRelationship(idToken, friend_uid);
     if (persisted) {
       console.log("[friends] celebrity request verified after upstream auth fallback", {
         uid: friend_uid,
         relationship: persisted.relationship,
       });
-      return persisted;
+      return confirmedRequestResult({
+        friendUid: friend_uid,
+        relationship: persisted.relationship,
+        sentNow: true,
+      });
     }
 
     return normalizeUpstreamFailure(

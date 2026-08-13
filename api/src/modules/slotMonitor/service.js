@@ -306,20 +306,38 @@ async function sendRealCelebrityRequest(userUid, idToken, watch) {
       );
 
       if (result?.success) {
+        const sentNow = Boolean(result?.data?.sentNow ?? result?.sentNow);
+        const alreadyPersisted = Boolean(
+          result?.data?.alreadyPersisted ?? result?.alreadyPersisted,
+        );
+        const relationship = String(
+          result?.data?.relationship || result?.relationship || "",
+        );
         await store.markAutoRequestResult(userUid, watch.celeb_uid, {
           status: "SENT",
         });
-        console.log("[slot-monitor] real celebrity request sent", {
-          userUid,
-          username: watch.username,
-          attempt,
-        });
+        console.log(
+          sentNow
+            ? "[slot-monitor] real celebrity request sent and verified"
+            : "[slot-monitor] celebrity relationship already verified",
+          {
+            userUid,
+            username: watch.username,
+            attempt,
+            relationship: relationship || null,
+          },
+        );
         return {
           enabled: true,
           attempted: true,
           success: true,
+          sentNow,
+          alreadyPersisted,
+          relationship: relationship || null,
           code: null,
-          message: "Locket đã xác nhận yêu cầu Celeb.",
+          message: sentNow
+            ? "Locket đã ghi nhận request Celeb vừa gửi."
+            : "Locket xác nhận request/quan hệ Celeb đã tồn tại nên Railway không gửi lặp.",
           attempts: attempt,
         };
       }
@@ -459,8 +477,13 @@ async function processWatchSnapshot(
       let title = "🔥 Slot vừa mở!";
 
       if (autoRequest.success === true) {
-        title = "⚡ Có slot — đã gửi request Celeb!";
-        body = `@${watch.username} còn ${count.toLocaleString("vi-VN")} slot. Railway đã gửi yêu cầu kết bạn Celeb thật và Locket đã xác nhận.`;
+        if (autoRequest.sentNow === true) {
+          title = "⚡ Có slot — đã gửi và xác nhận request Celeb!";
+          body = `@${watch.username} còn ${count.toLocaleString("vi-VN")} slot. Railway vừa gửi request Celeb và đã kiểm tra thấy trạng thái được lưu trên Locket.`;
+        } else {
+          title = "✓ Có slot — request Celeb đã tồn tại";
+          body = `@${watch.username} còn ${count.toLocaleString("vi-VN")} slot. Locket đã có request/quan hệ với tài khoản này từ trước nên Railway không gửi lặp.`;
+        }
       } else if (autoRequest.enabled && autoRequest.success === false) {
         title = "⚠️ Có slot nhưng tự kết bạn chưa thành công";
         body = `@${watch.username} còn ${count.toLocaleString("vi-VN")} slot. Locket chưa xác nhận request tự động; hệ thống nền sẽ tiếp tục xử lý theo chính sách retry.`;
@@ -488,7 +511,11 @@ async function processWatchSnapshot(
         watch.celeb_uid,
         transition.friendCount,
         transition.maxFriends,
-        autoRequest.success === true ? "auto-sent" : "slot-open",
+        autoRequest.success === true
+          ? autoRequest.sentNow === true
+            ? "auto-sent-verified"
+            : "auto-already-verified"
+          : "slot-open",
       ].join("-");
 
       await Promise.allSettled([

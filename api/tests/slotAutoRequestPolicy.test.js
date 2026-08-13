@@ -19,6 +19,14 @@ test("Celeb auto-request only retries transient failures", () => {
   assert.equal(isRetryableAutoRequestFailure({ status: 403, code: "UPSTREAM_AUTH_FAILED" }), false);
   assert.equal(isRetryableAutoRequestFailure({ status: 409, code: "REQUEST_CONFLICT" }), false);
   assert.equal(isRetryableAutoRequestFailure({ status: 400, code: "UPSTREAM_REJECTED" }), false);
+  assert.equal(
+    isRetryableAutoRequestFailure({ status: 502, code: "REQUEST_NOT_CONFIRMED" }),
+    false,
+  );
+  assert.equal(
+    isRetryableAutoRequestFailure({ status: 502, code: "DIO_REQUEST_NOT_CONFIRMED" }),
+    false,
+  );
 });
 
 test("App Check device token configuration errors are not retried", () => {

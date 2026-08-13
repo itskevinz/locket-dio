@@ -259,7 +259,7 @@ router.post("/retry/:uid", verifyIdToken, async (req, res, next) => {
         code: latest?.last_auto_request_status === "SENT" ? null : "AUTO_REQUEST_FAILED",
         message:
           latest?.last_auto_request_status === "SENT"
-            ? "Locket đã xác nhận yêu cầu Celeb."
+            ? "Locket đã xác nhận trạng thái request/quan hệ Celeb."
             : latest?.last_auto_request_error || "Locket chưa xác nhận request Celeb.",
       };
     } else {

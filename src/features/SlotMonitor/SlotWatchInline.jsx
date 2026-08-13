@@ -29,6 +29,7 @@ import {
   updateWatch,
 } from "./slotMonitorStorage";
 import { getMyLocalId } from "@/utils/auth/getMyLocalId";
+import NormalFriendRequestTest from "./NormalFriendRequestTest";
 
 const statusLabel = (status) => {
   switch (status) {
@@ -270,7 +271,8 @@ export default function SlotWatchInline() {
 
           <p className="mt-3 text-xs text-base-content/55">
             <Zap size={13} className="inline -mt-0.5 mr-1" />
-            Tự kết bạn Celeb là thao tác thật: Railway chỉ báo “đã gửi” khi API Locket xác nhận request.
+            Railway chỉ báo “vừa gửi” khi đọc lại thấy request trên Locket. Nếu
+            request/quan hệ đã có từ trước, hệ thống sẽ nói rõ và không gửi lặp.
           </p>
 
           {syncingAccount && (
@@ -290,6 +292,8 @@ export default function SlotWatchInline() {
             </p>
           )}
         </header>
+
+        <NormalFriendRequestTest />
 
         <div className="p-3 sm:p-5">
           {watchedCelebs.length === 0 ? (
@@ -390,7 +394,7 @@ export default function SlotWatchInline() {
 
                       {celeb.lastAutoRequestStatus === "SENT" && (
                         <p className="mt-2 text-[11px] text-success">
-                          ✓ Lần gần nhất Locket đã xác nhận request • {timeAgo(celeb.lastAutoRequestAt)}
+                          ✓ Lần gần nhất Locket đã xác nhận trạng thái request/quan hệ • {timeAgo(celeb.lastAutoRequestAt)}
                         </p>
                       )}
                       {celeb.lastAutoRequestStatus === "FAILED" && (

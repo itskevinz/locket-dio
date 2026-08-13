@@ -166,3 +166,41 @@ test("Gmail reports Auto failure even when the saved session failed before sendi
   );
   assert.match(buildEmailHtml(payload, message), /tự kết bạn chưa thành công/i);
 });
+
+test("Gmail distinguishes a newly verified request from an existing relationship", () => {
+  const basePayload = {
+    type: "slot-open",
+    title: "Có slot",
+    body: "Kết quả xác minh Locket.",
+    url: "/friends?slot=1&username=celeb",
+    celeb: {
+      username: "celeb",
+      availableSlots: 1,
+      friendCount: 999,
+      maxFriends: 1000,
+    },
+  };
+
+  const sentPayload = {
+    ...basePayload,
+    autoRequest: { enabled: true, success: true, sentNow: true },
+  };
+  const existingPayload = {
+    ...basePayload,
+    autoRequest: {
+      enabled: true,
+      success: true,
+      sentNow: false,
+      alreadyPersisted: true,
+    },
+  };
+
+  assert.equal(
+    buildEmailSubject(sentPayload, buildSlotMessage(sentPayload)),
+    "Duchi Locket | @celeb đã gửi và xác nhận request Celeb",
+  );
+  assert.equal(
+    buildEmailSubject(existingPayload, buildSlotMessage(existingPayload)),
+    "Duchi Locket | @celeb request Celeb đã tồn tại",
+  );
+});

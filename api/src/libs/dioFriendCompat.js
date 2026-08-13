@@ -110,13 +110,17 @@ function normalizeDioSuccess(data) {
   if (!data || typeof data !== "object" || data.success === false) return null;
 
   const nestedResult = data?.data?.result;
-  if (nestedResult && nestedResult.data !== null && nestedResult.data !== undefined) {
-    return { result: nestedResult };
+  if (nestedResult) {
+    return nestedResult.data !== null && nestedResult.data !== undefined
+      ? { result: nestedResult }
+      : null;
   }
 
   const directResult = data?.result;
-  if (directResult && directResult.data !== null && directResult.data !== undefined) {
-    return { result: directResult };
+  if (directResult) {
+    return directResult.data !== null && directResult.data !== undefined
+      ? { result: directResult }
+      : null;
   }
 
   if (data.success !== true) return null;

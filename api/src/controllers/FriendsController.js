@@ -281,7 +281,12 @@ const SendRequestToFriendsController = async (req, res, next) => {
       appcheckToken: token,
     });
     if (responseData?.success) {
-      logInfo("SendRequestToFriends", `✅ Đã gửi kết bạn tới: ${friendUid}`);
+      logInfo(
+        "SendRequestToFriends",
+        responseData?.data?.sentNow
+          ? `✅ Đã gửi và xác nhận kết bạn tới: ${friendUid}`
+          : `✅ Quan hệ kết bạn đã tồn tại với: ${friendUid}`,
+      );
       return res.status(200).json({
         success: true,
         message: "ok",
@@ -338,7 +343,9 @@ const SendRequestToCelebrityController = async (req, res, next) => {
     if (responseData?.success) {
       logInfo(
         "SendRequestToCelebrityController",
-        `✅ Đã gửi kết bạn tới: ${friendUid}`,
+        responseData?.data?.sentNow
+          ? `✅ Đã gửi và xác nhận request Celeb tới: ${friendUid}`
+          : `✅ Quan hệ/request Celeb đã tồn tại với: ${friendUid}`,
       );
       return res.status(200).json({
         success: true,

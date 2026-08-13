@@ -49,6 +49,10 @@ test("manual and Celeb requests continue through the shared Locket client", asyn
   assert.match(requests, /instanceLocketV2\.post\(["']sendFriendRequest["']/);
   assert.match(requests, /instanceLocketV2\.post\(["']sendFollowRequest["']/);
   assert.match(requests, /UPSTREAM_AUTH_FAILED/);
+  assert.match(requests, /waitForVerifiedRelationship/);
+  assert.match(requests, /REQUEST_NOT_CONFIRMED/);
+  assert.match(requests, /verified:\s*true/);
+  assert.match(requests, /sentNow/);
 });
 
 test("slot monitor keeps using the same Celeb request service as manual requests", async () => {
@@ -56,4 +60,19 @@ test("slot monitor keeps using the same Celeb request service as manual requests
 
   assert.match(slot, /requestServices\.SendAddCelebrity\(/);
   assert.match(slot, /real celebrity request sent/);
+  assert.match(slot, /celebrity relationship already verified/);
+  assert.match(slot, /autoRequest\.sentNow/);
+});
+
+test("Canh Slot exposes a one-shot normal friend verification test", async () => {
+  const page = await read("src/features/SlotMonitor/SlotWatchInline.jsx");
+  const testTool = await read(
+    "src/features/SlotMonitor/NormalFriendRequestTest.jsx",
+  );
+
+  assert.match(page, /<NormalFriendRequestTest\s*\/>/);
+  assert.match(testTool, /SendRequestToFriend\(user\.uid\)/);
+  assert.match(testTool, /verification\?\.verified !== true/);
+  assert.match(testTool, /verification\.sentNow === true/);
+  assert.match(testTool, /chỉ gửi đúng 1 lần/);
 });

@@ -16,6 +16,10 @@ const RETRYABLE_ERROR_CODES = new Set([
   "ENETUNREACH",
   "EHOSTUNREACH",
 ]);
+const UNSAFE_TO_RETRY_CODES = new Set([
+  "REQUEST_NOT_CONFIRMED",
+  "DIO_REQUEST_NOT_CONFIRMED",
+]);
 
 function toStatus(value) {
   const parsed = Number(value);
@@ -36,6 +40,12 @@ function pickMessage(input, fallbackMessage) {
 }
 
 function isRetryableAutoRequestFailure({ status, code }) {
+  if (UNSAFE_TO_RETRY_CODES.has(String(code || "").toUpperCase())) {
+    // Upstream may have accepted the mutation and only the verification read
+    // lagged. Retrying could create duplicate requests, so leave it for a later
+    // explicit/background state check instead of immediately sending again.
+    return false;
+  }
   if (status === 401 || status === 403 || status === 404 || status === 409) {
     return false;
   }

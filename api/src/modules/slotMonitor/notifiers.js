@@ -136,7 +136,10 @@ function buildEmailSubject(payload, message) {
   }
   if (payload?.type === "slot-open" && message.username) {
     if (payload?.autoRequest?.enabled && payload?.autoRequest?.success === true) {
-      return `${EMAIL_BRAND} | @${message.username} request Celeb thành công`.slice(0, 200);
+      if (payload?.autoRequest?.sentNow === true) {
+        return `${EMAIL_BRAND} | @${message.username} đã gửi và xác nhận request Celeb`.slice(0, 200);
+      }
+      return `${EMAIL_BRAND} | @${message.username} request Celeb đã tồn tại`.slice(0, 200);
     }
     if (payload?.autoRequest?.enabled && payload?.autoRequest?.success === false) {
       return `${EMAIL_BRAND} | @${message.username} request Celeb chưa thành công`.slice(0, 200);
