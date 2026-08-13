@@ -1,9 +1,6 @@
-import { createRequire } from "node:module";
-
-const require = createRequire(import.meta.url);
 let cachedHandler = null;
 
-export default function vercelWeb(req, res) {
+module.exports = function vercelWeb(req, res) {
   try {
     if (!cachedHandler) cachedHandler = require("./app.js");
     return cachedHandler(req, res);
@@ -17,4 +14,4 @@ export default function vercelWeb(req, res) {
       message: error?.message || String(error),
     }));
   }
-}
+};
