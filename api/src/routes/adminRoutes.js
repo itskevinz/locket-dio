@@ -15,8 +15,15 @@ const TRUST_DEVICE_COOKIE_OPTIONS = {
 };
 
 const userActivityStore = require("../services/userActivityStore");
-const { generateSecret, generateURI, verify } = require("otplib");
 const qrcode = require("qrcode");
+
+let otplibPromise;
+function getOtplib() {
+  // otplib 13 ships ESM dependencies that cannot be loaded through its CJS
+  // entrypoint in the Vercel Node runtime. The ESM entrypoint works correctly.
+  otplibPromise ||= import("otplib");
+  return otplibPromise;
+}
 const {
   ADMIN_FIREBASE_PROJECT_ID,
   getAdminAuth,
@@ -326,6 +333,7 @@ router.post("/session/verify-2fa", requireActivityDatabase, async (req, res) => 
     if (!info2fa?.is_two_factor_enabled || !info2fa?.two_factor_secret) {
       return res.status(400).json({ success: false, error: "Tài khoản chưa kích hoạt 2FA." });
     }
+    const { verify } = await getOtplib();
     const verification = await verify({
       token: String(otpCode).trim(),
       secret: info2fa.two_factor_secret,
@@ -372,6 +380,7 @@ router.get("/setup-2fa", requireActivityDatabase, requireActiveAdminSession, asy
   res.setHeader("Cache-Control", "no-store, max-age=0");
   try {
     const info2fa = await getAdmin2FAInfo(req.adminUid);
+    const { generateSecret, generateURI } = await getOtplib();
     let secret = info2fa?.two_factor_secret;
     if (!secret) {
       secret = await generateSecret();
@@ -404,6 +413,7 @@ router.post("/confirm-2fa", requireActivityDatabase, requireActiveAdminSession, 
     if (!info2fa?.two_factor_secret) {
       return res.status(400).json({ success: false, error: "Bạn chưa tạo mã QR nào trước đó." });
     }
+    const { verify } = await getOtplib();
     const verification = await verify({
       token: String(otpCode).trim(),
       secret: info2fa.two_factor_secret,
@@ -432,6 +442,7 @@ router.post("/disable-2fa", requireActivityDatabase, requireActiveAdminSession, 
     if (!info2fa?.is_two_factor_enabled || !info2fa?.two_factor_secret) {
       return res.status(400).json({ success: false, error: "Tài khoản chưa kích hoạt 2FA." });
     }
+    const { verify } = await getOtplib();
     const verification = await verify({
       token: String(otpCode).trim(),
       secret: info2fa.two_factor_secret,
