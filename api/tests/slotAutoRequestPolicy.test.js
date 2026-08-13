@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+  DEFAULT_RETRY_COOLDOWN_MS,
   MAX_AUTO_REQUEST_ATTEMPTS,
   getAutoRequestRetryDelayMs,
   hasEnabledAutoRequest,
@@ -12,6 +13,7 @@ const {
 
 test("Celeb auto-request only retries transient failures", () => {
   assert.equal(MAX_AUTO_REQUEST_ATTEMPTS, 3);
+  assert.equal(DEFAULT_RETRY_COOLDOWN_MS, 1_000);
   assert.equal(isRetryableAutoRequestFailure({ status: 502, code: "UPSTREAM_ERROR" }), true);
   assert.equal(isRetryableAutoRequestFailure({ status: 429, code: "RATE_LIMITED" }), true);
   assert.equal(isRetryableAutoRequestFailure({ status: null, code: "ECONNRESET" }), true);
@@ -112,11 +114,11 @@ test("FAILED auto requests wait for cooldown before the background retry", () =>
   };
 
   assert.equal(
-    shouldAttemptAutoRequest(watch, 1, { now: 12_000, retryCooldownMs: 5_000 }),
+    shouldAttemptAutoRequest(watch, 1, { now: 10_500 }),
     false,
   );
   assert.equal(
-    shouldAttemptAutoRequest(watch, 1, { now: 16_000, retryCooldownMs: 5_000 }),
+    shouldAttemptAutoRequest(watch, 1, { now: 11_000 }),
     true,
   );
 });

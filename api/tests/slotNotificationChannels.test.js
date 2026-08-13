@@ -139,11 +139,11 @@ test("Gmail test mail has official confirmation subject", () => {
   );
 });
 
-test("Gmail reports Auto failure even when the saved session failed before sending", () => {
+test("Gmail explicitly reports Auto failure even when sending never started", () => {
   const payload = {
     type: "slot-open",
-    title: "⚠️ Có slot nhưng tự kết bạn chưa thành công",
-    body: "@celeb còn 1 slot. Phiên nền chưa sẵn sàng.",
+    title: "❌ Có slot — gửi request Celeb thất bại",
+    body: "@celeb còn 1 slot. Gửi request Celeb thất bại: Phiên nền chưa sẵn sàng.",
     url: "/friends?slot=1&username=celeb",
     celeb: {
       username: "celeb",
@@ -162,9 +162,9 @@ test("Gmail reports Auto failure even when the saved session failed before sendi
 
   assert.equal(
     buildEmailSubject(payload, message),
-    "Duchi Locket | @celeb request Celeb chưa thành công",
+    "Duchi Locket | @celeb gửi request Celeb thất bại",
   );
-  assert.match(buildEmailHtml(payload, message), /tự kết bạn chưa thành công/i);
+  assert.match(buildEmailHtml(payload, message), /gửi request Celeb thất bại/i);
 });
 
 test("Gmail distinguishes a newly verified request from an existing relationship", () => {

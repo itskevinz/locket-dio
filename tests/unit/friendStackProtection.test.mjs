@@ -45,6 +45,9 @@ test("Dio compatibility fallback remains limited to friend and Celeb 401\/403", 
 
 test("manual and Celeb requests continue through the shared Locket client", async () => {
   const requests = await read("api/src/services/LocketFriend/RequestServices.js");
+  const relationshipPolicy = await read(
+    "api/src/services/LocketFriend/relationshipPolicy.js",
+  );
 
   assert.match(requests, /instanceLocketV2\.post\(["']sendFriendRequest["']/);
   assert.match(requests, /instanceLocketV2\.post\(["']sendFollowRequest["']/);
@@ -53,12 +56,15 @@ test("manual and Celeb requests continue through the shared Locket client", asyn
   assert.match(requests, /REQUEST_NOT_CONFIRMED/);
   assert.match(requests, /verified:\s*true/);
   assert.match(requests, /sentNow/);
+  assert.match(requests, /skipPreflight/);
+  assert.doesNotMatch(relationshipPolicy, /["']follower-waitlist["']/);
 });
 
 test("slot monitor keeps using the same Celeb request service as manual requests", async () => {
   const slot = await read("api/src/modules/slotMonitor/service.js");
 
   assert.match(slot, /requestServices\.SendAddCelebrity\(/);
+  assert.match(slot, /skipPreflight:\s*true/);
   assert.match(slot, /real celebrity request sent/);
   assert.match(slot, /celebrity relationship already verified/);
   assert.match(slot, /autoRequest\.sentNow/);

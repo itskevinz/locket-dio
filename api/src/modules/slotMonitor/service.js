@@ -303,6 +303,7 @@ async function sendRealCelebrityRequest(userUid, idToken, watch) {
         idToken,
         watch.celeb_uid,
         appCheckToken,
+        { skipPreflight: true },
       );
 
       if (result?.success) {
@@ -436,7 +437,12 @@ async function processWatchSnapshot(
 ) {
   try {
     const transition = computeTransition(watch, snapshot);
-    await store.updateWatchSnapshot(userUid, watch.celeb_uid, transition);
+    // Start the snapshot write without blocking the short-lived slot mutation.
+    // Convert rejection to a value immediately so it cannot become unhandled
+    // while the request is being verified against Locket.
+    const snapshotUpdatePromise = store
+      .updateWatchSnapshot(userUid, watch.celeb_uid, transition)
+      .then(() => null, (error) => error);
 
     let autoRequest = {
       enabled: Boolean(watch?.auto_request_enabled),
@@ -467,6 +473,9 @@ async function processWatchSnapshot(
       }
     }
 
+    const snapshotUpdateError = await snapshotUpdatePromise;
+    if (snapshotUpdateError) throw snapshotUpdateError;
+
     const shouldNotifyNow = Boolean(
       notify && (transition.shouldNotify || autoRequest.success === true),
     );
@@ -485,8 +494,12 @@ async function processWatchSnapshot(
           body = `@${watch.username} còn ${count.toLocaleString("vi-VN")} slot. Locket đã có request/quan hệ với tài khoản này từ trước nên Railway không gửi lặp.`;
         }
       } else if (autoRequest.enabled && autoRequest.success === false) {
-        title = "⚠️ Có slot nhưng tự kết bạn chưa thành công";
-        body = `@${watch.username} còn ${count.toLocaleString("vi-VN")} slot. Locket chưa xác nhận request tự động; hệ thống nền sẽ tiếp tục xử lý theo chính sách retry.`;
+        const reason = String(autoRequest.message || "Locket không xác nhận request")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 180);
+        title = "❌ Có slot — gửi request Celeb thất bại";
+        body = `@${watch.username} còn ${count.toLocaleString("vi-VN")} slot. Gửi request Celeb thất bại: ${reason}. Hệ thống sẽ thử lại ở lượt canh kế tiếp nếu slot vẫn còn.`;
       }
 
       const payload = {

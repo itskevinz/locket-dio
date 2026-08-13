@@ -1,5 +1,9 @@
 const axios = require("axios");
 const { getDioPublicApiKey } = require("../config/dioPublicApi");
+const {
+  isConfirmedRelationship,
+  normalizeRelationshipValue,
+} = require("../services/LocketFriend/relationshipPolicy");
 
 const DEFAULT_DIO_API_URL = "https://api.locket-dio.com";
 const DEFAULT_DIO_BETA_URL = "https://api-beta.locket-dio.com";
@@ -10,13 +14,6 @@ const FIRESTORE_USERS_BASE =
 const LOCKET_API_BASE = "https://api.locketcamera.com";
 const VERIFY_DELAYS_MS = [250, 700, 1400, 2200];
 const CELEB_VERIFY_DELAYS_MS = [0, 150, 350, 700];
-const CELEB_RELATIONSHIP_STATES = new Set([
-  "friends",
-  "outgoing-request",
-  "outgoing-follow-request",
-  "follower-waitlist",
-]);
-
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function isEnabled() {
@@ -228,8 +225,8 @@ async function waitForPersistedRelationship(idToken, targetUid) {
 }
 
 function normalizeCelebrityRelationship(user) {
-  const status = String(user?.friendship_status || "").trim().toLowerCase();
-  return CELEB_RELATIONSHIP_STATES.has(status) ? status : "";
+  const status = normalizeRelationshipValue(user?.friendship_status);
+  return isConfirmedRelationship(status, { celebrity: true }) ? status : "";
 }
 
 function unwrapUser(data) {

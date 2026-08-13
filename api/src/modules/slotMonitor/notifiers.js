@@ -142,7 +142,7 @@ function buildEmailSubject(payload, message) {
       return `${EMAIL_BRAND} | @${message.username} request Celeb đã tồn tại`.slice(0, 200);
     }
     if (payload?.autoRequest?.enabled && payload?.autoRequest?.success === false) {
-      return `${EMAIL_BRAND} | @${message.username} request Celeb chưa thành công`.slice(0, 200);
+      return `${EMAIL_BRAND} | @${message.username} gửi request Celeb thất bại`.slice(0, 200);
     }
     return `${EMAIL_BRAND} | @${message.username} vừa mở slot`.slice(0, 200);
   }
