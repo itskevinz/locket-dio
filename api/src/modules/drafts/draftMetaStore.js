@@ -6,8 +6,13 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const { supabase, isSupabaseConfigured } = require("../../config/supabase");
+const draftDatabase = require("./draftDatabase");
 
-if (process.env.NODE_ENV === "production" && !process.env.DRAFT_MEDIA_DIR) {
+if (
+  process.env.NODE_ENV === "production" &&
+  !process.env.VERCEL &&
+  !process.env.DRAFT_MEDIA_DIR
+) {
   throw new Error("DRAFT_MEDIA_DIR is required in production for drafts to persist.");
 }
 
@@ -75,26 +80,34 @@ function publicView(row) {
 }
 
 async function listDrafts(ownerUid) {
-  const rows = readAll(ownerUid)
-    .filter(Boolean)
+  const rows = (draftDatabase.isAvailable()
+    ? await draftDatabase.listDrafts(ownerUid)
+    : readAll(ownerUid))
+    .filter((row) => row && !row.deletedAt)
     .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   return rows.map(publicView);
 }
 
 async function getDraft(ownerUid, draftId) {
-  const row = readAll(ownerUid).find(
-    (r) => r.id === draftId && !r.deletedAt,
-  );
+  const row = draftDatabase.isAvailable()
+    ? await draftDatabase.getDraft(ownerUid, draftId)
+    : readAll(ownerUid).find((r) => r.id === draftId);
+  if (row?.deletedAt) return null;
   return publicView(row);
 }
 
 async function getDraftRaw(ownerUid, draftId) {
+  if (draftDatabase.isAvailable()) {
+    return draftDatabase.getDraft(ownerUid, draftId);
+  }
   return readAll(ownerUid).find((r) => r.id === draftId) || null;
 }
 
 async function upsertDraft(ownerUid, draft) {
   const uid = String(ownerUid);
-  const rows = readAll(uid);
+  const rows = draftDatabase.isAvailable()
+    ? [await draftDatabase.getDraft(uid, draft.id)].filter(Boolean)
+    : readAll(uid);
   const idx = rows.findIndex((r) => r.id === draft.id);
   const now = Date.now();
   if (idx >= 0) {
@@ -110,7 +123,8 @@ async function upsertDraft(ownerUid, draft) {
       deletedAt: null,
     };
     rows[idx] = next;
-    writeAll(uid, rows);
+    if (draftDatabase.isAvailable()) await draftDatabase.upsertDraft(next);
+    else writeAll(uid, rows);
     await supabaseUpsert(next);
     return publicView(next);
   }
@@ -126,7 +140,8 @@ async function upsertDraft(ownerUid, draft) {
     deletedAt: null,
   };
   rows.push(created);
-  writeAll(uid, rows);
+  if (draftDatabase.isAvailable()) await draftDatabase.upsertDraft(created);
+  else writeAll(uid, rows);
   await supabaseUpsert(created);
   return publicView(created);
 }
@@ -137,7 +152,9 @@ async function upsertDraft(ownerUid, draft) {
  */
 async function patchDraft(ownerUid, draftId, patch, baseRevision) {
   const uid = String(ownerUid);
-  const rows = readAll(uid);
+  const rows = draftDatabase.isAvailable()
+    ? [await draftDatabase.getDraft(uid, draftId)].filter(Boolean)
+    : readAll(uid);
   const idx = rows.findIndex((r) => r.id === draftId);
   if (idx < 0 || rows[idx].deletedAt) {
     return { ok: false, code: "NOT_FOUND" };
@@ -164,14 +181,17 @@ async function patchDraft(ownerUid, draftId, patch, baseRevision) {
     deletedAt: null,
   };
   rows[idx] = next;
-  writeAll(uid, rows);
+  if (draftDatabase.isAvailable()) await draftDatabase.upsertDraft(next);
+  else writeAll(uid, rows);
   await supabaseUpsert(next);
   return { ok: true, draft: publicView(next) };
 }
 
 async function softDelete(ownerUid, draftId) {
   const uid = String(ownerUid);
-  const rows = readAll(uid);
+  const rows = draftDatabase.isAvailable()
+    ? [await draftDatabase.getDraft(uid, draftId)].filter(Boolean)
+    : readAll(uid);
   const idx = rows.findIndex((r) => r.id === draftId);
   if (idx < 0) return { ok: false, code: "NOT_FOUND" };
   rows[idx] = {
@@ -180,7 +200,8 @@ async function softDelete(ownerUid, draftId) {
     updatedAt: Date.now(),
     revision: (rows[idx].revision || 1) + 1,
   };
-  writeAll(uid, rows);
+  if (draftDatabase.isAvailable()) await draftDatabase.upsertDraft(rows[idx]);
+  else writeAll(uid, rows);
   await supabaseUpsert(rows[idx]);
   return { ok: true };
 }

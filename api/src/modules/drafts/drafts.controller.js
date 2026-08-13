@@ -200,7 +200,7 @@ async function deleteDraft(req, res) {
     return res.status(404).json({ success: false, code: "NOT_FOUND" });
   }
   try {
-    fileStore.deleteDraftFiles(uid, id);
+    await fileStore.deleteDraftFiles(uid, id);
   } catch {
     /* meta already soft-deleted */
   }
@@ -238,7 +238,7 @@ async function uploadMedia(req, res) {
 
   const contentType =
     req.headers["content-type"] || "application/octet-stream";
-  const written = fileStore.writeObject(uid, draftId, role, buffer, contentType);
+  const written = await fileStore.writeObject(uid, draftId, role, buffer, contentType);
   if (!written.ok) {
     return res.status(400).json({ success: false, code: written.error });
   }
@@ -310,7 +310,7 @@ async function downloadMedia(req, res) {
   if (!draft) return res.status(404).send("not found");
 
   let servedRole = role;
-  let obj = fileStore.readObject(ownerUid, draftId, role);
+  let obj = await fileStore.readObject(ownerUid, draftId, role);
 
   // Older/surviving draft metadata can still reference a thumbnail object that
   // is no longer present on disk. For image drafts the active/original image is
@@ -319,7 +319,7 @@ async function downloadMedia(req, res) {
   // into an image thumbnail response.
   if (!obj && role === "thumbnail" && draft.mediaType !== "video") {
     for (const fallbackRole of ["active", "original"]) {
-      const candidate = fileStore.readObject(ownerUid, draftId, fallbackRole);
+      const candidate = await fileStore.readObject(ownerUid, draftId, fallbackRole);
       if (candidate?.contentType?.toLowerCase().startsWith("image/")) {
         obj = candidate;
         servedRole = fallbackRole;

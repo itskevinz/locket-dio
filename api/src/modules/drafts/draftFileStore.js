@@ -7,8 +7,13 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+const draftDatabase = require("./draftDatabase");
 
-if (process.env.NODE_ENV === "production" && !process.env.DRAFT_MEDIA_DIR) {
+if (
+  process.env.NODE_ENV === "production" &&
+  !process.env.VERCEL &&
+  !process.env.DRAFT_MEDIA_DIR
+) {
   throw new Error("DRAFT_MEDIA_DIR is required in production for draft files to persist.");
 }
 
@@ -56,7 +61,8 @@ function metaSidecar(ownerUid, draftId, role) {
   return `${objectPath(ownerUid, draftId, role)}.json`;
 }
 
-function writeObject(ownerUid, draftId, role, buffer, contentType) {
+async function writeObject(ownerUid, draftId, role, buffer, contentType) {
+  if (!ALLOWED_ROLES.has(role)) throw new Error("invalid_role");
   if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
     return { ok: false, error: "empty" };
   }
@@ -68,6 +74,21 @@ function writeObject(ownerUid, draftId, role, buffer, contentType) {
     !mime.startsWith("video/")
   ) {
     return { ok: false, error: "bad_mime" };
+  }
+  if (draftDatabase.isAvailable()) {
+    await draftDatabase.putMedia({
+      ownerUid: safeUid(ownerUid),
+      draftId: safeId(draftId),
+      role,
+      contentType: mime,
+      buffer,
+    });
+    return {
+      ok: true,
+      key: `drafts/${safeUid(ownerUid)}/${safeId(draftId)}/${role}`,
+      size: buffer.length,
+      contentType: mime,
+    };
   }
   const dir = objectDir(ownerUid, draftId);
   ensureDir(dir);
@@ -89,7 +110,10 @@ function writeObject(ownerUid, draftId, role, buffer, contentType) {
   };
 }
 
-function readObject(ownerUid, draftId, role) {
+async function readObject(ownerUid, draftId, role) {
+  if (draftDatabase.isAvailable()) {
+    return draftDatabase.getMedia(safeUid(ownerUid), safeId(draftId), role);
+  }
   const file = objectPath(ownerUid, draftId, role);
   if (!fs.existsSync(file)) return null;
   let meta = {};
@@ -106,7 +130,11 @@ function readObject(ownerUid, draftId, role) {
   };
 }
 
-function deleteDraftFiles(ownerUid, draftId) {
+async function deleteDraftFiles(ownerUid, draftId) {
+  if (draftDatabase.isAvailable()) {
+    await draftDatabase.deleteMedia(safeUid(ownerUid), safeId(draftId));
+    return;
+  }
   const dir = objectDir(ownerUid, draftId);
   if (!fs.existsSync(dir)) return;
   for (const name of fs.readdirSync(dir)) {
