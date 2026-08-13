@@ -1,14 +1,9 @@
-# Vercel Hobby allows max 12 Serverless Functions.
-# Ignore the Express backend because it is deployed separately on Railway.
-api/auth
-api/google
-api/migrations
-api/src
+# Huy Locket now runs the Express backend on Vercel.
+# Keep runtime backend source and package manifests available to the function tracer.
+
+# Backend-only files not needed at runtime
 api/test
 api/tests
-api/app.js
-api/package.json
-api/package-lock.json
 api/node_modules
 api/.dockerignore
 api/.env.example
@@ -25,7 +20,7 @@ api/SECURITY.md
 api/START-API.bat
 api/vercel.json
 
-# Backend / Docker (Railway only)
+# Root deployment files not used by Vercel runtime
 server.mjs
 Dockerfile
 Dockerfile.api
@@ -45,6 +40,3 @@ firebase.json
 # Vercel runs npm run build:deploy, so src/ and public/ must be uploaded.
 # The leading slash on /data keeps nested source folders such as
 # src/features/CustomeStudio/data available to Vite.
-# redeploy trigger 2026-08-07
-# redeploy retry 2026-08-07 18:12 ICT
-# redeploy retry 2026-08-07 18:56 ICT
