@@ -120,3 +120,59 @@
     transform: none !important;
   }
 }
+
+/*
+ * Admin mobile modal policy
+ *
+ * DaisyUI's modal-bottom is useful for short sheets, but the AdminUsers page
+ * contains several long/scrollable tools. Keep every admin popup attached to
+ * the viewport and give it one predictable scroll container so opening a tool
+ * while the page is scrolled never makes the user hunt for the beginning of
+ * the popup.
+ */
+@media (max-width: 820px) {
+  body:has(.admin-dashboard-enter .modal.modal-open) {
+    overflow: hidden !important;
+    overscroll-behavior: none;
+  }
+
+  body:has(.admin-dashboard-enter) .modal.modal-open {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 10020 !important;
+    display: grid !important;
+    place-items: center !important;
+    align-items: center !important;
+    justify-items: center !important;
+    padding:
+      max(0.75rem, env(safe-area-inset-top))
+      0.75rem
+      max(0.75rem, env(safe-area-inset-bottom)) !important;
+    overflow: hidden !important;
+    overscroll-behavior: contain;
+  }
+
+  body:has(.admin-dashboard-enter) .modal.modal-open > .modal-box {
+    grid-row-start: 1 !important;
+    grid-column-start: 1 !important;
+    place-self: center !important;
+    width: min(100%, calc(100vw - 1.5rem)) !important;
+    max-width: min(100%, 48rem) !important;
+    max-height: calc(100dvh - max(1.5rem, env(safe-area-inset-top) + env(safe-area-inset-bottom))) !important;
+    margin: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: auto !important;
+    transform: none !important;
+    translate: none !important;
+    border-radius: 1.5rem !important;
+  }
+
+  /* Detail/history popup is intentionally wider on desktop; on mobile it still
+     follows the same viewport/scroll contract as the smaller action popups. */
+  body:has(.admin-dashboard-enter) .modal.modal-open > .modal-box.max-w-5xl {
+    max-width: min(100%, calc(100vw - 1.5rem)) !important;
+  }
+}
