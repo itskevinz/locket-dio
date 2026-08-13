@@ -10,33 +10,6 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 
-function stageVercelBackend() {
-  if (!process.env.VERCEL) return;
-
-  const apiDir = path.join(root, "api");
-  const backendDir = path.join(root, "backend");
-  const functionEntry = "vercel-web.js";
-
-  fs.rmSync(backendDir, { recursive: true, force: true });
-  fs.cpSync(apiDir, backendDir, { recursive: true });
-
-  for (const entry of fs.readdirSync(apiDir)) {
-    if (entry === functionEntry) continue;
-    fs.rmSync(path.join(apiDir, entry), { recursive: true, force: true });
-  }
-
-  if (
-    !fs.existsSync(path.join(backendDir, "app.js")) ||
-    !fs.existsSync(path.join(backendDir, "package.json"))
-  ) {
-    throw new Error("Vercel backend staging failed");
-  }
-
-  console.log("[write-version] Vercel backend staged outside api/");
-}
-
-stageVercelBackend();
-
 function providedCommitShort() {
   const commit = [
     process.env.RAILWAY_GIT_COMMIT_SHA,
