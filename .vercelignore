@@ -18,7 +18,6 @@ api/README.md
 api/render.yaml
 api/SECURITY.md
 api/START-API.bat
-api/vercel.json
 
 # Root deployment files not used by Vercel runtime
 server.mjs
