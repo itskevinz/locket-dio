@@ -136,9 +136,34 @@
     overscroll-behavior: none;
   }
 
+  /* admin-success-page-transition-v10 intentionally leaves a computed
+     transform/filter on .admin-dashboard-enter because its entrance animation
+     uses fill-mode: both. A transformed ancestor becomes the containing block
+     for position: fixed descendants on mobile Chrome, which made action popups
+     such as Thu hồi and RBAC appear at the page's scroll position instead of
+     the current viewport. Neutralize that containing block only while a modal
+     is open; the normal admin entrance animation remains unchanged otherwise. */
+  body:has(.admin-dashboard-enter .modal.modal-open) .admin-dashboard-enter {
+    animation: none !important;
+    transform: none !important;
+    translate: none !important;
+    filter: none !important;
+    perspective: none !important;
+    transform-style: flat !important;
+    will-change: auto !important;
+    contain: none !important;
+  }
+
   body:has(.admin-dashboard-enter) .modal.modal-open {
     position: fixed !important;
     inset: 0 !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    min-height: 100dvh !important;
     z-index: 10020 !important;
     display: grid !important;
     place-items: center !important;
