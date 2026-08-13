@@ -4,6 +4,7 @@
   "installCommand": "npm ci --no-audit --no-fund",
   "functions": {
     "api/vercel-web.js": {
+      "includeFiles": "google/**",
       "maxDuration": 60
     }
   },
