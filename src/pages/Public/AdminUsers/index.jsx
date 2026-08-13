@@ -1821,7 +1821,13 @@ export default function AdminUsers() {
                             </span>
                           </td>
                           <td className="text-right pr-6 min-w-[350px] whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-1.5 flex-nowrap">
+                            <div
+                              role="region"
+                              aria-label="Danh sách thao tác tài khoản"
+                              tabIndex={0}
+                              className="w-full max-w-[88vw] overflow-x-auto overscroll-x-contain touch-pan-x pb-1 [scrollbar-width:thin]"
+                            >
+                              <div className="flex w-max min-w-full items-center justify-end gap-1.5 flex-nowrap">
                               {isSuperAdmin ? (
                                 <span className="px-2.5 py-1 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-black uppercase select-none">
                                   🔒 Cố định
@@ -1881,6 +1887,7 @@ export default function AdminUsers() {
                               >
                                 <Info size={18} />
                               </button>
+                              </div>
                             </div>
                           </td>
                         </ScrollReveal>
@@ -3682,12 +3689,17 @@ export default function AdminUsers() {
       )}
 
       {/* MODAL CHI TIẾT USER & LỊCH SỬ ĐĂNG NHẬP */}
-      {selectedUser && (
-
-        <div className="modal modal-open modal-bottom sm:modal-middle" onClick={() => setSelectedUser(null)}>
-          <div className="modal-box max-w-5xl rounded-3xl p-6 sm:p-8 shadow-2xl border-2 border-primary/20 bg-base-100" onClick={(event) => event.stopPropagation()}>
+      {selectedUser && typeof document !== "undefined" && createPortal(
+        <div className="modal modal-open modal-bottom sm:modal-middle z-[99990] overscroll-contain p-2 sm:p-4" onClick={() => setSelectedUser(null)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-user-detail-title"
+            className="modal-box max-w-5xl max-h-[calc(100dvh-1rem)] sm:max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-3xl p-6 sm:p-8 shadow-2xl border-2 border-primary/20 bg-base-100"
+            onClick={(event) => event.stopPropagation()}
+          >
             <button type="button" className="btn btn-sm btn-circle btn-ghost absolute right-5 top-5 text-base-content/60 hover:bg-base-200" onClick={() => setSelectedUser(null)}>✕</button>
-            <h3 className="font-black text-xl mb-1.5 flex items-center gap-2.5 text-base-content">
+            <h3 id="admin-user-detail-title" className="font-black text-xl mb-1.5 flex items-center gap-2.5 text-base-content">
               {userName(selectedUser)}
               {roleBadge(selectedUser.role)}
             </h3>
@@ -3789,7 +3801,8 @@ export default function AdminUsers() {
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       {/* MODAL BẮT BUỘC NHẬP LÝ DO CHO THAO TÁC QUẢN TRỊ NHẠY CẢM */}
