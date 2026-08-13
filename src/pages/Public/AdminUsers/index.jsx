@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import {
   Activity,
@@ -3792,10 +3793,16 @@ export default function AdminUsers() {
       )}
 
       {/* MODAL BẮT BUỘC NHẬP LÝ DO CHO THAO TÁC QUẢN TRỊ NHẠY CẢM */}
-      {actionModal && (
-        <div className="modal modal-open modal-bottom sm:modal-middle" onClick={() => setActionModal(null)}>
-          <div className="modal-box max-w-lg rounded-3xl p-6 border border-base-300 shadow-2xl bg-base-100" onClick={(e) => e.stopPropagation()}>
-            <h3 className="font-black text-lg flex items-center gap-2 text-error mb-2">
+      {actionModal && typeof document !== "undefined" && createPortal(
+        <div className="modal modal-open modal-bottom sm:modal-middle z-[100000] overscroll-contain" onClick={() => setActionModal(null)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-action-modal-title"
+            className="modal-box max-w-lg rounded-3xl p-6 border border-base-300 shadow-2xl bg-base-100"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="admin-action-modal-title" className="font-black text-lg flex items-center gap-2 text-error mb-2">
               <AlertTriangle className="text-error" size={22} /> Xác nhận Thao tác Quản trị
             </h3>
             <p className="text-sm text-base-content/80 mb-5 font-medium leading-relaxed">
@@ -3844,7 +3851,8 @@ export default function AdminUsers() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       {/* MODAL XÁC MINH LẠI MÃ PIN KHI ĐÃ HẾT HẠN PHIÊN NHẠY CẢM */}
@@ -4138,4 +4146,3 @@ export default function AdminUsers() {
     </>
   );
 }
-
