@@ -2,10 +2,11 @@ const grpc = require("@grpc/grpc-js");
 const protoLoader = require("@grpc/proto-loader");
 const path = require("path");
 
-const PROTO_PATH = path.resolve(
-  process.cwd(),
-  "google/firestore/v1/firestore.proto"
-);
+// Vercel executes Functions with `/var/task` as cwd, while this backend lives
+// under `/var/task/api`. Resolve static protobuf assets from the module instead
+// of relying on the process working directory.
+const PROJECT_ROOT = path.resolve(__dirname, "../../../..");
+const PROTO_PATH = path.join(PROJECT_ROOT, "google/firestore/v1/firestore.proto");
 
 const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   keepCase: true,
@@ -14,9 +15,9 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   defaults: true,
   oneofs: true,
   includeDirs: [
-    path.resolve(process.cwd(), "google"),
-    path.resolve(process.cwd(), "src"),
-    path.resolve(process.cwd(), "."),
+    path.join(PROJECT_ROOT, "google"),
+    path.join(PROJECT_ROOT, "src"),
+    PROJECT_ROOT,
   ],
 });
 
