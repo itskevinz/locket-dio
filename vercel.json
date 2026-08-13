@@ -6,6 +6,12 @@
   "buildCommand": "npm run build:deploy",
   "outputDirectory": "vercel-static",
   "trailingSlash": false,
+  "functions": {
+    "api/vercel-web.js": {
+      "includeFiles": "api/**",
+      "maxDuration": 60
+    }
+  },
   "redirects": [
     { "source": "/about-dio", "destination": "/about-huy", "permanent": true }
   ],
