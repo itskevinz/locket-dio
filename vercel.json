@@ -8,7 +8,6 @@
   "trailingSlash": false,
   "functions": {
     "api/vercel-web.js": {
-      "includeFiles": "api/**",
       "maxDuration": 60
     }
   },
