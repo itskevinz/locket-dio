@@ -60,12 +60,15 @@ export default function GoogleDriveBackup() {
     setTestingToken(true);
     setTestResult(null);
     try {
-      const sampleBlob = new Blob(["Huy Locket test token validation " + new Date().toISOString()], { type: "text/plain" });
+      // Valid 1x1 PNG: exercise the same binary media path used by real backups.
+      const pngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+      const pngBytes = Uint8Array.from(atob(pngBase64), (char) => char.charCodeAt(0));
+      const sampleBlob = new Blob([pngBytes], { type: "image/png" });
       const testRes = await fetch("/api/drive-backup", {
         method: "POST",
         headers: {
-          "Content-Type": "text/plain",
-          "X-Filename": `huy_locket_test_${Date.now()}.txt`,
+          "Content-Type": "image/png",
+          "X-Filename": `huy_locket_test_${Date.now()}.png`,
           "X-Media-Type": "image",
           ...(getStoredIdToken() ? { Authorization: `Bearer ${getStoredIdToken()}` } : {}),
         },

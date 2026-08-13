@@ -12,6 +12,11 @@
  * Chỉ áp dụng cho POST/PUT/PATCH có body.
  */
 function requireJsonContentType(req, res, next) {
+  const path = String(req.path || req.url || "").split("?")[0];
+  // This route intentionally accepts raw image/video/audio bytes and applies
+  // its own size limit in vercelDrive. Do not classify it as a JSON endpoint.
+  if (path === "/api/drive-backup") return next();
+
   // Chỉ kiểm tra khi có body
   if (["POST", "PUT", "PATCH"].includes(req.method)) {
     const contentType = req.headers["content-type"] || "";
