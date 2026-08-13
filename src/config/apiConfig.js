@@ -32,7 +32,10 @@ export function resolveSocketIoConfig(base = BASE_SERVER_HOST) {
     const prefix = parsed.pathname.replace(/\/$/, "");
     return {
       url: parsed.origin,
-      path: `${prefix}/socket.io` || "/socket.io",
+      path:
+        prefix === "/api/socket-io"
+          ? prefix
+          : `${prefix}/socket.io` || "/socket.io",
     };
   }
   const prefix = raw.startsWith("/") ? raw.replace(/\/$/, "") : `/${raw.replace(/\/$/, "")}`;

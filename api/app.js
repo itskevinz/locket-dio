@@ -99,7 +99,7 @@ app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
 
 const io = new Server(server, {
-  path: "/socket.io/",
+  path: isVercel ? "/api/socket-io/" : "/socket.io/",
   cors: corsOptions,
 });
 

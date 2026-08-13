@@ -13,6 +13,7 @@ test("Vercel exposes a dedicated Socket.IO HTTP server function", () => {
 
   assert.equal(config.functions["api/socket-io.js"].maxDuration, 60);
   assert.match(socketEntry, /module\.exports = server/);
+  assert.match(appEntry, /path: isVercel \? "\/api\/socket-io\/" : "\/socket\.io\/"/);
   assert.match(appEntry, /module\.exports = \{ app, server, vercelHandler \}/);
 });
 
