@@ -27,6 +27,11 @@ function pickUserEmail(user) {
   );
 }
 
+function getStoredIdToken() {
+  if (typeof window === "undefined") return "";
+  return localStorage.getItem("idToken") || sessionStorage.getItem("idToken") || "";
+}
+
 /**
  * Kết nối Google Drive — CHỈ admin thấy UI.
  * User thường: backup ngầm nếu admin đã cấu hình (không hiện phần này).
@@ -61,7 +66,8 @@ export default function GoogleDriveBackup() {
         headers: {
           "Content-Type": "text/plain",
           "X-Filename": `huy_locket_test_${Date.now()}.txt`,
-          "X-Media-Type": "image"
+          "X-Media-Type": "image",
+          ...(getStoredIdToken() ? { Authorization: `Bearer ${getStoredIdToken()}` } : {}),
         },
         body: sampleBlob
       });
@@ -87,8 +93,10 @@ export default function GoogleDriveBackup() {
       const oRes = await fetch("/api/drive-oauth-start", {
         method: "POST",
         headers: {
+          "Content-Type": "application/json",
           "X-Local-Id": String(localId || ""),
-          "X-User-Email": String(email || "")
+          "X-User-Email": String(email || ""),
+          ...(getStoredIdToken() ? { Authorization: `Bearer ${getStoredIdToken()}` } : {}),
         },
         body: JSON.stringify({
           folderId: status?.folderId || "auto"
@@ -148,6 +156,7 @@ export default function GoogleDriveBackup() {
     "Content-Type": "application/json",
     "X-Local-Id": localId || "",
     "X-User-Email": email || "",
+    ...(getStoredIdToken() ? { Authorization: `Bearer ${getStoredIdToken()}` } : {}),
   };
 
   const saveAndLogin = async () => {

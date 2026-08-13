@@ -1001,6 +1001,16 @@ async function loadBlacklistedIps() {
   const sql = getSql();
   if (!sql) return;
   try {
+    // WAF v2 used to persist heuristic bot detections forever. Retire only
+    // those system-generated rows; explicit admin bans must stay intact.
+    const retired = await sql`
+      DELETE FROM ip_blacklist
+      WHERE blocked_by = 'SYSTEM_WAF_v2'
+      RETURNING ip_address
+    `;
+    if (retired.length > 0) {
+      console.warn(`[Security] Retired ${retired.length} legacy automatic WAF IP ban(s)`);
+    }
     const res = await sql`SELECT ip_address FROM ip_blacklist`;
     blacklistedIpsMemory.clear();
     for (const row of res) {

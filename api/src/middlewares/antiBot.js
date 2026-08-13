@@ -4,17 +4,17 @@
  * ═══════════════════════════════════════════════════════════════════
  * 7 TẦNG BẢO VỆ:
  *   [1] IP Blacklist Database + In-Memory Cache
- *   [2] Cloud Provider IP Range Ban (AWS, GCP, Azure, DigitalOcean, Oracle)
+ *   [2] Cloud Provider IP Range Block (AWS, GCP, Azure, DigitalOcean, Oracle)
  *   [3] Bot User-Agent Keyword Detection
  *   [4] Headless Browser Fingerprinting (phát hiện trình duyệt ảo)
  *   [5] Browser Integrity Check (kiểm tra tính toàn vẹn header trình duyệt)
  *   [6] WAF SQLi/XSS/Path Traversal Detection
  *   [7] DDoS Rate Limiter + Per-Endpoint Shield
  *
- * THẮT CHẶT: Bot bị ban thẳng sau lần vi phạm đầu tiên nếu là Headless hoặc Cloud IP.
+ * Dấu hiệu bot bị chặn theo request và ghi log; chỉ admin mới có thể cấm IP vĩnh viễn.
  */
 const rateLimit = require("express-rate-limit");
-const { isIpBlacklisted, addIpBlacklist, recordSecurityThreat } = require("../services/userActivityStore");
+const { isIpBlacklisted, recordSecurityThreat } = require("../services/userActivityStore");
 const { extractBestPublicIp } = require("../services/userActivityContext");
 
 // ═══════════════════════════════════════════════════════════════════
@@ -260,15 +260,10 @@ function getRequestIp(req) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Anti-Spam Log + Auto-Ban Engine
+// Anti-Spam Threat Log
 // ═══════════════════════════════════════════════════════════════════
 const recentThreatLogs = new Map();
-const ipViolationCount = new Map();
 const LOG_THROTTLING_MS = 15 * 60 * 1000;
-const AUTO_BAN_THRESHOLD = 3;
-const VIOLATION_WINDOW_MS = 5 * 60 * 1000;
-// Bot/Cloud bị phát hiện → Ban ngay lập tức (threshold = 1)
-const INSTANT_BAN_THRESHOLD = 1;
 
 // Tự động dọn dẹp bộ nhớ RAM mỗi 30 phút
 setInterval(() => {
@@ -276,46 +271,17 @@ setInterval(() => {
   for (const [key, time] of recentThreatLogs) {
     if (now - time > LOG_THROTTLING_MS * 2) recentThreatLogs.delete(key);
   }
-  for (const [ip, v] of ipViolationCount) {
-    if (now - v.lastViolation > VIOLATION_WINDOW_MS * 4) ipViolationCount.delete(ip);
-  }
 }, 30 * 60 * 1000);
 
-async function handleThreatDetected(req, ip, threatType, severity, details, payloadSample = null, instantBan = false) {
+async function handleThreatDetected(req, ip, threatType, severity, details, payloadSample = null) {
   if (!ip || ip === "unknown") return;
   const userAgent = String(req.headers["user-agent"] || "").trim();
   const now = Date.now();
 
-  // Auto-Blacklist Logic
-  if (!isIpBlacklisted(ip)) {
-    const v = ipViolationCount.get(ip) || { count: 0, lastViolation: now };
-    if (now - v.lastViolation > VIOLATION_WINDOW_MS) {
-      v.count = 1;
-    } else {
-      v.count += 1;
-    }
-    v.lastViolation = now;
-    ipViolationCount.set(ip, v);
-
-    const threshold = instantBan ? INSTANT_BAN_THRESHOLD : AUTO_BAN_THRESHOLD;
-    if (v.count >= threshold || severity === "CRITICAL") {
-      console.warn(`[🛑 Huy Locket WAF] AUTO-BANNING IP: ${ip} — Lý do: ${threatType} (${instantBan ? "BAN TỨC THÌ" : `${v.count}/${threshold} vi phạm`})`);
-      await addIpBlacklist(ip, `[WAF v2.0] Tự động cấm vĩnh viễn: ${threatType} — ${details.slice(0, 200)}`, "SYSTEM_WAF_v2").catch(() => {});
-      ipViolationCount.delete(ip);
-
-      recordSecurityThreat({
-        threatType: "AUTO_WAF_IP_BANNED",
-        severity: "CRITICAL",
-        targetEndpoint: req.originalUrl || req.path,
-        attackerIp: ip,
-        userAgent,
-        details: `🛑 Tự động phong tỏa vĩnh viễn — ${threatType}: ${details.slice(0, 300)}`,
-        payloadSample,
-        status: "BANNED_FOREVER",
-      }).catch(() => {});
-      return;
-    }
-  }
+  // Heuristic detections may reject or rate-limit this request, but they must not
+  // create a permanent IP ban. Mobile networks, NATs and migration smoke tests
+  // frequently share an IP with a legitimate browser. Permanent bans remain an
+  // explicit admin action through the security panel.
 
   // Log Throttling
   const logKey = `${ip}_${threatType}`;
@@ -410,15 +376,14 @@ function antiBotMiddleware(req, res, next) {
     });
   }
 
-  // [TẦNG 2] Cloud Provider IP — Ban thẳng server farm
+  // [TẦNG 2] Cloud Provider IP — Chặn request từ server farm
   const cloudProvider = isCloudProviderIp(ip);
   if (cloudProvider) {
-    console.warn(`[🛑 WAF Cloud Block] IP ${ip} thuộc ${cloudProvider} — BAN TỨC THÌ`);
+    console.warn(`[🛑 WAF Cloud Block] IP ${ip} thuộc ${cloudProvider} — REQUEST BLOCKED`);
     handleThreatDetected(
       req, ip, "CLOUD_SERVER_IP_BLOCKED", "HIGH",
-      `IP ${ip} thuộc nhà cung cấp đám mây ${cloudProvider} — không phải người dùng thật. Ban tức thì.`,
-      `Provider: ${cloudProvider} | UA: ${userAgent.slice(0, 200)}`,
-      true // instantBan = true
+      `IP ${ip} thuộc nhà cung cấp đám mây ${cloudProvider} — request bị từ chối.`,
+      `Provider: ${cloudProvider} | UA: ${userAgent.slice(0, 200)}`
     );
     return res.status(403).json({
       success: false,
@@ -431,8 +396,7 @@ function antiBotMiddleware(req, res, next) {
   if (!userAgent || userAgent.length < 10) {
     console.warn(`[🚫 WAF] Missing/short UA from IP: ${ip}`);
     handleThreatDetected(req, ip, "BOT_EMPTY_USER_AGENT", "MEDIUM",
-      "Truy cập tự động bị từ chối — thiếu hoặc sai định dạng User-Agent",
-      null, true
+      "Truy cập tự động bị từ chối — thiếu hoặc sai định dạng User-Agent"
     );
     return res.status(403).json({
       success: false, code: "BOT_DETECTED",
@@ -447,7 +411,7 @@ function antiBotMiddleware(req, res, next) {
     console.warn(`[🚫 WAF Bot] Blocked "${matchedKeyword}" bot from IP: ${ip}`);
     handleThreatDetected(req, ip, "AUTOMATED_SCRAPER_BOT", "MEDIUM",
       `Phát hiện công cụ cào tự động (${userAgent.slice(0, 150)}) — keyword: "${matchedKeyword}"`,
-      `Matched: ${matchedKeyword}`, true // instantBan
+      `Matched: ${matchedKeyword}`
     );
     return res.status(403).json({
       success: false, code: "BOT_BLOCKED",
@@ -461,7 +425,7 @@ function antiBotMiddleware(req, res, next) {
     console.warn(`[🛑 WAF Headless] Detected ${headlessResult} from IP: ${ip}`);
     handleThreatDetected(req, ip, "HEADLESS_BROWSER_DETECTED", "HIGH",
       `Phát hiện trình duyệt ảo ${headlessResult} — cực kỳ nghi vấn bot scraper`,
-      `Detected: ${headlessResult} | UA: ${userAgent.slice(0, 200)}`, true
+      `Detected: ${headlessResult} | UA: ${userAgent.slice(0, 200)}`
     );
     return res.status(403).json({
       success: false, code: "HEADLESS_BLOCKED",
@@ -469,17 +433,16 @@ function antiBotMiddleware(req, res, next) {
     });
   }
 
-  // [TẦNG 5] Browser Integrity Check — chỉ cảnh báo, không ban ngay (có thể false positive)
+  // [TẦNG 5] Browser Integrity Check — chỉ cảnh báo (có thể false positive)
   const integrityIssues = checkBrowserIntegrity(req);
   if (integrityIssues.length >= 2) {
     // 2+ dấu hiệu bất thường = khả năng cao là bot giả mạo trình duyệt
     console.warn(`[⚠️ WAF Integrity] Suspicious browser from IP: ${ip} — Issues: ${integrityIssues.join(", ")}`);
     handleThreatDetected(req, ip, "SUSPICIOUS_BROWSER_FINGERPRINT", "MEDIUM",
       `Trình duyệt đáng ngờ — thiếu ${integrityIssues.length} header đặc trưng: ${integrityIssues.join(", ")}`,
-      `Issues: ${integrityIssues.join(", ")} | UA: ${userAgent.slice(0, 200)}`,
-      false // Không ban ngay — tích lũy vi phạm
+      `Issues: ${integrityIssues.join(", ")} | UA: ${userAgent.slice(0, 200)}`
     );
-    // Vẫn cho qua nhưng ghi vi phạm — đủ 3 lần sẽ bị auto-ban
+    // Vẫn cho qua và ghi nhận để admin xem trong nhật ký bảo mật.
   }
 
   req.isVerifiedUserClient = true;
@@ -515,11 +478,11 @@ function wafSecurityShield(req, res, next) {
     console.warn(`[🛑 WAF] Blocked ${detectedType} from IP: ${ip} on ${req.originalUrl}`);
     handleThreatDetected(req, ip, detectedType, severity,
       `WAF Tường Lửa phát hiện payload mã độc ${detectedType}`,
-      combined.slice(0, 400), true // instantBan for injection attacks
+      combined.slice(0, 400)
     );
     return res.status(403).json({
       success: false, code: "WAF_SECURITY_BLOCK",
-      error: `Hệ thống Bảo Mật Huy Locket đã từ chối yêu cầu do phát hiện mã độc (${detectedType}). Lịch sử vi phạm đã được ghi nhận và IP sẽ bị khóa vĩnh viễn.`,
+      error: `Hệ thống Bảo Mật Huy Locket đã từ chối yêu cầu do phát hiện mã độc (${detectedType}). Lịch sử vi phạm đã được ghi nhận để admin xem xét.`,
     });
   }
 
@@ -537,10 +500,9 @@ const globalDDoSShield = rateLimit({
   skip: (req) => req.method === "OPTIONS" || isExemptPath(req.path) || isAdminRequest(req),
   handler: (req, res, next, options) => {
     const ip = getRequestIp(req);
-    // Thay vì instant ban (cấm vĩnh viễn), chỉ ghi nhận vi phạm (instantBan = false)
+    // Chỉ ghi nhận vi phạm; rate limiter tự từ chối request này.
     handleThreatDetected(req, ip, "DDOS_RATE_FLOOD", "HIGH",
-      "Vượt ngưỡng tường lửa (>800 req/phút)",
-      null, false
+      "Vượt ngưỡng tường lửa (>800 req/phút)"
     );
     res.status(429).json(options.message);
   },
@@ -562,8 +524,7 @@ const sensitiveApiShield = rateLimit({
   handler: (req, res) => {
     const ip = getRequestIp(req);
     handleThreatDetected(req, ip, "SENSITIVE_API_FLOOD", "HIGH",
-      `Gửi quá nhiều request đến endpoint nhạy cảm ${req.originalUrl} (>100/phút)`,
-      null, false // instantBan = false để không khóa nhầm vĩnh viễn
+      `Gửi quá nhiều request đến endpoint nhạy cảm ${req.originalUrl} (>100/phút)`
     );
     res.status(429).json({
       success: false,
