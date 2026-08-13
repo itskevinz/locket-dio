@@ -6,23 +6,18 @@
   "buildCommand": "npm run build:deploy",
   "outputDirectory": "vercel-static",
   "trailingSlash": false,
-  "functions": {
-    "api/vercel-web.js": {
-      "maxDuration": 60
-    }
-  },
   "redirects": [
     { "source": "/about-dio", "destination": "/about-huy", "permanent": true }
   ],
   "rewrites": [
-    { "source": "/dio-api", "destination": "/api/vercel-web?__path=/" },
-    { "source": "/dio-api/:path*", "destination": "/api/vercel-web?__path=/:path*" },
-    { "source": "/api/admin", "destination": "/api/vercel-web?__path=/api/admin" },
-    { "source": "/api/admin/:path*", "destination": "/api/vercel-web?__path=/api/admin/:path*" },
-    { "source": "/api/activity", "destination": "/api/vercel-web?__path=/api/activity" },
-    { "source": "/api/activity/:path*", "destination": "/api/vercel-web?__path=/api/activity/:path*" },
-    { "source": "/dio-auth", "destination": "/api/vercel-web?__path=/" },
-    { "source": "/dio-auth/:path*", "destination": "/api/vercel-web?__path=/:path*" },
+    { "source": "/dio-api", "destination": "https://huy-locket-api-huy-locket.vercel.app/" },
+    { "source": "/dio-api/:path*", "destination": "https://huy-locket-api-huy-locket.vercel.app/:path*" },
+    { "source": "/api/admin", "destination": "https://huy-locket-api-huy-locket.vercel.app/api/admin" },
+    { "source": "/api/admin/:path*", "destination": "https://huy-locket-api-huy-locket.vercel.app/api/admin/:path*" },
+    { "source": "/api/activity", "destination": "https://huy-locket-api-huy-locket.vercel.app/api/activity" },
+    { "source": "/api/activity/:path*", "destination": "https://huy-locket-api-huy-locket.vercel.app/api/activity/:path*" },
+    { "source": "/dio-auth", "destination": "https://huy-locket-api-huy-locket.vercel.app/" },
+    { "source": "/dio-auth/:path*", "destination": "https://huy-locket-api-huy-locket.vercel.app/:path*" },
     { "source": "/dio-data", "destination": "https://data.locket-dio.com/" },
     { "source": "/dio-data/:path*", "destination": "https://data.locket-dio.com/:path*" },
     { "source": "/dio-storage", "destination": "https://storage.locket-dio.com/" },
@@ -35,12 +30,12 @@
     { "source": "/dio-cdn/:path*", "destination": "https://cdn.locket-dio.com/:path*" },
     { "source": "/dio-payment", "destination": "https://payment.locket-dio.com/" },
     { "source": "/dio-payment/:path*", "destination": "https://payment.locket-dio.com/:path*" },
-    { "source": "/api/drive-status", "destination": "/api/vercel-web?__path=/api/drive-status" },
-    { "source": "/api/drive-config", "destination": "/api/vercel-web?__path=/api/drive-config" },
-    { "source": "/api/drive-oauth-start", "destination": "/api/vercel-web?__path=/api/drive-oauth-start" },
-    { "source": "/api/drive-oauth-callback", "destination": "/api/vercel-web?__path=/api/drive-oauth-callback" },
-    { "source": "/api/drive-backup", "destination": "/api/vercel-web?__path=/api/drive-backup" },
-    { "source": "/api/media-download", "destination": "/api/vercel-web?__path=/api/media-download" },
+    { "source": "/api/drive-status", "destination": "https://huy-locket-api-huy-locket.vercel.app/api/drive-status" },
+    { "source": "/api/drive-config", "destination": "https://huy-locket-api-huy-locket.vercel.app/api/drive-config" },
+    { "source": "/api/drive-oauth-start", "destination": "https://huy-locket-api-huy-locket.vercel.app/api/drive-oauth-start" },
+    { "source": "/api/drive-oauth-callback", "destination": "https://huy-locket-api-huy-locket.vercel.app/api/drive-oauth-callback" },
+    { "source": "/api/drive-backup", "destination": "https://huy-locket-api-huy-locket.vercel.app/api/drive-backup" },
+    { "source": "/api/media-download", "destination": "https://huy-locket-api-huy-locket.vercel.app/api/media-download" },
     { "source": "/((?!api/|assets/|sw\\.js$|workbox-[^/]+\\.js$|manifest\\.webmanifest$|offline\\.html$|version\\.json$|robots\\.txt$|sitemap\\.xml$|favicon[^/]*|android-chrome-[^/]+|apple-touch-icon\\.png$|maskable-icon-[^/]+|icons/|pwa-icons/|fonts/|images/|svg/|.*\\.[a-zA-Z0-9]+$).*)", "destination": "/index.html" }
   ],
   "headers": [

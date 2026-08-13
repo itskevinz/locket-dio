@@ -1,0 +1,16 @@
+node_modules
+.env*
+test
+tests
+.dockerignore
+.gitignore
+DEPLOY.md
+docker-compose*
+Dockerfile
+install_ffmpeg.sh
+nginx.conf
+railway.toml
+README.md
+render.yaml
+SECURITY.md
+START-API.bat

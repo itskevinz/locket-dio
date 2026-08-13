@@ -2,6 +2,7 @@
 # Keep runtime backend source and package manifests available to the function tracer.
 
 # Backend-only files not needed at runtime
+/api
 api/test
 api/tests
 api/node_modules
