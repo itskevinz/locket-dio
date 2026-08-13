@@ -3,7 +3,7 @@
   "ignoreCommand": "if [ \"$VERCEL_ENV\" = \"preview\" ]; then exit 0; else exit 1; fi",
   "framework": "vite",
   "installCommand": "npm ci --no-audit --no-fund",
-  "buildCommand": "npm run build:deploy",
+  "buildCommand": "node --input-type=module -e \"import fs from 'node:fs'; fs.rmSync('backend',{recursive:true,force:true}); fs.cpSync('api','backend',{recursive:true}); for (const entry of fs.readdirSync('api')) { if (entry !== 'vercel-web.js') fs.rmSync('api/' + entry,{recursive:true,force:true}); } console.log('[vercel] staged backend outside api');\" && npm run build:deploy",
   "outputDirectory": "vercel-static",
   "trailingSlash": false,
   "functions": {
