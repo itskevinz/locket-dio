@@ -41,7 +41,7 @@ const updateUploadStats = async ({
 
     // Always keep a local copy so Pricing stats work without Supabase
     try {
-      incrementUserStats({
+      await incrementUserStats({
         uid,
         mediaType: isError ? null : mediaType,
         sizeInBytes: isError ? 0 : sizeInBytes,

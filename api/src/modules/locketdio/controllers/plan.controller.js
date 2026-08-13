@@ -14,7 +14,7 @@ const planControllerV2 = async (req, res, next) => {
 
   try {
     // Huy Locket free-for-all: always grant full Premium (no paywall)
-    let userPlan = planServices.getLocalFreePlan(
+    let userPlan = await planServices.getLocalFreePlan(
       uid,
       email,
       phone,
@@ -168,7 +168,7 @@ const syncUploadStatsController = async (req, res, next) => {
     );
     const errors = Math.max(0, Number(body.error_count ?? 0) || 0);
 
-    const saved = setUserStats(uid, {
+    const saved = await setUserStats(uid, {
       image_uploaded: images,
       video_uploaded: videos,
       image_uploads: images,
@@ -183,7 +183,7 @@ const syncUploadStatsController = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "ok",
-      data: saved || getUserStats(uid),
+      data: saved || (await getUserStats(uid)),
     });
   } catch (error) {
     logError("syncUploadStats", error.message);

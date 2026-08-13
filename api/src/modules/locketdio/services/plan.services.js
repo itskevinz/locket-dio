@@ -7,10 +7,10 @@ const {
  * Full Premium for every user (Huy Locket free-for-all / self-host).
  * No paywall — all premium features + high limits, never expires.
  */
-function buildLocalFreePlan(uid, email, phone, name, picture) {
+async function buildLocalFreePlan(uid, email, phone, name, picture) {
   const now = new Date().toISOString();
   const short = String(uid || "guest").slice(0, 6).toUpperCase();
-  const uploadStats = getUserStats(uid);
+  const uploadStats = await getUserStats(uid);
   return {
     user: {
       uid,

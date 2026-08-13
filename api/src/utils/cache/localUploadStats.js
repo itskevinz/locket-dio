@@ -4,9 +4,50 @@
  */
 const fs = require("fs");
 const path = require("path");
+const { neon } = require("@neondatabase/serverless");
 
 const STATS_DIR = path.resolve(process.cwd(), "data", "upload-stats");
 const STATS_FILE = path.join(STATS_DIR, "stats.json");
+const databaseUrl = String(
+  process.env.DATABASE_URL || process.env.NEON_DATABASE_URL || "",
+).trim();
+const database = databaseUrl ? neon(databaseUrl) : null;
+let schemaPromise = null;
+
+function useDatabase() {
+  return Boolean(process.env.VERCEL && database);
+}
+
+async function ensureDatabase() {
+  if (!useDatabase()) throw new Error("Upload stats database is not configured");
+  if (!schemaPromise) {
+    schemaPromise = database`
+      CREATE TABLE IF NOT EXISTS huy_locket_upload_stats (
+        owner_uid TEXT PRIMARY KEY,
+        image_uploaded BIGINT NOT NULL DEFAULT 0,
+        video_uploaded BIGINT NOT NULL DEFAULT 0,
+        total_storage_used_bytes BIGINT NOT NULL DEFAULT 0,
+        error_count BIGINT NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL
+      )
+    `.catch((error) => {
+      schemaPromise = null;
+      throw error;
+    });
+  }
+  await schemaPromise;
+}
+
+function databaseRow(row) {
+  if (!row) return emptyStats();
+  return normalize({
+    image_uploaded: Number(row.image_uploaded || 0),
+    video_uploaded: Number(row.video_uploaded || 0),
+    total_storage_used_bytes: Number(row.total_storage_used_bytes || 0),
+    error_count: Number(row.error_count || 0),
+    updated_at: row.updated_at || null,
+  });
+}
 
 function ensureStore() {
   try {
@@ -85,21 +126,52 @@ function normalize(raw = {}) {
   };
 }
 
-function getUserStats(uid) {
+async function getUserStats(uid) {
   if (!uid) return emptyStats();
+  if (useDatabase()) {
+    await ensureDatabase();
+    const rows = await database`
+      SELECT image_uploaded, video_uploaded, total_storage_used_bytes,
+             error_count, updated_at
+      FROM huy_locket_upload_stats
+      WHERE owner_uid = ${String(uid)}
+      LIMIT 1
+    `;
+    return databaseRow(rows[0]);
+  }
   const all = readAll();
   return normalize(all[String(uid)] || {});
 }
 
 /** Overwrite stats (e.g. after client sync from published posts). */
-function setUserStats(uid, stats = {}) {
+async function setUserStats(uid, stats = {}) {
   if (!uid) return emptyStats();
-  const all = readAll();
   const next = normalize({
     ...emptyStats(),
     ...stats,
     updated_at: new Date().toISOString(),
   });
+  if (useDatabase()) {
+    await ensureDatabase();
+    const rows = await database`
+      INSERT INTO huy_locket_upload_stats
+        (owner_uid, image_uploaded, video_uploaded, total_storage_used_bytes,
+         error_count, updated_at)
+      VALUES
+        (${String(uid)}, ${next.image_uploaded}, ${next.video_uploaded},
+         ${next.total_storage_used_bytes}, ${next.error_count}, ${next.updated_at})
+      ON CONFLICT (owner_uid) DO UPDATE SET
+        image_uploaded = EXCLUDED.image_uploaded,
+        video_uploaded = EXCLUDED.video_uploaded,
+        total_storage_used_bytes = EXCLUDED.total_storage_used_bytes,
+        error_count = EXCLUDED.error_count,
+        updated_at = EXCLUDED.updated_at
+      RETURNING image_uploaded, video_uploaded, total_storage_used_bytes,
+                error_count, updated_at
+    `;
+    return databaseRow(rows[0]);
+  }
+  const all = readAll();
   all[String(uid)] = next;
   writeAll(all);
   return next;
@@ -108,13 +180,38 @@ function setUserStats(uid, stats = {}) {
 /**
  * @param {{ uid: string, mediaType?: 'image'|'video'|null, sizeInBytes?: number, isError?: boolean }} opts
  */
-function incrementUserStats({
+async function incrementUserStats({
   uid,
   mediaType = null,
   sizeInBytes = 0,
   isError = false,
 }) {
   if (!uid) return emptyStats();
+  if (useDatabase()) {
+    await ensureDatabase();
+    const imageDelta = isError || mediaType === "video" ? 0 : 1;
+    const videoDelta = !isError && mediaType === "video" ? 1 : 0;
+    const bytesDelta = isError ? 0 : Math.max(0, Number(sizeInBytes) || 0);
+    const errorDelta = isError ? 1 : 0;
+    const updatedAt = new Date().toISOString();
+    const rows = await database`
+      INSERT INTO huy_locket_upload_stats
+        (owner_uid, image_uploaded, video_uploaded, total_storage_used_bytes,
+         error_count, updated_at)
+      VALUES
+        (${String(uid)}, ${imageDelta}, ${videoDelta}, ${bytesDelta},
+         ${errorDelta}, ${updatedAt})
+      ON CONFLICT (owner_uid) DO UPDATE SET
+        image_uploaded = huy_locket_upload_stats.image_uploaded + EXCLUDED.image_uploaded,
+        video_uploaded = huy_locket_upload_stats.video_uploaded + EXCLUDED.video_uploaded,
+        total_storage_used_bytes = huy_locket_upload_stats.total_storage_used_bytes + EXCLUDED.total_storage_used_bytes,
+        error_count = huy_locket_upload_stats.error_count + EXCLUDED.error_count,
+        updated_at = EXCLUDED.updated_at
+      RETURNING image_uploaded, video_uploaded, total_storage_used_bytes,
+                error_count, updated_at
+    `;
+    return databaseRow(rows[0]);
+  }
   const all = readAll();
   const key = String(uid);
   const cur = normalize(all[key] || {});
