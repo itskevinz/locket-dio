@@ -33,7 +33,7 @@ const {
 } = require("./src/clients/redis/socketRedis.js");
 
 const app = express();
-const server = http.createServer(app);
+const server = http.createServer((req, res) => vercelHandler(req, res));
 
 app.set("trust proxy", 1);
 
@@ -235,4 +235,4 @@ function vercelHandler(req, res) {
   return app(req, res);
 }
 
-module.exports = isVercel ? vercelHandler : { app, server };
+module.exports = { app, server, vercelHandler };

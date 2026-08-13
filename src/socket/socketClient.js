@@ -34,12 +34,11 @@ export const createSocket = (
 
   const { url, path } = resolveSocketIoConfig(API_ENDPOINTS.socketUrl);
 
-  // Prefer websocket; polling remains as a fallback for hosts/proxies that
-  // cannot upgrade immediately. Backoff is intentionally capped at 30s so a
-  // temporary API outage does not create a reconnect storm on mobile.
+  // Vercel's Socket.IO runtime requires websocket-only transport. Backoff is
+  // intentionally capped at 30s so an outage does not create a reconnect storm.
   const socketClient = io(url, {
     path,
-    transports: ["websocket", "polling"],
+    transports: ["websocket"],
     auth: { token: idToken },
     autoConnect: false,
     reconnection: true,

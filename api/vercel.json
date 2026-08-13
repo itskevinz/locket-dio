@@ -6,6 +6,10 @@
     "api/vercel-web.js": {
       "includeFiles": "google/**",
       "maxDuration": 60
+    },
+    "api/socket-io.js": {
+      "includeFiles": "google/**",
+      "maxDuration": 60
     }
   },
   "rewrites": [

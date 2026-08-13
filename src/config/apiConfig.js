@@ -4,8 +4,13 @@ import { CONFIG } from "./webConfig";
 export const BASE_SERVER_HOST = CONFIG.api.baseUrl;
 // Socket.IO phải đi thẳng tới host hỗ trợ upgrade/polling lâu dài.
 // Vercel rewrite phù hợp REST nhưng không ổn định cho kết nối realtime.
+const configuredSocketHost = import.meta.env.VITE_SOCKET_API_URL;
+const dedicatedVercelSocketHost =
+  "https://huy-locket-api-huy-locket.vercel.app/api/socket-io";
 export const SOCKET_SERVER_HOST =
-  import.meta.env.VITE_SOCKET_API_URL || BASE_SERVER_HOST;
+  import.meta.env.PROD && (!configuredSocketHost || configuredSocketHost === "/dio-api")
+    ? dedicatedVercelSocketHost
+    : configuredSocketHost || BASE_SERVER_HOST;
 export const BETA_SERVER_HOST = import.meta.env.VITE_BETA_API_URL;
 // Namespace
 export const API_NAMESPACE = {
@@ -23,7 +28,12 @@ export const API_NAMESPACE = {
 export function resolveSocketIoConfig(base = BASE_SERVER_HOST) {
   const raw = (base || "/dio-api").trim();
   if (/^https?:\/\//i.test(raw)) {
-    return { url: raw.replace(/\/$/, ""), path: "/socket.io" };
+    const parsed = new URL(raw);
+    const prefix = parsed.pathname.replace(/\/$/, "");
+    return {
+      url: parsed.origin,
+      path: `${prefix}/socket.io` || "/socket.io",
+    };
   }
   const prefix = raw.startsWith("/") ? raw.replace(/\/$/, "") : `/${raw.replace(/\/$/, "")}`;
   const origin =
