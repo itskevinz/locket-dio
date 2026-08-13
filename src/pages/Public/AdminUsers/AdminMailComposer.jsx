@@ -1,3 +1,6 @@
+import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
+
 const TEMPLATES = [
   {
     id: "apology",
@@ -80,23 +83,44 @@ export default function AdminMailComposer({
   onClose,
   onSend,
 }) {
-  if (!open) return null;
+  const contentScrollRef = useRef(null);
+
+  useEffect(() => {
+    if (!open || typeof document === "undefined") return undefined;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const frame = window.requestAnimationFrame(() => {
+      contentScrollRef.current?.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.body.style.overflow = previousBodyOverflow;
+    };
+  }, [open, email]);
+
+  if (!open || typeof document === "undefined") return null;
 
   const selected = TEMPLATES.find((item) => item.id === template) || TEMPLATES[0];
 
-  return (
-    <div className="fixed inset-0 z-[10000] bg-slate-950/45 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
-      <div className="w-full max-w-5xl max-h-[92vh] rounded-[2rem] bg-white border border-slate-200 shadow-2xl overflow-hidden flex flex-col">
-        <div className="px-5 sm:px-6 py-5 border-b border-slate-100 bg-gradient-to-r from-violet-50 via-white to-indigo-50 shrink-0">
+  return createPortal(
+    <div className="fixed inset-0 z-[100000] bg-slate-950/45 backdrop-blur-sm flex items-stretch sm:items-center justify-center p-0 sm:p-4 overscroll-contain">
+      <div className="w-full max-w-5xl h-[100dvh] sm:h-auto sm:max-h-[92dvh] rounded-none sm:rounded-[2rem] bg-white border-0 sm:border border-slate-200 shadow-2xl overflow-hidden flex flex-col">
+        <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 bg-gradient-to-r from-violet-50 via-white to-indigo-50 shrink-0">
           <div className="text-xs font-black uppercase tracking-[0.16em] text-violet-600">✉️ Mail Center</div>
-          <div className="text-xl font-black text-slate-900 mt-1">Chọn mẫu thư và xem trước trước khi gửi</div>
-          <div className="text-sm text-slate-500 mt-1 break-all">
+          <div className="text-lg sm:text-xl font-black text-slate-900 mt-1 leading-tight">Chọn mẫu thư và xem trước trước khi gửi</div>
+          <div className="text-xs sm:text-sm text-slate-500 mt-1 break-all">
             Người nhận: <strong className="text-slate-800">{email}</strong>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1.05fr_.95fr] min-h-0 flex-1 overflow-hidden">
-          <div className="p-4 sm:p-5 overflow-y-auto border-b lg:border-b-0 lg:border-r border-slate-100">
+        <div
+          ref={contentScrollRef}
+          className="grid grid-cols-1 lg:grid-cols-[1.05fr_.95fr] min-h-0 flex-1 overflow-y-auto lg:overflow-hidden overscroll-contain"
+        >
+          <div className="p-4 sm:p-5 overflow-visible lg:overflow-y-auto border-b lg:border-b-0 lg:border-r border-slate-100">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {TEMPLATES.map((item) => {
                 const active = item.id === template;
@@ -123,7 +147,7 @@ export default function AdminMailComposer({
             </div>
           </div>
 
-          <div className="p-4 sm:p-5 overflow-y-auto bg-slate-50/70">
+          <div className="p-4 sm:p-5 overflow-visible lg:overflow-y-auto bg-slate-50/70">
             <div className="text-[11px] font-black tracking-wider uppercase text-slate-500 mb-2">Bản xem trước email</div>
             <div className="rounded-[1.6rem] overflow-hidden border border-slate-200 bg-white shadow-lg">
               <div className="px-5 py-4 border-b border-slate-100">
@@ -151,7 +175,7 @@ export default function AdminMailComposer({
           </div>
         </div>
 
-        <div className="px-5 sm:px-6 py-4 border-t border-slate-100 bg-white flex items-center justify-end gap-2 shrink-0">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-100 bg-white flex items-center justify-end gap-2 shrink-0">
           <button
             type="button"
             onClick={onClose}
@@ -170,6 +194,7 @@ export default function AdminMailComposer({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
