@@ -16,6 +16,7 @@ const { draftRoutes } = require("../modules/drafts");
 const { slotMonitorRoutes } = require("../modules/slotMonitor");
 const slotMonitorAdminRoutes = require("../modules/slotMonitor/adminRoutes");
 const adminOpsDashboardRoutes = require("../modules/adminOps/dashboardRoutes");
+const vercelDriveRoutes = require("../modules/vercelDrive");
 const { requestTelemetryMiddleware } = require("../services/requestTelemetry");
 const {
   healthController,
@@ -40,12 +41,16 @@ module.exports = (app) => {
       status: "success",
       message: "Huy Locket API is running",
       service: "huy-locket-api",
+      host: process.env.VERCEL ? "vercel" : "node",
       docs: "See DEPLOY.md",
     });
   });
 
   app.get("/health", healthController);
   app.get("/health/deep", deepHealthController);
+
+  // Google Drive/media routes formerly hosted by Railway web now live here.
+  app.use("/api", vercelDriveRoutes);
 
   // Routes có limiter riêng phải mount trước generalApiLimit.
   app.use("/locket", authRoutes);
