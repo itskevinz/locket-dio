@@ -30,7 +30,7 @@ function presentWebProbe(probe, apiCommit) {
   const matchesApi = Boolean(
     hasComparableCommits && normalizedApiCommit.startsWith(webCommit.slice(0, 8)),
   );
-  // Frontend và API có thể được Railway/Vercel bỏ qua hoặc triển khai độc lập.
+  // Frontend và API được triển khai độc lập trên hai Vercel Project.
   // Commit khác nhau là metadata phiên bản, không phải lỗi sức khỏe dịch vụ.
   let deploymentNote = "";
   if (hasComparableCommits) {
@@ -43,6 +43,31 @@ function presentWebProbe(probe, apiCommit) {
     status: "OK",
     detail: `Phản hồi ${probe.latencyMs}ms • commit ${short(webCommit) || "không rõ"}${deploymentNote}.`,
     matchesApi,
+  };
+}
+
+function presentSlotWorkerProbe(probe) {
+  if (!probe?.ok) {
+    return {
+      status: "ERROR",
+      detail: `Không kết nối được Render worker /health: ${probe?.error || "Không kết nối được"}`,
+    };
+  }
+
+  const status = String(probe?.data?.status || "").trim().toLowerCase();
+  const worker = String(probe?.data?.worker || "").trim().toLowerCase();
+  const running = status === "healthy" && worker === "running";
+  if (!running) {
+    return {
+      status: "ERROR",
+      detail: `Render worker phản hồi nhưng trạng thái không hợp lệ: status=${status || "không rõ"}, worker=${worker || "không rõ"}.`,
+    };
+  }
+
+  const uptimeSeconds = Math.max(0, Math.floor(Number(probe?.data?.uptimeSeconds) || 0));
+  return {
+    status: "OK",
+    detail: `Render worker đang chạy • phản hồi ${probe.latencyMs}ms • uptime ${uptimeSeconds.toLocaleString("vi-VN")} giây.`,
   };
 }
 
@@ -74,6 +99,38 @@ async function probeVersion(baseUrl) {
       ok: false,
       latencyMs: Date.now() - started,
       commit: "",
+      error: String(error?.message || "Không kết nối được").slice(0, 180),
+    };
+  }
+}
+
+async function probeSlotWorker(baseUrl) {
+  if (!baseUrl) {
+    return { ok: false, latencyMs: null, data: null, error: "URL chưa cấu hình" };
+  }
+
+  const started = Date.now();
+  try {
+    const response = await fetch(`${baseUrl}/health?_=${Date.now()}`, {
+      method: "GET",
+      headers: { "Cache-Control": "no-cache", Accept: "application/json" },
+      signal: AbortSignal.timeout(7000),
+    });
+    const latencyMs = Date.now() - started;
+    if (!response.ok) {
+      return { ok: false, latencyMs, data: null, error: `HTTP ${response.status}` };
+    }
+
+    const data = await response.json().catch(() => null);
+    if (!data || typeof data !== "object") {
+      return { ok: false, latencyMs, data: null, error: "JSON không hợp lệ" };
+    }
+    return { ok: true, latencyMs, data, error: "" };
+  } catch (error) {
+    return {
+      ok: false,
+      latencyMs: Date.now() - started,
+      data: null,
       error: String(error?.message || "Không kết nối được").slice(0, 180),
     };
   }
@@ -112,23 +169,23 @@ async function getSystemStatus() {
     process.env.PUBLIC_WEB_URL,
     "https://duchi.vercel.app",
   );
-  const railwayWebUrl = cleanUrl(
-    process.env.RAILWAY_WEB_PUBLIC_URL || process.env.RAILWAY_WEB_URL,
-    "https://huy-locket-production.up.railway.app",
+  const slotWorkerUrl = cleanUrl(
+    process.env.SLOT_WORKER_PUBLIC_URL || process.env.RENDER_SLOT_WORKER_URL,
+    "https://huy-locket-slot-worker.onrender.com",
   );
 
-  const [vercelProbe, railwayWebProbe] = await Promise.all([
+  const [vercelProbe, slotWorkerProbe] = await Promise.all([
     probeVersion(vercelUrl),
-    probeVersion(railwayWebUrl),
+    probeSlotWorker(slotWorkerUrl),
   ]);
 
   const vercelWebStatus = presentWebProbe(vercelProbe, apiCommit);
-  const railwayWebStatus = presentWebProbe(railwayWebProbe, apiCommit);
+  const slotWorkerStatus = presentSlotWorkerProbe(slotWorkerProbe);
 
   const services = [
     item(
       "api",
-      "Railway API",
+      "Vercel API",
       "OK",
       `Backend đang phản hồi • uptime ${uptimeSeconds.toLocaleString("vi-VN")} giây • commit ${short(apiCommit) || "không rõ"}.`,
       { uptimeSeconds, commit: apiCommit },
@@ -141,11 +198,15 @@ async function getSystemStatus() {
       { latencyMs: vercelProbe.latencyMs, commit: vercelProbe.commit, url: vercelUrl },
     ),
     item(
-      "railway-web",
-      "Railway Web",
-      railwayWebStatus.status,
-      railwayWebStatus.detail,
-      { latencyMs: railwayWebProbe.latencyMs, commit: railwayWebProbe.commit, url: railwayWebUrl },
+      "render-slot-worker",
+      "Render Canh Slot worker",
+      slotWorkerStatus.status,
+      slotWorkerStatus.detail,
+      {
+        latencyMs: slotWorkerProbe.latencyMs,
+        uptimeSeconds: Number(slotWorkerProbe?.data?.uptimeSeconds) || 0,
+        url: slotWorkerUrl,
+      },
     ),
     item(
       "database",
@@ -154,12 +215,12 @@ async function getSystemStatus() {
       databaseOk ? "Neon database đang truy cập được." : databaseError,
     ),
     item(
-      "slot-worker",
-      "Canh Slot worker",
+      "slot-config",
+      "Cấu hình Canh Slot",
       slotReady ? "OK" : "ERROR",
       slotReady
-        ? `Worker được cấu hình trên process API • chu kỳ ${pollSeconds || 45} giây.`
-        : slotError || "Worker chưa đủ cấu hình database/encryption.",
+        ? `Canh Slot đã đủ cấu hình database/encryption • chu kỳ ${pollSeconds || 45} giây.`
+        : slotError || "Canh Slot chưa đủ cấu hình database/encryption.",
       { pollIntervalMs: Number(slotConfig?.pollIntervalMs) || 0 },
     ),
     item(
@@ -196,12 +257,10 @@ async function getSystemStatus() {
     commitSync: {
       api: apiCommit,
       vercel: vercelProbe.commit,
-      railwayWeb: railwayWebProbe.commit,
       vercelMatchesApi: vercelWebStatus.matchesApi,
-      railwayWebMatchesApi: railwayWebStatus.matchesApi,
     },
     services,
   };
 }
 
-module.exports = { getSystemStatus, presentWebProbe };
+module.exports = { getSystemStatus, presentWebProbe, presentSlotWorkerProbe };
