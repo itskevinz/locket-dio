@@ -117,7 +117,7 @@ function roleBadge(role) {
 
 function errorMessage(error) {
   if (error?.code === "DATABASE_NOT_CONFIGURED") {
-    return "Database theo dõi người dùng chưa được cấu hình trên Railway API.";
+    return "Database theo dõi người dùng chưa được cấu hình trên Vercel API.";
   }
   if (error?.status === 403 || error?.code === "ADMIN_PERMISSION_REQUIRED") {
     return "Tài khoản này không có quyền xem dữ liệu quản trị.";
@@ -264,7 +264,7 @@ export default function AdminUsers() {
 
   const runApiHealthCheck = useCallback(async () => {
     setTestingApis(true);
-    const apiDomain = String(CONFIG.api.baseUrl || "https://huy-locket-api-production.up.railway.app").replace(/\/$/, "");
+    const apiDomain = String(CONFIG.api.baseUrl || "/dio-api").replace(/\/$/, "");
     const targets = [
       {
         id: "music_lib",
@@ -273,8 +273,8 @@ export default function AdminUsers() {
         url: `${apiDomain}/api/music/tracks`,
         method: "GET",
         isCors: false,
-        errorHelp: "Lỗi 404/500: Máy chủ Railway chưa đồng bộ route âm nhạc hoặc CSDL Neon mất bảng music_tracks.",
-        remedy: "Mở bảng điều khiển Railway (Tab Deployments) kiểm tra Log máy chủ và bấm 'Restart Service' để khởi động lại."
+        errorHelp: "Lỗi 404/500: Vercel API chưa đồng bộ route âm nhạc hoặc CSDL Neon mất bảng music_tracks.",
+        remedy: "Mở Vercel Runtime Logs của project huy-locket-api và kiểm tra deployment production mới nhất."
       },
       {
         id: "music_search",
@@ -284,7 +284,7 @@ export default function AdminUsers() {
         method: "GET",
         isCors: false,
         errorHelp: "Nghẽn Token: API Key Spotify/Apple bị hạn chế số lần gọi (Rate-limit) hoặc từ chối chứng chỉ.",
-        remedy: "Hệ thống đã có cụm chuyển trạm dự phòng Apple Music. Nếu vẫn lỗi, vào trang Spotify Developer cấp lại cặp Client ID & Secret mới trong biến môi trường Railway."
+        remedy: "Hệ thống đã có cụm chuyển trạm dự phòng Apple Music. Nếu vẫn lỗi, cấp lại Spotify Client ID & Secret trong Environment Variables của huy-locket-api."
       },
       {
         id: "weather_api",
@@ -327,14 +327,14 @@ export default function AdminUsers() {
         remedy: "Đây là API bổ trợ độc lập. Nếu gián đoạn, người dùng vẫn có thể ghép khung Locket mặc định không bị gián đoạn app."
       },
       {
-        id: "railway_core",
-        name: "⚡ Máy Chủ Xử Lý Trung Tâm (Railway Engine)",
-        desc: "Trực chiến 24/7 quản trị phiên làm việc, tường lửa WAF và kết nối SQL",
+        id: "vercel_api",
+        name: "▲ API Trung Tâm (Vercel Function)",
+        desc: "Xử lý quản trị phiên làm việc, bảo mật ứng dụng và kết nối Neon SQL",
         url: `${apiDomain}/health`,
         method: "GET",
         isCors: false,
-        errorHelp: "Ngừng tim (Offline/Error): Máy chủ Railway cạn kiệt CPU/RAM hoặc CSDL Neon ngắt kết nối do quá tải.",
-        remedy: "Kiểm tra ngay Dashboard Railway/Neon. Bấm 'Trigger Redeploy' trên Railway để dựng lại container mới 100% trong 2 phút."
+        errorHelp: "Vercel Function không phản hồi hoặc kết nối Neon đang gián đoạn.",
+        remedy: "Kiểm tra deployment và Runtime Logs của huy-locket-api trên Vercel, sau đó kiểm tra Neon nếu lỗi truy vấn."
       }
     ];
 
@@ -470,7 +470,7 @@ export default function AdminUsers() {
     } catch (err) {
       console.warn("Failed fetching advanced tools data:", err);
       if (typeof isUserAction === "boolean" && isUserAction) {
-        SonnerWarning("⚠️ Mất kết nối tới trạm Railway khi cập nhật cảm biến.");
+        SonnerWarning("⚠️ Mất kết nối tới Vercel API khi cập nhật cảm biến.");
       }
     } finally {
       if (typeof isUserAction === "boolean" && isUserAction) setRefreshingTelemetry(false);
@@ -2682,7 +2682,7 @@ export default function AdminUsers() {
             </button>
           </div>
 
-          {/* Section 1: Dual-Cloud Health Dashboard: Vercel & Railway */}
+          {/* Section 1: Production infrastructure probes */}
           {advancedSubTab === "telemetry" && (
             <div className="bg-slate-950 text-slate-100 rounded-[2.5rem] p-6 sm:p-9 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] border border-slate-800/80 relative overflow-hidden animate-fade-in backdrop-blur-2xl">
               {/* Decorative Ambient Cyber Lighting */}
@@ -2693,13 +2693,13 @@ export default function AdminUsers() {
                 <div>
                   <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-950/80 border border-indigo-500/40 text-indigo-300 text-xs font-black mb-2 shadow-sm">
                     <span className="w-2 h-2 rounded-full bg-indigo-400 animate-ping" />
-                    <span>DUAL-CLOUD SHIELD V3.0 · CYBER OBSERVABILITY ENGINE</span>
+                    <span>PRODUCTION OBSERVABILITY · LIVE PROBES</span>
                   </div>
                   <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 via-white to-blue-200 flex items-center gap-2.5">
-                    Cảm Biến Giám Sát Hạ Tầng Vercel & Railway
+                    Giám Sát Hạ Tầng Vercel, Neon & Render
                   </h2>
                   <p className="text-sm text-slate-400 font-medium mt-1 max-w-3xl leading-relaxed">
-                    Hệ thống đo tải tài nguyên thực tế 100% không qua bộ đệm ảo: Phân chia chính xác giữa Giao diện Edge (Vercel CDN), Máy chủ Backend (Railway Node Engine) & Cơ sở dữ liệu (Neon PostgreSQL).
+                    Dữ liệu trực tiếp từ trình duyệt, Vercel API, Neon PostgreSQL và endpoint /health của Render worker. Không hiển thị tài nguyên host dùng chung.
                   </p>
                 </div>
                 <button
@@ -2711,7 +2711,7 @@ export default function AdminUsers() {
                   {refreshingTelemetry ? (
                     <>
                       <span className="loading loading-spinner loading-sm text-indigo-200" />
-                      <span>Đang đo sóng Railway...</span>
+                      <span>Đang kiểm tra Vercel API...</span>
                     </>
                   ) : (
                     <>
@@ -2767,7 +2767,7 @@ export default function AdminUsers() {
                               <span className="text-base shrink-0">⚡</span>
                               <div>
                                 <strong className="text-amber-200 font-extrabold uppercase text-[11px] block">Vì sao ping cao?</strong>
-                                Máy chủ Railway đặt tại Mỹ (US-West) & CSDL Neon vừa khôi phục sau chế độ ngủ ngầm (Cold Start). Bấm làm mới lần nữa sẽ tụt xuống dưới 350ms!
+                                Độ trễ có thể tăng khi Vercel Function hoặc Neon vừa cold start. Bấm làm mới để đo lại, không giả định vị trí máy chủ.
                               </div>
                             </div>
                           )}
@@ -2816,7 +2816,7 @@ export default function AdminUsers() {
                   </div>
                 </div>
 
-                {/* 2. Railway Backend API Server */}
+                {/* 2. Vercel Backend Function */}
                 <div className="bg-slate-900/90 border-2 border-slate-800/80 hover:border-purple-500/50 transition-all duration-300 rounded-[2.2rem] p-6 shadow-xl hover:shadow-2xl flex flex-col justify-between group">
                   <div>
                     <div className="flex items-center justify-between mb-5 pb-4 border-b border-slate-800/80">
@@ -2826,11 +2826,11 @@ export default function AdminUsers() {
                         </div>
                         <div>
                           <div className="text-[10px] font-black uppercase tracking-wider text-purple-400">BACKEND ENGINE</div>
-                          <span className="font-black text-sm text-white">TRẠM XỬ LÝ RAILWAY</span>
+                          <span className="font-black text-sm text-white">TRẠM API VERCEL</span>
                         </div>
                       </div>
                       <span className="badge bg-purple-950 text-purple-300 border border-purple-500/40 font-black text-[10px] px-3 py-2.5 rounded-xl shadow-sm">
-                        NODE ENGINE
+                        SERVERLESS FUNCTION
                       </span>
                     </div>
 
@@ -2838,45 +2838,45 @@ export default function AdminUsers() {
                       <div className="space-y-3.5">
                         <div className="bg-slate-950/90 p-4 rounded-2xl border border-slate-800/80 hover:border-purple-500/40 transition-all shadow-inner">
                           <span className="text-[11px] uppercase tracking-wider text-slate-400 font-black block mb-1.5">
-                            Trạng thái & Tiến trình (PID)
+                            Trạng thái Function
                           </span>
                           <div className="text-emerald-400 font-black text-sm font-mono flex items-center gap-2">
                             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
                             <span>{serverHealth.status}</span>
-                            {serverHealth.pid && <span className="badge badge-sm bg-emerald-950 text-emerald-300 border-emerald-500/40 font-mono font-bold px-2.5 py-3 rounded-xl shadow-sm">PID #{serverHealth.pid}</span>}
+                            <span className="badge badge-sm bg-emerald-950 text-emerald-300 border-emerald-500/40 font-mono font-bold px-2.5 py-3 rounded-xl shadow-sm">{serverHealth.runtime || "Vercel Function"}</span>
                           </div>
                         </div>
 
                         <div className="bg-slate-950/90 p-4 rounded-2xl border border-slate-800/80 hover:border-purple-500/40 transition-all shadow-inner">
                           <span className="text-[11px] uppercase tracking-wider text-slate-400 font-black block mb-1.5">
-                            Thời gian liên tiếp hoạt động (Uptime)
+                            Uptime instance hiện tại
                           </span>
                           <div className="text-white font-black text-sm font-mono bg-slate-900 px-3.5 py-2.5 rounded-xl border border-slate-800 flex flex-wrap gap-2 items-center justify-between shadow-sm">
-                            <span>⏳ API: <span className="text-purple-300 font-bold">{Math.floor(serverHealth.uptimeSeconds / 3600)}h {Math.floor((serverHealth.uptimeSeconds % 3600) / 60)}p {serverHealth.uptimeSeconds % 60}s</span></span>
-                            {serverHealth.osUptimeSeconds && <span className="text-xs text-slate-400 font-semibold">OS: {Math.floor(serverHealth.osUptimeSeconds / 3600)}h {Math.floor((serverHealth.osUptimeSeconds % 3600) / 60)}p {serverHealth.osUptimeSeconds % 60}s</span>}
+                            <span>⏳ <span className="text-purple-300 font-bold">{Math.floor(serverHealth.uptimeSeconds / 3600)}h {Math.floor((serverHealth.uptimeSeconds % 3600) / 60)}p {serverHealth.uptimeSeconds % 60}s</span></span>
+                            <span className="text-xs text-slate-400 font-semibold">Reset khi cold start / deploy</span>
                           </div>
                         </div>
 
                         <div className="bg-slate-950/90 p-4 rounded-2xl border border-slate-800/80 hover:border-purple-500/40 transition-all shadow-inner">
                           <span className="text-[11px] uppercase tracking-wider text-slate-400 font-black block mb-1.5">
-                            Mức tiêu thụ RAM (Ứng dụng / Lõi)
+                            RAM tiến trình Node.js
                           </span>
                           <div className="text-amber-300 font-black text-sm font-mono">
                             <div className="flex items-center justify-between mb-1">
-                              <span>🧠 {serverHealth.memoryRssMb} MB <span className="text-xs font-normal text-slate-400">(Ứng dụng)</span></span>
-                              <span>{serverHealth.memoryHeapUsedMb} MB <span className="text-xs font-normal text-slate-400">(Lõi V8)</span></span>
+                              <span>🧠 RSS {serverHealth.memoryRssMb} MB</span>
+                              <span>V8 {serverHealth.memoryHeapUsedMb}/{serverHealth.memoryHeapTotalMb} MB</span>
                             </div>
-                            {serverHealth.totalOsRamMb && <div className="text-xs text-slate-400 font-normal border-t border-slate-800/80 pt-1 mt-1">Tổng RAM hệ thống: <strong className="text-white">{serverHealth.totalOsRamMb} MB</strong></div>}
+                            <div className="text-xs text-slate-400 font-normal border-t border-slate-800/80 pt-1 mt-1">Chỉ đo tiến trình API; không dùng RAM của host chung.</div>
                           </div>
                         </div>
 
                         <div className="bg-slate-950/90 p-4 rounded-2xl border border-slate-800/80 hover:border-purple-500/40 transition-all shadow-inner">
                           <span className="text-[11px] uppercase tracking-wider text-slate-400 font-black block mb-1.5">
-                            Phần cứng CPU & Hệ điều hành
+                            Runtime & khu vực
                           </span>
                           <div className="text-white font-bold text-xs font-mono">
-                            <div className="truncate mb-1 text-purple-300 font-extrabold" title={serverHealth.cpuModel}>
-                              🖥️ {serverHealth.cpuModel || "Cloud vCPU"} ({serverHealth.cpuCores || 1} Cores)
+                            <div className="truncate mb-1 text-purple-300 font-extrabold">
+                              ▲ {serverHealth.provider || "Vercel"} · {serverHealth.region || "Region tự động"}
                             </div>
                             <div className="text-[11px] text-slate-400 flex items-center justify-between border-t border-slate-800/80 pt-1.5">
                               <span>Platform: <strong className="text-white font-mono">{serverHealth.platform}</strong></span>
@@ -2887,30 +2887,28 @@ export default function AdminUsers() {
 
                         <div className="bg-slate-950/90 p-4 rounded-2xl border border-slate-800/80 hover:border-purple-500/40 transition-all shadow-inner">
                           <span className="text-[11px] uppercase tracking-wider text-slate-400 font-black block mb-1.5">
-                            Mức tải CPU (Load Average)
+                            Deployment hiện tại
                           </span>
                           <div className="text-cyan-300 font-black text-sm font-mono bg-slate-900 px-3.5 py-2.5 rounded-xl border border-slate-800 shadow-sm flex flex-col gap-1.5">
-                            <div className="flex items-center justify-between">
-                              <span>📊 {serverHealth.loadAvg || "N/A"}</span>
-                              <span className="text-[10px] text-slate-400 font-semibold">1m / 5m / 15m</span>
+                            <div className="flex items-center justify-between gap-2">
+                              <span>{serverHealth.environment || "production"}</span>
+                              <span className="text-[10px] text-slate-400 font-semibold truncate">Commit {serverHealth.commit ? serverHealth.commit.slice(0, 7) : "N/A"}</span>
                             </div>
-                            <span className="text-[10px] text-slate-500 font-normal">*(Lý tưởng khi {"<"} Số Core)*</span>
+                            <span className="text-[10px] text-slate-500 font-normal">Dữ liệu lấy từ biến hệ thống Vercel.</span>
                           </div>
                         </div>
 
                         <div className="bg-slate-950/90 p-4 rounded-2xl border border-slate-800/80 hover:border-purple-500/40 transition-all shadow-inner">
                           <span className="text-[11px] uppercase tracking-wider text-slate-400 font-black block mb-1.5">
-                            RAM khả dụng & Tốc độ CPU
+                            Phạm vi số liệu
                           </span>
                           <div className="text-white font-bold text-xs font-mono">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-emerald-300">💚 Còn trống: {serverHealth.freeOsRamMb || 0} MB</span>
-                              <span className={`font-extrabold ${serverHealth.totalOsRamMb && serverHealth.freeOsRamMb ? (serverHealth.freeOsRamMb / serverHealth.totalOsRamMb < 0.15 ? "text-rose-400" : serverHealth.freeOsRamMb / serverHealth.totalOsRamMb < 0.3 ? "text-amber-400" : "text-emerald-400") : "text-slate-400"}`}>
-                                {serverHealth.totalOsRamMb && serverHealth.freeOsRamMb ? `${Math.round((1 - serverHealth.freeOsRamMb / serverHealth.totalOsRamMb) * 100)}% đã dùng` : "N/A"}
-                              </span>
+                            <div className="flex items-center justify-between mb-1 gap-2">
+                              <span className="text-emerald-300">✓ API đang phản hồi</span>
+                              <span className="font-extrabold text-slate-300">Ephemeral</span>
                             </div>
                             <div className="text-[11px] text-slate-400 border-t border-slate-800/80 pt-1.5 flex items-center justify-between">
-                              <span>CPU Clock: <strong className="text-white">{serverHealth.cpuSpeed || "N/A"}</strong></span>
+                              <span>Không hiển thị CPU/RAM host dùng chung</span>
                               <span className="badge badge-xs bg-purple-950 text-purple-300 border-purple-500/40 px-2 py-2.5 rounded-lg shadow-sm font-bold">{serverHealth.environment || "production"}</span>
                             </div>
                           </div>
@@ -2919,7 +2917,7 @@ export default function AdminUsers() {
                     ) : (
                       <div className="py-16 text-center text-purple-400 flex flex-col items-center gap-3.5">
                         <span className="loading loading-bars loading-md text-purple-400"></span>
-                        <span className="font-bold text-xs uppercase tracking-wide text-slate-400">Đang đo ngầm tài nguyên thực từ Railway...</span>
+                        <span className="font-bold text-xs uppercase tracking-wide text-slate-400">Đang đọc trạng thái Vercel Function...</span>
                       </div>
                     )}
                   </div>
@@ -3026,7 +3024,7 @@ export default function AdminUsers() {
                   </div>
                 </div>
 
-                {/* 4. Cloudflare Media Layer */}
+                {/* 4. Render slot-monitor worker */}
                 <div className="bg-slate-900/90 border-2 border-slate-800/80 hover:border-orange-500/50 transition-all duration-300 rounded-[2.2rem] p-6 shadow-xl hover:shadow-2xl flex flex-col justify-between group">
                   <div>
                     <div className="flex items-center justify-between mb-5 pb-4 border-b border-slate-800/80">
@@ -3035,67 +3033,67 @@ export default function AdminUsers() {
                           ☁️
                         </div>
                         <div>
-                          <div className="text-[10px] font-black uppercase tracking-wider text-orange-400">MEDIA LAYER</div>
-                          <span className="font-black text-sm text-white">TRẠM XỬ LÝ CLOUDFLARE</span>
+                          <div className="text-[10px] font-black uppercase tracking-wider text-orange-400">BACKGROUND WORKER</div>
+                          <span className="font-black text-sm text-white">RENDER CANH SLOT</span>
                         </div>
                       </div>
-                      <span className="badge bg-orange-950 text-orange-300 border border-orange-500/40 font-black text-[10px] px-3 py-2.5 rounded-xl shadow-sm">
-                        WORKER ACTIVE
+                      <span className={`badge border font-black text-[10px] px-3 py-2.5 rounded-xl shadow-sm ${!serverHealth ? "bg-orange-950 text-orange-300 border-orange-500/40" : serverHealth.worker?.healthy ? "bg-emerald-950 text-emerald-300 border-emerald-500/40" : "bg-rose-950 text-rose-300 border-rose-500/40"}`}>
+                        {!serverHealth ? "CHECKING" : serverHealth.worker?.healthy ? "WORKER ONLINE" : "WORKER ERROR"}
                       </span>
                     </div>
 
                     <div className="space-y-3.5">
                       <div className="bg-slate-950/90 p-4 rounded-2xl border border-slate-800/80 hover:border-orange-500/40 transition-all shadow-inner">
                         <span className="text-[11px] uppercase tracking-wider text-slate-400 font-black block mb-1.5">
-                          Trạng thái & Mạng lưới phân phối
+                          Trạng thái endpoint /health
                         </span>
                         <div className="flex flex-col gap-2">
-                          <div className="font-black text-sm font-mono tracking-tight text-emerald-400 flex items-center gap-2">
-                            <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
-                            Đang hoạt động (Toàn cầu)
+                          <div className={`font-black text-sm font-mono tracking-tight flex items-center gap-2 ${!serverHealth ? "text-orange-400" : serverHealth.worker?.healthy ? "text-emerald-400" : "text-rose-400"}`}>
+                            <span className={`inline-block w-2.5 h-2.5 rounded-full shrink-0 ${!serverHealth ? "bg-orange-400 animate-pulse" : serverHealth.worker?.healthy ? "bg-emerald-400 animate-ping" : "bg-rose-400"}`} />
+                            {serverHealth?.worker?.healthy ? "healthy · running" : serverHealth?.worker?.error || "Đang kiểm tra..."}
                           </div>
                         </div>
                       </div>
 
                       <div className="bg-slate-950/90 p-4 rounded-2xl border border-slate-800/80 hover:border-orange-500/40 transition-all shadow-inner">
                         <span className="text-[11px] uppercase tracking-wider text-slate-400 font-black block mb-1.5">
-                          Giới hạn Tài nguyên (Mỗi Lượt truy cập)
+                          Phản hồi Render
                         </span>
                         <div className="text-white font-bold text-xs font-mono">
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-orange-300">⚡ Thời gian CPU:</span>
-                            <span>{"< 10ms (Rất thấp)"}</span>
+                            <span className="text-orange-300">⚡ Độ trễ probe:</span>
+                            <span>{serverHealth?.worker?.latencyMs ? `${serverHealth.worker.latencyMs} ms` : "N/A"}</span>
                           </div>
                           <div className="text-[11px] text-slate-400 border-t border-slate-800/80 pt-1.5 flex items-center justify-between">
-                            <span>Giới hạn RAM:</span>
-                            <strong className="text-white">128 MB / Yêu cầu</strong>
+                            <span>Dịch vụ:</span>
+                            <strong className="text-white truncate ml-2">{serverHealth?.worker?.service || "huy-locket-slot-worker"}</strong>
                           </div>
                         </div>
                       </div>
 
                       <div className="bg-slate-950/90 p-4 rounded-2xl border border-slate-800/80 hover:border-orange-500/40 transition-all shadow-inner">
                         <span className="text-[11px] uppercase tracking-wider text-slate-400 font-black block mb-1.5">
-                          Lưu trữ R2 & Băng thông
+                          Uptime worker hiện tại
                         </span>
                         <div className="text-white font-bold text-xs font-mono">
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-orange-300">🗄️ Chuẩn lưu trữ:</span>
-                            <span>S3-Compatible (R2)</span>
+                            <span className="text-orange-300">⏳ Đã chạy:</span>
+                            <span>{serverHealth?.worker?.uptimeSeconds ? `${Math.floor(serverHealth.worker.uptimeSeconds / 3600)}h ${Math.floor((serverHealth.worker.uptimeSeconds % 3600) / 60)}p ${serverHealth.worker.uptimeSeconds % 60}s` : "N/A"}</span>
                           </div>
                           <div className="text-[11px] text-slate-400 border-t border-slate-800/80 pt-1.5 flex items-center justify-between">
-                            <span>Băng thông:</span>
-                            <strong className="text-emerald-400 font-extrabold">Không giới hạn (Max)</strong>
+                            <span>Bắt đầu lúc:</span>
+                            <strong className="text-emerald-400 font-extrabold">{serverHealth?.worker?.startedAt ? new Date(serverHealth.worker.startedAt).toLocaleString("vi-VN") : "N/A"}</strong>
                           </div>
                         </div>
                       </div>
 
                       <div className="bg-slate-950/90 p-4 rounded-2xl border border-slate-800/80 hover:border-orange-500/40 transition-all shadow-inner">
                         <span className="text-[11px] uppercase tracking-wider text-slate-400 font-black block mb-1.5">
-                          Tính khả dụng & Vị trí Edge
+                          Vai trò & chu kỳ thực
                         </span>
                         <div className="text-orange-200 font-bold text-xs font-mono flex items-center justify-between bg-slate-900 px-3 py-2 rounded-xl border border-slate-800 shadow-sm">
-                          <span>🌍 Hơn 300+ Thành phố</span>
-                          <span className="text-slate-400">Tier 1 Network</span>
+                          <span>⚡ Canh Slot thích ứng</span>
+                          <span className="text-slate-400">30s · 10s · 1s</span>
                         </div>
                       </div>
                     </div>

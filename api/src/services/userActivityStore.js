@@ -1059,21 +1059,60 @@ async function nukeUserPermanently(uid) {
   return { success: true };
 }
 
-// 4. Cảm Biến Giám Sát Tài Nguyên & Thống Kê Máy Chủ
+function normalizeSlotWorkerHealth(payload, { url, latencyMs } = {}) {
+  const healthy = payload?.status === "healthy" && payload?.worker === "running";
+  return {
+    url: url || null,
+    healthy,
+    status: healthy ? "ONLINE" : "ERROR",
+    service: payload?.service || "huy-locket-slot-worker",
+    state: payload?.worker || "unknown",
+    uptimeSeconds: Number(payload?.uptimeSeconds) || 0,
+    startedAt: payload?.startedAt || null,
+    latencyMs: Number(latencyMs) || 0,
+    error: healthy ? null : payload?.error || "Worker không trả về trạng thái healthy/running.",
+  };
+}
+
+async function probeSlotWorkerHealth() {
+  const baseUrl = String(
+    process.env.SLOT_WORKER_PUBLIC_URL ||
+      process.env.RENDER_SLOT_WORKER_URL ||
+      "https://huy-locket-slot-worker.onrender.com"
+  ).replace(/\/+$/, "");
+  const url = `${baseUrl}/health`;
+  const startedAt = Date.now();
+
+  try {
+    const response = await fetch(`${url}?_=${startedAt}`, {
+      method: "GET",
+      headers: { accept: "application/json" },
+      signal: AbortSignal.timeout(12000),
+    });
+    const payload = await response.json().catch(() => ({}));
+    const normalized = normalizeSlotWorkerHealth(payload, {
+      url,
+      latencyMs: Date.now() - startedAt,
+    });
+    if (!response.ok) {
+      normalized.healthy = false;
+      normalized.status = "ERROR";
+      normalized.error = `HTTP ${response.status}`;
+    }
+    return normalized;
+  } catch (error) {
+    return {
+      ...normalizeSlotWorkerHealth({}, { url, latencyMs: Date.now() - startedAt }),
+      error: error?.name === "TimeoutError" ? "Hết thời gian chờ sau 12 giây." : error?.message || "Không thể kết nối Render worker.",
+    };
+  }
+}
+
+// 4. Cảm Biến Giám Sát Vercel Function, Neon và Render Worker
 async function getServerHealthStats() {
-  const os = require("os");
   const memory = process.memoryUsage();
   const procUptime = process.uptime();
-  const osUptime = os.uptime ? os.uptime() : procUptime;
-
-  const cpus = os.cpus ? os.cpus() : [];
-  const cpuModel = cpus[0]?.model || "Intel/AMD Cloud vCPU";
-  const cpuCores = cpus.length || 1;
-  const cpuSpeed = cpus[0]?.speed ? `${cpus[0].speed} MHz` : "Standard Cloud MHz";
-  const loadAvg = os.loadavg ? os.loadavg().map((n) => Number(n || 0).toFixed(2)).join(", ") : "N/A";
-
-  const totalRamMb = os.totalmem ? Math.round(os.totalmem() / (1024 * 1024)) : 0;
-  const freeRamMb = os.freemem ? Math.round(os.freemem() / (1024 * 1024)) : 0;
+  const workerProbe = probeSlotWorkerHealth();
 
   const sql = getSql();
   const t0 = Date.now();
@@ -1123,23 +1162,22 @@ async function getServerHealthStats() {
     }
   }
 
+  const worker = await workerProbe;
+
   return {
-    status: "OPTIMAL (Huy Locket Shield Active)",
-    pid: process.pid,
+    status: "ONLINE",
+    provider: "Vercel",
+    runtime: "Vercel Function",
     uptimeSeconds: Math.floor(procUptime),
-    osUptimeSeconds: Math.floor(osUptime),
     memoryRssMb: Math.round(memory.rss / (1024 * 1024)),
     memoryHeapUsedMb: Math.round(memory.heapUsed / (1024 * 1024)),
     memoryHeapTotalMb: Math.round(memory.heapTotal / (1024 * 1024)),
-    totalOsRamMb: totalRamMb,
-    freeOsRamMb: freeRamMb,
-    cpuModel,
-    cpuCores,
-    cpuSpeed,
-    loadAvg,
     nodeVersion: process.version,
     platform: `${process.platform} (${process.arch})`,
-    environment: process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV || "production",
+    environment: process.env.VERCEL_ENV || process.env.NODE_ENV || "production",
+    region: process.env.VERCEL_REGION || null,
+    commit: process.env.VERCEL_GIT_COMMIT_SHA || process.env.GIT_COMMIT || null,
+    functionEphemeral: true,
     db: {
       status: dbStatus,
       version: dbVersion,
@@ -1149,6 +1187,7 @@ async function getServerHealthStats() {
       records: dbRecords,
       latencyMs: dbLatencyMs,
     },
+    worker,
     measuredAt: Date.now(),
   };
 }
@@ -1371,6 +1410,7 @@ module.exports = {
   getAccountStatus,
   getGlobalBroadcast,
   getLoginHistory,
+  normalizeSlotWorkerHealth,
   getServerHealthStats,
   getUserPasswordRecoveryStatus,
   getUserRole,
