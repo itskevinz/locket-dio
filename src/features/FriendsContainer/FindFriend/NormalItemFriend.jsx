@@ -31,9 +31,7 @@ const formatFriendSince = (value) => {
 export default function NormalItemFriend({
   friend,
   handleAddFriend,
-  handleDirectAddFriend,
   loading,
-  directLoading = false,
   disabled,
   status,
 }) {
@@ -151,37 +149,14 @@ export default function NormalItemFriend({
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 shrink-0">
-        <FriendActionButton
-          status={status}
-          onAdd={handleAddFriend}
-          loading={loading}
-          onAccept={() => console.log("accept")}
-          onReject={() => console.log("reject")}
-          disabled={disabled || directLoading}
-        />
-        {handleDirectAddFriend && status === "NONE" && (
-          <button
-            type="button"
-            onClick={handleDirectAddFriend}
-            disabled={disabled || loading || directLoading}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-full font-semibold text-xs transition-all border border-primary/40 bg-primary/10 text-primary hover:bg-primary hover:text-primary-content disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Kết bạn Direct (Beta) - Không qua Dio"
-          >
-            {directLoading ? (
-              <>
-                <span className="loading loading-spinner loading-xs" />
-                Đang gửi Direct...
-              </>
-            ) : (
-              <>
-                <span>⚡</span>
-                Kết bạn Direct (Beta)
-              </>
-            )}
-          </button>
-        )}
-      </div>
+      <FriendActionButton
+        status={status}
+        onAdd={handleAddFriend}
+        loading={loading}
+        onAccept={() => console.log("accept")}
+        onReject={() => console.log("reject")}
+        disabled={disabled}
+      />
     </div>
   );
 }

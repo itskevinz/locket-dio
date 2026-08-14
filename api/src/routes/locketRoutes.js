@@ -219,8 +219,4 @@ router.post("/acceptFriendRequestV2", verifyIdToken, friendcontroll.AcceptFriend
 // Get Friend
 router.post("/getUserByData", friendSearchLimiter, verifyIdToken, friendcontroll.getUserController);
 
-// ==================== Direct Beta Friend Requests ====================
-const { directFriendRoutes } = require("../modules/directFriend");
-router.use(directFriendRoutes);
-
 module.exports = router;
