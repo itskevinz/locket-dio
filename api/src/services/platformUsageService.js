@@ -9,6 +9,25 @@ function currentMonthRange(now = new Date()) {
   return { from: from.toISOString(), to: now.toISOString() };
 }
 
+function estimateContinuousInstanceHours({ period, createdAt }) {
+  const periodStart = Date.parse(period?.from);
+  const measuredAt = Date.parse(period?.to);
+  const createdAtMs = Date.parse(createdAt);
+  if (!Number.isFinite(periodStart) || !Number.isFinite(measuredAt)) return null;
+
+  const startedAtMs = Number.isFinite(createdAtMs)
+    ? Math.max(periodStart, createdAtMs)
+    : periodStart;
+  const usedSeconds = Math.max(0, Math.floor((measuredAt - startedAtMs) / 1000));
+
+  return {
+    usedSeconds,
+    startedAt: new Date(startedAtMs).toISOString(),
+    measuredAt: new Date(measuredAt).toISOString(),
+    source: "continuous-runtime-estimate",
+  };
+}
+
 function metricValues(series) {
   return (Array.isArray(series) ? series : []).flatMap((item) =>
     (Array.isArray(item?.values) ? item.values : []).map((point) => ({
@@ -109,7 +128,12 @@ async function renderUsage(period) {
       region: service?.serviceDetails?.region || service?.region || null,
       suspended: service?.suspended || "not_suspended",
       autoDeploy: service?.autoDeploy ?? null,
+      createdAt: service?.createdAt || null,
     };
+    result.limits.freeInstanceHours.estimate = estimateContinuousInstanceHours({
+      period,
+      createdAt: service?.createdAt,
+    });
   }
   if (calls[1].status === "fulfilled") {
     result.metrics.bandwidthMonth = summarizeMetric(parseJson(calls[1].value, []), "sum");
@@ -143,6 +167,7 @@ async function getPlatformUsageStats({ force = false } = {}) {
 
 module.exports = {
   currentMonthRange,
+  estimateContinuousInstanceHours,
   getPlatformUsageStats,
   summarizeMetric,
 };

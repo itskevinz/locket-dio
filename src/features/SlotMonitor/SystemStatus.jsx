@@ -76,10 +76,20 @@ function formatPlatformMetric(metric) {
   return `${value.toFixed(Math.abs(value) >= 10 ? 1 : 2)}${metric.unit ? ` ${metric.unit}` : ""}`;
 }
 
+function formatEstimatedDuration(totalSeconds) {
+  if (!Number.isFinite(totalSeconds)) return "Đang tính...";
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const seconds = safeSeconds % 60;
+  return `${hours.toLocaleString("vi-VN")} giờ ${minutes} phút ${seconds} giây`;
+}
+
 export default function SystemStatus({ renderUsage }) {
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [liveNow, setLiveNow] = useState(() => Date.now());
 
   const load = useCallback(async ({ quiet = false } = {}) => {
     if (!quiet) setLoading(true);
@@ -105,6 +115,14 @@ export default function SystemStatus({ renderUsage }) {
     return () => window.clearInterval(timer);
   }, [load]);
 
+  const freeHoursEstimate = renderUsage?.limits?.freeInstanceHours?.estimate;
+  useEffect(() => {
+    if (!freeHoursEstimate) return undefined;
+    setLiveNow(Date.now());
+    const timer = window.setInterval(() => setLiveNow(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, [freeHoursEstimate]);
+
   const services = Array.isArray(status?.services) ? status.services : [];
   const summary = useMemo(() => {
     const ok = services.filter((item) => item.status === "OK").length;
@@ -112,6 +130,21 @@ export default function SystemStatus({ renderUsage }) {
     const failed = services.filter((item) => item.status === "ERROR").length;
     return { ok, warning, failed };
   }, [services]);
+
+  const freeHoursIncluded = Number(renderUsage?.limits?.freeInstanceHours?.included) || 750;
+  const estimatedUsedSeconds = useMemo(() => {
+    if (!freeHoursEstimate) return null;
+    const measuredAt = Date.parse(freeHoursEstimate.measuredAt);
+    const baseSeconds = Number(freeHoursEstimate.usedSeconds);
+    if (!Number.isFinite(measuredAt) || !Number.isFinite(baseSeconds)) return null;
+    return Math.max(0, baseSeconds + Math.max(0, liveNow - measuredAt) / 1000);
+  }, [freeHoursEstimate, liveNow]);
+  const estimatedRemainingSeconds = estimatedUsedSeconds === null
+    ? null
+    : Math.max(0, freeHoursIncluded * 3600 - estimatedUsedSeconds);
+  const estimatedUsagePercent = estimatedUsedSeconds === null
+    ? 0
+    : Math.min(100, (estimatedUsedSeconds / (freeHoursIncluded * 3600)) * 100);
 
   return (
     <section className="mx-auto w-full max-w-5xl space-y-6 px-4 pb-6 text-base-content">
@@ -232,8 +265,28 @@ export default function SystemStatus({ renderUsage }) {
         <div className="grid grid-cols-1 gap-3 text-xs font-mono sm:grid-cols-2">
           <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
             <span className="mb-1 block text-slate-400">Free instance hours</span>
-            <strong className="text-base text-orange-300">750 giờ / tháng</strong>
-            <span className="mt-1 block text-slate-500">Đã dùng: Render chỉ hiển thị trong Billing</span>
+            <strong className="text-base text-orange-300">{freeHoursIncluded} giờ / tháng</strong>
+            {estimatedUsedSeconds === null ? (
+              <span className="mt-1 block text-slate-500">Đang tạo mốc ước tính thời gian chạy...</span>
+            ) : (
+              <>
+                <span className="mt-2 block font-semibold text-emerald-300">
+                  Đã dùng ước tính: {formatEstimatedDuration(estimatedUsedSeconds)}
+                </span>
+                <span className="mt-1 block text-slate-500">
+                  Còn khoảng: {formatEstimatedDuration(estimatedRemainingSeconds)}
+                </span>
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-800">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-orange-400 transition-[width] duration-1000"
+                    style={{ width: `${estimatedUsagePercent}%` }}
+                  />
+                </div>
+                <span className="mt-1 block text-[10px] text-slate-600">
+                  Cập nhật mỗi giây · ước tính chạy liên tục từ đầu tháng hoặc lúc tạo service.
+                </span>
+              </>
+            )}
           </div>
           <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
             <span className="mb-1 block text-slate-400">Pipeline build</span>
