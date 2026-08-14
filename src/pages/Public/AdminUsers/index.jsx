@@ -1521,7 +1521,7 @@ export default function AdminUsers() {
                 </div>
               </div>
 
-              <div className="relative z-10 grid grid-cols-1 xl:grid-cols-2 gap-6 mt-6">
+              <div className="relative z-10 mt-6">
                 <div className="bg-slate-900/90 border border-orange-500/30 rounded-3xl p-5 shadow-xl">
                   <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                     <div>
@@ -1561,41 +1561,6 @@ export default function AdminUsers() {
                   )}
                 </div>
 
-                <div className="bg-slate-900/90 border border-indigo-500/30 rounded-3xl p-5 shadow-xl">
-                  <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                    <div>
-                      <div className="text-[10px] font-black uppercase tracking-widest text-indigo-400">MONTHLY USAGE · VERCEL</div>
-                      <h3 className="text-lg font-black text-white">Hạn mức Web & API</h3>
-                    </div>
-                    <a href={serverHealth?.platformUsage?.vercel?.usageUrl || "https://vercel.com/huy-locket/~/usage"} target="_blank" rel="noreferrer" className="btn btn-sm bg-indigo-950 text-indigo-200 border-indigo-500/40 rounded-xl">
-                      Mở Usage ↗
-                    </a>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
-                    <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4">
-                      <span className="text-slate-400 block mb-1">Gói hiện tại</span>
-                      <strong className="text-indigo-300 text-base">{serverHealth?.platformUsage?.vercel?.plan || "Hobby"}</strong>
-                      <span className="text-slate-500 block mt-1">Web và API dùng hai project cùng team</span>
-                    </div>
-                    <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4">
-                      <span className="text-slate-400 block mb-1">Chi phí tháng này</span>
-                      <strong className="text-white text-base">
-                        {serverHealth?.platformUsage?.vercel?.billing
-                          ? `${serverHealth.platformUsage.vercel.billing.effectiveCost.toFixed(2)} ${serverHealth.platformUsage.vercel.billing.currency}`
-                          : "Không khả dụng trên Hobby"}
-                      </strong>
-                      <span className="text-slate-500 block mt-1">Billing API chỉ mở cho Pro/Enterprise</span>
-                    </div>
-                    <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 sm:col-span-2">
-                      <span className="text-slate-400 block mb-1">Bandwidth · Function usage · Build usage</span>
-                      <strong className="text-amber-300 text-sm">Xem số chính thức trong Vercel Usage Dashboard</strong>
-                      <span className="text-slate-500 block mt-1">Không dùng endpoint nội bộ hoặc ước lượng để tránh hiển thị sai hạn mức.</span>
-                    </div>
-                  </div>
-                  <div className="mt-3 p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/30 text-indigo-200 text-xs font-semibold">
-                    {serverHealth?.platformUsage?.vercel?.error || "Đã kết nối Vercel Billing API."}
-                  </div>
-                </div>
               </div>
             </div>
           )}

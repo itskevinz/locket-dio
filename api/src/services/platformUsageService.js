@@ -1,5 +1,4 @@
 const RENDER_API_BASE = "https://api.render.com/v1";
-const VERCEL_API_BASE = "https://api.vercel.com/v1";
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
 let cachedUsage = null;
@@ -132,58 +131,17 @@ async function renderUsage(period) {
   return result;
 }
 
-function aggregateVercelCharges(lines) {
-  const rows = String(lines || "")
-    .split(/\r?\n/)
-    .filter(Boolean)
-    .slice(0, 5000)
-    .map((line) => JSON.parse(line));
-  const billedCost = rows.reduce((total, row) => total + (Number(row?.BilledCost) || 0), 0);
-  const effectiveCost = rows.reduce((total, row) => total + (Number(row?.EffectiveCost) || 0), 0);
-  return { billedCost, effectiveCost, currency: rows.find((row) => row?.BillingCurrency)?.BillingCurrency || "USD", rows: rows.length };
-}
-
-async function vercelUsage(period) {
-  const token = String(process.env.VERCEL_ACCESS_TOKEN || "").trim();
-  const teamId = String(process.env.VERCEL_TEAM_ID || "").trim();
-  const result = {
-    configured: Boolean(token && teamId),
-    plan: "Hobby",
-    usageUrl: "https://vercel.com/huy-locket/~/usage",
-    billing: null,
-    error: null,
-  };
-  if (!token || !teamId) {
-    result.error = "Vercel Hobby không cấp Billing API; xem usage trực tiếp trong Dashboard.";
-    return result;
-  }
-
-  const query = new URLSearchParams({ teamId, from: period.from, to: period.to });
-  try {
-    const body = await apiRequest(`${VERCEL_API_BASE}/billing/charges?${query}`, token, {
-      accept: "application/x-ndjson, application/json",
-    });
-    result.billing = aggregateVercelCharges(body);
-  } catch (error) {
-    result.error = error?.status === 403
-      ? "Billing API chỉ dành cho team Vercel Pro/Enterprise."
-      : `Không đọc được Vercel Billing API (${error?.message || "unknown"}).`;
-  }
-  return result;
-}
-
 async function getPlatformUsageStats({ force = false } = {}) {
   const now = Date.now();
   if (!force && cachedUsage && now - cachedAt < CACHE_TTL_MS) return cachedUsage;
   const period = currentMonthRange(new Date(now));
-  const [render, vercel] = await Promise.all([renderUsage(period), vercelUsage(period)]);
-  cachedUsage = { period, render, vercel, measuredAt: Date.now() };
+  const render = await renderUsage(period);
+  cachedUsage = { period, render, measuredAt: Date.now() };
   cachedAt = now;
   return cachedUsage;
 }
 
 module.exports = {
-  aggregateVercelCharges,
   currentMonthRange,
   getPlatformUsageStats,
   summarizeMetric,
