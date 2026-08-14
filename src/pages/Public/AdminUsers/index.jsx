@@ -1627,18 +1627,49 @@ export default function AdminUsers() {
                     </div>
 
                     {/* Quick Administrative buttons or Immutable Shield inside Admin card */}
-                    <div className="mt-6 pt-4 flex items-center justify-end gap-2 border-t border-slate-100 relative z-10">
+                    <div className="mt-6 pt-4 flex items-center justify-between gap-2 border-t border-slate-100 relative z-10">
                       {isSuperAdmin ? (
-                        <div className="w-full bg-gradient-to-r from-amber-50 via-indigo-50 to-purple-50 border border-amber-200/80 text-amber-800 font-black text-[11px] py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 shadow-inner uppercase tracking-wider">
-                          <Lock size={14} className="text-amber-600 shrink-0" />
-                          <span>Quyền Tối Thượng Cố Định (Immutable)</span>
-                        </div>
+                        <>
+                          <div className="flex-1 bg-gradient-to-r from-amber-50 via-indigo-50 to-purple-50 border border-amber-200/80 text-amber-800 font-black text-[11px] py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 shadow-inner uppercase tracking-wider">
+                            <Lock size={14} className="text-amber-600 shrink-0" />
+                            <span>Quyền Tối Thượng Cố Định (Immutable)</span>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={!admin.email}
+                            className={`btn btn-xs rounded-xl font-extrabold h-9 px-3 shrink-0 transition-all ${!admin.email ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed" : "bg-violet-50 hover:bg-violet-600 text-violet-700 hover:text-white border border-violet-200"}`}
+                            onClick={() => openUserMailComposer(admin)}
+                            title={admin.email ? `Gửi thư tới ${admin.email}` : "Admin chưa có email"}
+                          >
+                            <span>✉️ Gửi thư</span>
+                          </button>
+                        </>
                       ) : isSelf ? (
-                        <div className="w-full bg-indigo-50 border border-indigo-200 text-indigo-800 font-extrabold text-[11px] py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 shadow-inner uppercase tracking-wider">
-                          <span>👤 Tài khoản chính bạn (Protected)</span>
-                        </div>
+                        <>
+                          <div className="flex-1 bg-indigo-50 border border-indigo-200 text-indigo-800 font-extrabold text-[11px] py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 shadow-inner uppercase tracking-wider">
+                            <span>👤 Tài khoản chính bạn (Protected)</span>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={!admin.email}
+                            className={`btn btn-xs rounded-xl font-extrabold h-9 px-3 shrink-0 transition-all ${!admin.email ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed" : "bg-violet-50 hover:bg-violet-600 text-violet-700 hover:text-white border border-violet-200"}`}
+                            onClick={() => openUserMailComposer(admin)}
+                            title={admin.email ? `Gửi thư tới ${admin.email}` : "Admin chưa có email"}
+                          >
+                            <span>✉️ Gửi thư</span>
+                          </button>
+                        </>
                       ) : (
                         <div className="flex items-center gap-2 w-full justify-end">
+                          <button
+                            type="button"
+                            disabled={!admin.email}
+                            className={`btn btn-xs rounded-xl font-extrabold h-8 px-2.5 shrink-0 transition-all ${!admin.email ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed" : "bg-violet-50 hover:bg-violet-600 text-violet-700 hover:text-white border border-violet-200"}`}
+                            onClick={() => openUserMailComposer(admin)}
+                            title={admin.email ? `Gửi thư tới ${admin.email}` : "Admin chưa có email"}
+                          >
+                            <span>✉️ Gửi thư</span>
+                          </button>
                           {currentRole === "super_admin" && (
                             <button
                               type="button"
