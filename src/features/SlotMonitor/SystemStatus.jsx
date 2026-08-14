@@ -85,6 +85,33 @@ function formatEstimatedDuration(totalSeconds) {
   return `${hours.toLocaleString("vi-VN")} giờ ${minutes} phút ${seconds} giây`;
 }
 
+function formatBillingHours(value) {
+  if (!Number.isFinite(Number(value))) return "—";
+  return Number(value).toLocaleString("vi-VN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function formatBillingDate(value) {
+  if (!value) return "—";
+  return new Date(value).toLocaleString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+function formatResetDate(value) {
+  if (!value) return "đầu tháng sau";
+  return new Date(value).toLocaleDateString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+  });
+}
+
 export default function SystemStatus({ renderUsage }) {
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -123,7 +150,10 @@ export default function SystemStatus({ renderUsage }) {
     return () => window.clearInterval(timer);
   }, [freeHoursEstimate]);
 
-  const services = Array.isArray(status?.services) ? status.services : [];
+  const services = useMemo(
+    () => (Array.isArray(status?.services) ? status.services : []),
+    [status?.services],
+  );
   const summary = useMemo(() => {
     const ok = services.filter((item) => item.status === "OK").length;
     const warning = services.filter((item) => item.status === "WARNING").length;
@@ -132,6 +162,9 @@ export default function SystemStatus({ renderUsage }) {
   }, [services]);
 
   const freeHoursIncluded = Number(renderUsage?.limits?.freeInstanceHours?.included) || 750;
+  const officialBillingBaseline = freeHoursEstimate?.source === "render-billing-baseline"
+    ? freeHoursEstimate.baseline
+    : null;
   const estimatedUsedSeconds = useMemo(() => {
     if (!freeHoursEstimate) return null;
     const measuredAt = Date.parse(freeHoursEstimate.measuredAt);
@@ -271,7 +304,7 @@ export default function SystemStatus({ renderUsage }) {
             ) : (
               <>
                 <span className="mt-2 block font-semibold text-emerald-300">
-                  Đã dùng ước tính: {formatEstimatedDuration(estimatedUsedSeconds)}
+                  Đã dùng hiện tại: {formatEstimatedDuration(estimatedUsedSeconds)}
                 </span>
                 <span className="mt-1 block text-slate-500">
                   Còn khoảng: {formatEstimatedDuration(estimatedRemainingSeconds)}
@@ -283,7 +316,9 @@ export default function SystemStatus({ renderUsage }) {
                   />
                 </div>
                 <span className="mt-1 block text-[10px] text-slate-600">
-                  Cập nhật mỗi giây · ước tính chạy liên tục từ đầu tháng hoặc lúc tạo service.
+                  {officialBillingBaseline
+                    ? `Mốc Billing: ${formatBillingHours(officialBillingBaseline.usedHours)} giờ lúc ${formatBillingDate(officialBillingBaseline.measuredAt)} · cộng tiếp mỗi giây · reset ${formatResetDate(freeHoursEstimate.resetAt)}.`
+                    : "Cập nhật mỗi giây · ước tính chạy liên tục từ đầu tháng hoặc lúc tạo service."}
                 </span>
               </>
             )}

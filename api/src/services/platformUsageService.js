@@ -1,5 +1,10 @@
 const RENDER_API_BASE = "https://api.render.com/v1";
 const CACHE_TTL_MS = 5 * 60 * 1000;
+const DEFAULT_FREE_HOURS_BASELINE = Object.freeze({
+  month: "2026-08",
+  usedHours: 274.73,
+  measuredAt: "2026-08-14T11:26:00.000Z",
+});
 
 let cachedUsage = null;
 let cachedAt = 0;
@@ -25,6 +30,70 @@ function estimateContinuousInstanceHours({ period, createdAt }) {
     startedAt: new Date(startedAtMs).toISOString(),
     measuredAt: new Date(measuredAt).toISOString(),
     source: "continuous-runtime-estimate",
+  };
+}
+
+function readFreeHoursBaseline(env = process.env) {
+  const configured = {
+    month: String(env.RENDER_FREE_HOURS_BASELINE_MONTH || "").trim(),
+    usedHours: Number(env.RENDER_FREE_HOURS_USED_BASELINE),
+    measuredAt: String(env.RENDER_FREE_HOURS_BASELINE_AT || "").trim(),
+  };
+  const baseline = configured.month && Number.isFinite(configured.usedHours) && configured.measuredAt
+    ? configured
+    : DEFAULT_FREE_HOURS_BASELINE;
+  const measuredAtMs = Date.parse(baseline.measuredAt);
+  if (!/^\d{4}-\d{2}$/.test(baseline.month)
+    || !Number.isFinite(baseline.usedHours)
+    || baseline.usedHours < 0
+    || !Number.isFinite(measuredAtMs)) {
+    return null;
+  }
+  return { ...baseline, measuredAt: new Date(measuredAtMs).toISOString() };
+}
+
+function estimateFreeInstanceHours({ period, createdAt, suspended, baseline }) {
+  const continuous = estimateContinuousInstanceHours({ period, createdAt });
+  const periodStart = Date.parse(period?.from);
+  const measuredAt = Date.parse(period?.to);
+  if (!Number.isFinite(periodStart) || !Number.isFinite(measuredAt)) return continuous;
+
+  const periodMonth = new Date(periodStart).toISOString().slice(0, 7);
+  const baselineAt = Date.parse(baseline?.measuredAt);
+  const baselineHours = Number(baseline?.usedHours);
+  if (baseline?.month !== periodMonth
+    || !Number.isFinite(baselineAt)
+    || !Number.isFinite(baselineHours)
+    || baselineHours < 0) {
+    return continuous;
+  }
+
+  const suspensionState = String(suspended || "not_suspended").toLowerCase();
+  const isRunning = suspensionState === "not_suspended"
+    || suspensionState === "false"
+    || suspensionState === "0";
+  const liveSeconds = isRunning
+    ? Math.max(0, Math.floor((measuredAt - Math.max(periodStart, baselineAt)) / 1000))
+    : 0;
+  const usedSeconds = Math.max(0, Math.round(baselineHours * 3600) + liveSeconds);
+  const nextMonth = new Date(Date.UTC(
+    new Date(periodStart).getUTCFullYear(),
+    new Date(periodStart).getUTCMonth() + 1,
+    1,
+  ));
+
+  return {
+    usedSeconds,
+    startedAt: new Date(Math.max(periodStart, baselineAt)).toISOString(),
+    measuredAt: new Date(measuredAt).toISOString(),
+    periodStart: new Date(periodStart).toISOString(),
+    resetAt: nextMonth.toISOString(),
+    source: "render-billing-baseline",
+    baseline: {
+      month: baseline.month,
+      usedHours: baselineHours,
+      measuredAt: new Date(baselineAt).toISOString(),
+    },
   };
 }
 
@@ -130,9 +199,11 @@ async function renderUsage(period) {
       autoDeploy: service?.autoDeploy ?? null,
       createdAt: service?.createdAt || null,
     };
-    result.limits.freeInstanceHours.estimate = estimateContinuousInstanceHours({
+    result.limits.freeInstanceHours.estimate = estimateFreeInstanceHours({
       period,
       createdAt: service?.createdAt,
+      suspended: service?.suspended,
+      baseline: readFreeHoursBaseline(),
     });
   }
   if (calls[1].status === "fulfilled") {
@@ -168,6 +239,8 @@ async function getPlatformUsageStats({ force = false } = {}) {
 module.exports = {
   currentMonthRange,
   estimateContinuousInstanceHours,
+  estimateFreeInstanceHours,
   getPlatformUsageStats,
+  readFreeHoursBaseline,
   summarizeMetric,
 };
