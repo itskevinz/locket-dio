@@ -488,10 +488,10 @@ async function processWatchSnapshot(
       if (autoRequest.success === true) {
         if (autoRequest.sentNow === true) {
           title = "⚡ Có slot — đã gửi và xác nhận request Celeb!";
-          body = `@${watch.username} còn ${count.toLocaleString("vi-VN")} slot. Railway vừa gửi request Celeb và đã kiểm tra thấy trạng thái được lưu trên Locket.`;
+          body = `@${watch.username} còn ${count.toLocaleString("vi-VN")} slot. Hệ thống vừa gửi request Celeb và đã kiểm tra thấy trạng thái được lưu trên Locket.`;
         } else {
           title = "✓ Có slot — request Celeb đã tồn tại";
-          body = `@${watch.username} còn ${count.toLocaleString("vi-VN")} slot. Locket đã có request/quan hệ với tài khoản này từ trước nên Railway không gửi lặp.`;
+          body = `@${watch.username} còn ${count.toLocaleString("vi-VN")} slot. Locket đã có request/quan hệ với tài khoản này từ trước nên hệ thống không gửi lặp.`;
         }
       } else if (autoRequest.enabled && autoRequest.success === false) {
         const reason = String(autoRequest.message || "Locket không xác nhận request")

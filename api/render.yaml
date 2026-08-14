@@ -1,23 +1,26 @@
-# Render Blueprint — Huy Locket API
+# Render Blueprint - lightweight 24/7 celebrity slot monitor only.
+# The main frontend and API remain hosted on Vercel.
 services:
   - type: web
-    name: huy-locket-api
+    name: huy-locket-slot-worker
     runtime: node
     plan: free
     region: singapore
     buildCommand: npm install --omit=dev
-    startCommand: node app.js
+    startCommand: node slot-worker.js
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 10000
-      - key: COOKIE_SECRET
-        generateValue: true
-      - key: LOCKETDIO_JWT_SECRET
-        generateValue: true
-      - key: CORS_ORIGINS
+      - key: PUBLIC_WEB_URL
+        value: https://duchi.vercel.app
+      # Must match the Vercel backend values so stored sessions can be read.
+      - key: DATABASE_URL
         sync: false
-      # Thêm thủ công trên Dashboard:
-      # FIREBASE_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, WEATHER_API_KEY, REDIS_URL
+      - key: SLOT_MONITOR_ENCRYPTION_KEY
+        sync: false
+      # Optional notification channels. Add only when already configured.
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_BOT_USERNAME
+        sync: false
