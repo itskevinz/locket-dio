@@ -356,7 +356,9 @@ async function sendViaDio({ kind, idToken, friendUid, skipPreflight = false }) {
 
   const headers = dioSessionHeaders(idToken, session);
 
-  const response = await axios.post(`${dioBetaUrl()}${path}`, body, {
+  const baseUrl = isCelebrity ? dioBetaUrl() : dioBaseUrl();
+
+  const response = await axios.post(`${baseUrl}${path}`, body, {
     headers,
     timeout: DIO_TIMEOUT_MS,
     validateStatus: () => true,

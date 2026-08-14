@@ -90,3 +90,52 @@ test("Dio success payloads require explicit non-null mutation data", () => {
     null,
   );
 });
+
+test("fallback urls are routed correctly: friend -> main, celebrity -> beta", async (t) => {
+  const axios = require("axios");
+
+  t.mock.method(axios, "get", async (url) => {
+    if (url.includes("/api/cn")) {
+      return { status: 200, data: { data: { session: { member_token: "mt", header: "mh" } } }, headers: {} };
+    }
+    return { status: 200, data: { documents: [{ fields: { user_uid: { stringValue: "target" } } }] } };
+  });
+
+  const postUrls = [];
+  t.mock.method(axios, "post", async (url) => {
+    postUrls.push(url);
+    if (url.includes("fetchUserV2")) {
+      return { status: 200, data: { data: { result: { data: { friendship_status: 2 } } } } }; // Confirmed celeb relationship
+    }
+    return { status: 200, data: { success: true, data: { result: { data: { ok: 1, relationship: "FRIEND" } } } } };
+  });
+
+  const { tryDioFriendFallback } = loadWithEnv("true");
+
+  await tryDioFriendFallback({
+    response: { status: 401 },
+    config: {
+      url: "sendFriendRequest",
+      meta: { idToken: "token" },
+      data: { data: { user_uid: "target" } }
+    }
+  });
+
+  await tryDioFriendFallback({
+    response: { status: 401 },
+    config: {
+      url: "sendFollowRequest",
+      meta: { idToken: "token" },
+      data: { data: { celebrity_uid: "target" } }
+    }
+  });
+
+  const friendUrl = postUrls.find(u => u.includes("/locket/sendFriendRequestV2"));
+  const celebUrl = postUrls.find(u => u.includes("/locket/sendCelebrityRequestV2"));
+
+  assert.ok(friendUrl, "friendUrl should be called");
+  assert.ok(celebUrl, "celebUrl should be called");
+  assert.match(friendUrl, /api\.locket-dio\.com/);
+  assert.doesNotMatch(friendUrl, /api-beta\.locket-dio\.com/);
+  assert.match(celebUrl, /api-beta\.locket-dio\.com/);
+});
