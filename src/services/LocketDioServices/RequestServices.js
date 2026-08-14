@@ -165,3 +165,20 @@ export const SendRequestToCelebrity = async (uid) => {
     throw error;
   }
 };
+
+export const SendRequestToFriendDirect = async (uid) => {
+  try {
+    const response = await api.post("locket/sendFriendRequestDirectV2", {
+      friendUid: uid,
+      data: { friendUid: uid },
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error("[friends-direct] send direct friend request failed", {
+      status: error?.response?.status || null,
+      code: error?.response?.data?.code || error?.code || null,
+    });
+    throw error;
+  }
+};
