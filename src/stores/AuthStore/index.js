@@ -7,6 +7,7 @@ import {
   updateUserInfo,
 } from "@/services";
 import {
+  getToken,
   removeToken,
   saveMemberToken,
   clearMemberToken,
@@ -36,9 +37,8 @@ export const useAuthStore = create(
       // HYDRATE
       // =========================
       hydrateAuth: () => {
-        const token =
-          localStorage.getItem("idToken") ||
-          sessionStorage.getItem("idToken");
+        const { idToken, refreshToken } = getToken() || {};
+        const token = idToken || refreshToken;
 
         if (!token) {
           set({
@@ -62,7 +62,8 @@ export const useAuthStore = create(
       // INIT
       // =========================
       initAuth: async () => {
-        const token = localStorage.getItem("idToken");
+        const { idToken, refreshToken } = getToken() || {};
+        const token = idToken || refreshToken;
         if (!token) {
           set({
             user: null,

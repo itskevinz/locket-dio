@@ -32,8 +32,17 @@ export function friendshipStatusFromUser(user) {
 
 export function classifyFriendRequestError(error) {
   const status = error?.response?.status || error?.status;
-  const code = error?.response?.data?.code || error?.code;
+  const rawCode =
+    error?.response?.data?.code ||
+    error?.response?.data?.error?.code ||
+    (typeof error?.response?.data?.error === "string"
+      ? error.response.data.error
+      : null) ||
+    error?.code;
 
+  const code = String(rawCode || "").trim().toUpperCase();
+
+  if (code === "UPSTREAM_AUTH_FAILED") return "upstream-auth-failed";
   if (code === "AUTH_REQUIRED") return "auth-required";
   if (status === 401) return "session-expired";
   if (status === 404) return "not-found";

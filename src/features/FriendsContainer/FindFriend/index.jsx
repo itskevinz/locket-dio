@@ -60,6 +60,11 @@ const FindFriend = ({ refreshFriendsData }) => {
 
   const getRequestMessage = (error, action = "search") => {
     switch (classifyFriendRequestError(error)) {
+      case "upstream-auth-failed":
+        return t(
+          "friends.find.upstream_auth_failed",
+          "Dịch vụ Locket tạm thời không thể xác thực yêu cầu kết bạn. Vui lòng thử lại sau.",
+        );
       case "auth-required":
         return t(
           "friends.find.auth_required",

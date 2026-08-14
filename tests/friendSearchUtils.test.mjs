@@ -27,6 +27,24 @@ test("friendshipStatusFromUser maps server relationship states", () => {
 
 test("classifyFriendRequestError separates auth, rate, timeout and network", () => {
   assert.equal(classifyFriendRequestError({ code: "AUTH_REQUIRED" }), "auth-required");
+  assert.equal(
+    classifyFriendRequestError({
+      response: { status: 401, data: { code: "UPSTREAM_AUTH_FAILED" } },
+    }),
+    "upstream-auth-failed",
+  );
+  assert.equal(
+    classifyFriendRequestError({
+      response: { status: 401, data: { error: { code: "UPSTREAM_AUTH_FAILED" } } },
+    }),
+    "upstream-auth-failed",
+  );
+  assert.equal(
+    classifyFriendRequestError({
+      response: { status: 403, data: { code: "UPSTREAM_AUTH_FAILED" } },
+    }),
+    "upstream-auth-failed",
+  );
   assert.equal(classifyFriendRequestError({ response: { status: 401 } }), "session-expired");
   assert.equal(classifyFriendRequestError({ response: { status: 429 } }), "rate-limit");
   assert.equal(classifyFriendRequestError({ code: "ECONNABORTED" }), "timeout");

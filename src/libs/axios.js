@@ -1,11 +1,22 @@
-import { clearLocalData, getToken, removeToken, removeUser } from "../utils";
+import {
+  clearAuthStorage,
+  clearLocalData,
+  getToken,
+  removeToken,
+  removeUser,
+  saveToken,
+} from "../utils";
 import { CONFIG } from "@/config";
 import { parseJwt } from "@/utils/auth";
 import { saveAccountLockNotice } from "@/utils/accountLockNotice";
 import { SonnerInfo } from "@/components/uikit/SonnerToast";
 import { instanceAuth } from "./instanceAuth";
 import { createUploadClient } from "./createBase";
-import { shouldBypassSessionRefresh } from "./auth401Policy";
+import {
+  decideAuth401Action,
+  decideRefreshErrorAction,
+  isTerminalRefreshError,
+} from "./auth401Policy";
 
 const AUTH_REFRESH_TEMPORARY = "AUTH_REFRESH_TEMPORARY";
 const AUTH_REFRESH_TERMINAL = "AUTH_REFRESH_TERMINAL";
@@ -37,7 +48,7 @@ function announceTokenRefresh() {
   if (typeof window === "undefined") return;
   try {
     // Do not place the token itself in the event payload. SocketContext reads
-    // the newest value from localStorage and updates Socket.IO auth in place.
+    // the newest value from storage and updates Socket.IO auth in place.
     window.dispatchEvent(new Event("huy-locket-token-refreshed"));
   } catch {
     /* optional cross-module signal */
@@ -60,14 +71,8 @@ function makeRefreshError(cause, terminal = false) {
   return error;
 }
 
-function isTerminalRefreshFailure(error) {
-  const status = Number(error?.response?.status || error?.status || 0);
-  // Missing/invalid refresh token is terminal. Network, 429 and 5xx are not.
-  return status === 400 || status === 401 || status === 403;
-}
-
 async function performTokenRefresh() {
-  const { refreshToken } = getToken() || {};
+  const { refreshToken, localId: currentLocalId } = getToken() || {};
   if (!refreshToken) {
     throw makeRefreshError(new Error("Missing refresh token"), true);
   }
@@ -83,27 +88,46 @@ async function performTokenRefresh() {
         skipErrorToast: true,
       },
     );
-    const newToken = res?.data?.data?.id_token;
-    const newLocalId = res?.data?.data?.user_id;
+    const newToken = res?.data?.data?.id_token || res?.data?.data?.idToken;
+    const newLocalId =
+      res?.data?.data?.user_id ||
+      res?.data?.data?.localId ||
+      currentLocalId;
+    const newRefreshToken =
+      res?.data?.data?.refresh_token ||
+      res?.data?.data?.refreshToken ||
+      refreshToken;
 
     if (!newToken) {
-      throw makeRefreshError(new Error("Refresh response missing id_token"), true);
+      throw makeRefreshError(
+        new Error("Refresh response missing id_token"),
+        false,
+      );
     }
 
-    localStorage.setItem("idToken", newToken);
-    if (newLocalId) localStorage.setItem("localId", newLocalId);
+    saveToken({
+      idToken: newToken,
+      localId: newLocalId,
+      refreshToken: newRefreshToken,
+    });
     resetTokenCache();
     announceTokenRefresh();
     return newToken;
   } catch (error) {
-    if (error?.code === AUTH_REFRESH_TERMINAL) throw error;
-    throw makeRefreshError(error, isTerminalRefreshFailure(error));
+    if (error?.code === AUTH_REFRESH_TERMINAL || error?.authRefreshTerminal) {
+      throw error;
+    }
+    throw makeRefreshError(error, isTerminalRefreshError(error));
   }
 }
 
 async function getFreshToken({ force = false } = {}) {
-  const current = localStorage.getItem("idToken");
-  if (!force && current && !tokenExpiresSoon(current)) return current;
+  const { idToken, refreshToken } = getToken() || {};
+  if (!force && idToken && !tokenExpiresSoon(idToken)) return idToken;
+
+  if (!refreshToken && !idToken) {
+    throw makeRefreshError(new Error("Not authenticated"), true);
+  }
 
   if (!refreshPromise) {
     refreshPromise = performTokenRefresh().finally(() => {
@@ -121,10 +145,9 @@ function handleLogout() {
   clearLocalData();
   removeUser();
   removeToken();
-  localStorage.removeItem("idToken");
-  localStorage.removeItem("localId");
+  clearAuthStorage();
 
-  if (window.location.pathname !== "/login") {
+  if (typeof window !== "undefined" && window.location?.pathname !== "/login") {
     window.location.href = "/login";
   }
 }
@@ -137,16 +160,18 @@ function logoutForExpiredSession() {
 const api = createUploadClient(CONFIG.api.baseUrl);
 
 api.interceptors.request.use(async (config) => {
-  let token = localStorage.getItem("idToken");
+  const { idToken, refreshToken } = getToken() || {};
 
-  if (!token) {
+  if (!idToken && !refreshToken) {
     const error = new Error("Not authenticated");
     error.status = 401;
     error.code = AUTH_REFRESH_TERMINAL;
     return Promise.reject(error);
   }
 
-  if (tokenExpiresSoon(token)) {
+  let token = idToken;
+
+  if (!token || tokenExpiresSoon(token)) {
     try {
       token = await getFreshToken();
     } catch (error) {
@@ -199,27 +224,24 @@ api.interceptors.response.use(
 
     const originalRequest = error.config;
 
-    // A 401 from Locket itself (for example sendFriendRequest without a usable
-    // App Check credential) is NOT proof that the user's Huy Locket session
-    // expired. The API marks that condition as UPSTREAM_AUTH_FAILED. Never
-    // refresh or log the user out for that upstream failure.
-    if (
-      originalRequest &&
-      shouldBypassSessionRefresh({
-        status,
-        responseData,
-        skipAuthRefresh: originalRequest.skipAuthRefresh,
-      })
-    ) {
+    const decision = decideAuth401Action({
+      status,
+      responseData,
+      skipAuthRefresh: originalRequest?.skipAuthRefresh,
+      isRetry: Boolean(originalRequest?._retry),
+    });
+
+    if (decision.action === "bypass" || decision.action === "pass-through") {
       return Promise.reject(error);
     }
 
-    if (status === 401 && originalRequest) {
-      if (originalRequest._retry) {
-        logoutForExpiredSession();
-        return Promise.reject(error);
-      }
+    if (decision.action === "reject-no-logout") {
+      // Backend API 401 retry still returned 401 after successful refresh:
+      // Reject endpoint error, do NOT logout.
+      return Promise.reject(error);
+    }
 
+    if (decision.action === "refresh-and-retry" && originalRequest) {
       originalRequest._retry = true;
       try {
         // Always join the same in-flight refresh. This avoids one 401 request
@@ -229,7 +251,8 @@ api.interceptors.response.use(
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return api(originalRequest);
       } catch (refreshError) {
-        if (refreshError?.authRefreshTerminal) {
+        const errDecision = decideRefreshErrorAction(refreshError);
+        if (errDecision.isTerminal) {
           logoutForExpiredSession();
         }
         return Promise.reject(refreshError);

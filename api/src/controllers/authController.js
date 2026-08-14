@@ -290,26 +290,27 @@ const loginAndCaptchaV2 = async (req, res, next) => {
 
 const refreshIdTokenControll = async (req, res, next) => {
   logInfo("authController", "📩 Nhận yêu cầu refreshIdToken");
-  // ✅ Lấy refreshToken từ cookie
+  // ✅ Lấy refreshToken từ cookie hoặc body
   const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
 
   try {
     if (!refreshToken) {
-      logInfo("authController", "Refesh Token không tồn tại.");
+      logInfo("authController", "Refresh Token không tồn tại.");
       return next(
-        createHttpError(401, "REFRESH_TOKEN_MISSING", "Refresh token invalid!")
+        createHttpError(401, "REFRESH_TOKEN_MISSING", "Refresh token is required!")
       );
     }
     const refreshResponse = await authServices.refreshIdToken(refreshToken);
-    // console.log(refreshResponse);
     const { access_token, refresh_token, id_token } = refreshResponse;
 
-    cookieUtils.setCookie({
-      res,
-      name: "refreshToken",
-      value: refresh_token,
-      time: "7d",
-    });
+    if (refresh_token) {
+      cookieUtils.setCookie({
+        res,
+        name: "refreshToken",
+        value: refresh_token,
+        time: "7d",
+      });
+    }
     cookieUtils.setCookie({
       res,
       name: "accessToken",
@@ -324,14 +325,11 @@ const refreshIdTokenControll = async (req, res, next) => {
       data: refreshResponse, // Chứa thông tin user và token
     });
   } catch (err) {
-    logError("authController", "❌ Refresh token thất bại", err.message);
-    return next(
-      createHttpError(
-        401,
-        "REFRESH_TOKEN_INVALID",
-        "Refresh token expired or invalid!"
-      )
-    );
+    const status = Number(err.status || 502);
+    const code = err.code || "AUTH_REFRESH_FAILED";
+    const message = err.message || "Lỗi làm mới phiên đăng nhập";
+    logError("authController", `❌ Refresh token thất bại [${status} ${code}]`);
+    return next(createHttpError(status, code, message));
   }
 };
 
