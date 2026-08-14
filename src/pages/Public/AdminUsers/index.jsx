@@ -58,23 +58,6 @@ function formatDate(value) {
   return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("vi-VN");
 }
 
-function formatPlatformMetric(metric) {
-  if (!metric || !Number.isFinite(Number(metric.value))) return "Chưa có dữ liệu";
-  const value = Number(metric.value);
-  const unit = String(metric.unit || "").toLowerCase();
-  if (unit.includes("byte")) {
-    const units = ["B", "KB", "MB", "GB", "TB"];
-    let scaled = value;
-    let index = 0;
-    while (scaled >= 1024 && index < units.length - 1) {
-      scaled /= 1024;
-      index += 1;
-    }
-    return `${scaled.toFixed(scaled >= 10 ? 1 : 2)} ${units[index]}`;
-  }
-  return `${value.toFixed(Math.abs(value) >= 10 ? 1 : 2)}${metric.unit ? ` ${metric.unit}` : ""}`;
-}
-
 function relativeActivity(value) {
   if (!value) return "Chưa ghi nhận hoạt động";
   const elapsed = Math.max(0, Date.now() - new Date(value).getTime());
@@ -753,6 +736,11 @@ export default function AdminUsers() {
       fetchSecurityThreats();
     }
   }, [activeTab, isAdmin, isGateUnlocked, currentRole, fetchAuditLogs, fetchReports, fetchUserActions, fetchSecurityThreats]);
+
+  useEffect(() => {
+    if (!isAdmin || !isGateUnlocked || document.hidden) return;
+    fetchAdvancedData(false);
+  }, [isAdmin, isGateUnlocked, fetchAdvancedData]);
 
   useEffect(() => {
     if (!isAdmin || !isGateUnlocked || activeTab !== "user_actions" || !autoRefreshActions) return undefined;
@@ -1445,7 +1433,7 @@ export default function AdminUsers() {
       {/* TAB SYSTEM HEALTH */}
       {activeTab === "health" && (
         <div className="animate-fade-in">
-          <AdminSystemHealth />
+          <AdminSystemHealth renderUsage={serverHealth?.platformUsage?.render} />
         </div>
       )}
 
@@ -1521,47 +1509,6 @@ export default function AdminUsers() {
                 </div>
               </div>
 
-              <div className="relative z-10 mt-6">
-                <div className="bg-slate-900/90 border border-orange-500/30 rounded-3xl p-5 shadow-xl">
-                  <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                    <div>
-                      <div className="text-[10px] font-black uppercase tracking-widest text-orange-400">MONTHLY USAGE · RENDER</div>
-                      <h3 className="text-lg font-black text-white">Hạn mức Canh Slot</h3>
-                    </div>
-                    <a href={serverHealth?.platformUsage?.render?.billingUrl || "https://dashboard.render.com/billing"} target="_blank" rel="noreferrer" className="btn btn-sm bg-orange-950 text-orange-200 border-orange-500/40 rounded-xl">
-                      Mở Billing ↗
-                    </a>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
-                    <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4">
-                      <span className="text-slate-400 block mb-1">Free instance hours</span>
-                      <strong className="text-orange-300 text-base">750 giờ / tháng</strong>
-                      <span className="text-slate-500 block mt-1">Đã dùng: Render chỉ hiển thị trong Billing</span>
-                    </div>
-                    <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4">
-                      <span className="text-slate-400 block mb-1">Pipeline build</span>
-                      <strong className="text-orange-300 text-base">500 phút / tháng</strong>
-                      <span className="text-slate-500 block mt-1">Đã dùng: không có API công khai</span>
-                    </div>
-                    <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4">
-                      <span className="text-slate-400 block mb-1">Bandwidth tháng này</span>
-                      <strong className="text-emerald-300 text-base">{formatPlatformMetric(serverHealth?.platformUsage?.render?.metrics?.bandwidthMonth)}</strong>
-                      <span className="text-slate-500 block mt-1">CPU: {formatPlatformMetric(serverHealth?.platformUsage?.render?.metrics?.cpuLatest)} · RAM: {formatPlatformMetric(serverHealth?.platformUsage?.render?.metrics?.memoryLatest)}</span>
-                    </div>
-                    <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4">
-                      <span className="text-slate-400 block mb-1">Service API</span>
-                      <strong className="text-white text-base">{serverHealth?.platformUsage?.render?.service?.plan || "Chưa kết nối"}</strong>
-                      <span className="text-slate-500 block mt-1">{serverHealth?.platformUsage?.render?.service?.region || serverHealth?.platformUsage?.render?.error || "Cần RENDER_API_KEY"}</span>
-                    </div>
-                  </div>
-                  {!serverHealth?.platformUsage?.render?.configured && (
-                    <div className="mt-3 p-3 rounded-xl bg-amber-950/50 border border-amber-500/30 text-amber-200 text-xs font-semibold">
-                      Thêm secret <code>RENDER_API_KEY</code> vào project <code>huy-locket-api</code> để bật bandwidth, CPU, RAM và thông tin plan thật. Token không được gửi về trình duyệt.
-                    </div>
-                  )}
-                </div>
-
-              </div>
             </div>
           )}
 

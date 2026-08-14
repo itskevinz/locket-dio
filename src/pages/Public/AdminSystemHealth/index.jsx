@@ -24,6 +24,7 @@ export default function AdminSystemHealth({
   showCelebCenter = true,
   showAccountHealth = true,
   showSystemStatus = true,
+  renderUsage,
 }) {
   const [activeTab, setActiveTab] = useState("ops");
 
@@ -116,7 +117,9 @@ export default function AdminSystemHealth({
           {activeTab === "celeb" && showCelebCenter && <AdminCelebCenter />}
           {activeTab === "usage" && <AdminFeatureUsage />}
           {activeTab === "account" && showAccountHealth && <AccountHealth />}
-          {activeTab === "system" && showSystemStatus && <SystemStatus />}
+          {activeTab === "system" && showSystemStatus && (
+            <SystemStatus renderUsage={renderUsage} />
+          )}
           {activeTab === "legacy" && <LegacyAdminSystemHealth />}
         </Suspense>
       </div>

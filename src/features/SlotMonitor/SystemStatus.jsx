@@ -59,7 +59,24 @@ function formatTime(value) {
   });
 }
 
-export default function SystemStatus() {
+function formatPlatformMetric(metric) {
+  if (!metric || !Number.isFinite(Number(metric.value))) return "Chưa có dữ liệu";
+  const value = Number(metric.value);
+  const unit = String(metric.unit || "").toLowerCase();
+  if (unit.includes("byte")) {
+    const units = ["B", "KB", "MB", "GB", "TB"];
+    let scaled = value;
+    let index = 0;
+    while (scaled >= 1024 && index < units.length - 1) {
+      scaled /= 1024;
+      index += 1;
+    }
+    return `${scaled.toFixed(scaled >= 10 ? 1 : 2)} ${units[index]}`;
+  }
+  return `${value.toFixed(Math.abs(value) >= 10 ? 1 : 2)}${metric.unit ? ` ${metric.unit}` : ""}`;
+}
+
+export default function SystemStatus({ renderUsage }) {
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -97,7 +114,7 @@ export default function SystemStatus() {
   }, [services]);
 
   return (
-    <section className="mx-auto w-full max-w-5xl px-4 pb-6 text-base-content">
+    <section className="mx-auto w-full max-w-5xl space-y-6 px-4 pb-6 text-base-content">
       <div className="overflow-hidden rounded-3xl border border-base-300 bg-base-100/90 shadow-xl">
         <header className="border-b border-base-300 p-4 sm:p-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -192,6 +209,62 @@ export default function SystemStatus() {
             System Status chỉ hiển thị trạng thái an toàn. Token, mật khẩu, App Script secret và Telegram bot token không được trả về trình duyệt.
           </p>
         </div>
+      </div>
+
+      <div className="rounded-3xl border border-orange-500/30 bg-slate-900/95 p-5 text-white shadow-xl">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-widest text-orange-400">
+              Monthly usage · Render
+            </div>
+            <h3 className="text-lg font-black">Hạn mức Canh Slot</h3>
+          </div>
+          <a
+            href={renderUsage?.billingUrl || "https://dashboard.render.com/billing"}
+            target="_blank"
+            rel="noreferrer"
+            className="btn btn-sm rounded-xl border-orange-500/40 bg-orange-950 text-orange-200"
+          >
+            Mở Billing ↗
+          </a>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 text-xs font-mono sm:grid-cols-2">
+          <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
+            <span className="mb-1 block text-slate-400">Free instance hours</span>
+            <strong className="text-base text-orange-300">750 giờ / tháng</strong>
+            <span className="mt-1 block text-slate-500">Đã dùng: Render chỉ hiển thị trong Billing</span>
+          </div>
+          <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
+            <span className="mb-1 block text-slate-400">Pipeline build</span>
+            <strong className="text-base text-orange-300">500 phút / tháng</strong>
+            <span className="mt-1 block text-slate-500">Đã dùng: không có API công khai</span>
+          </div>
+          <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
+            <span className="mb-1 block text-slate-400">Bandwidth tháng này</span>
+            <strong className="text-base text-emerald-300">
+              {formatPlatformMetric(renderUsage?.metrics?.bandwidthMonth)}
+            </strong>
+            <span className="mt-1 block text-slate-500">
+              CPU: {formatPlatformMetric(renderUsage?.metrics?.cpuLatest)} · RAM: {formatPlatformMetric(renderUsage?.metrics?.memoryLatest)}
+            </span>
+          </div>
+          <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
+            <span className="mb-1 block text-slate-400">Service API</span>
+            <strong className="text-base text-white">
+              {renderUsage?.service?.plan || (renderUsage ? "Chưa kết nối" : "Đang tải...")}
+            </strong>
+            <span className="mt-1 block text-slate-500">
+              {renderUsage?.service?.region || renderUsage?.error || (renderUsage ? "Chưa có dữ liệu" : "Đang lấy dữ liệu Render")}
+            </span>
+          </div>
+        </div>
+
+        {renderUsage?.configured === false && (
+          <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-950/50 p-3 text-xs font-semibold text-amber-200">
+            Chưa tìm thấy secret <code>RENDER_API_KEY</code> trong project <code>huy-locket-api</code>. Token không được gửi về trình duyệt.
+          </div>
+        )}
       </div>
     </section>
   );
