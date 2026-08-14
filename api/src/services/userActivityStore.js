@@ -1,6 +1,7 @@
 const { neon } = require("@neondatabase/serverless");
 const { getAdminLocketUids, getAdminLocketEmails } = require("./locketAdminVerifier");
 const { getRequestContext } = require("./userActivityContext");
+const { getPlatformUsageStats } = require("./platformUsageService");
 
 const ONLINE_WINDOW_SECONDS = 150;
 let schemaPromise = null;
@@ -1113,6 +1114,7 @@ async function getServerHealthStats() {
   const memory = process.memoryUsage();
   const procUptime = process.uptime();
   const workerProbe = probeSlotWorkerHealth();
+  const platformUsageProbe = getPlatformUsageStats();
 
   const sql = getSql();
   const t0 = Date.now();
@@ -1162,7 +1164,7 @@ async function getServerHealthStats() {
     }
   }
 
-  const worker = await workerProbe;
+  const [worker, platformUsage] = await Promise.all([workerProbe, platformUsageProbe]);
 
   return {
     status: "ONLINE",
@@ -1188,6 +1190,7 @@ async function getServerHealthStats() {
       latencyMs: dbLatencyMs,
     },
     worker,
+    platformUsage,
     measuredAt: Date.now(),
   };
 }
