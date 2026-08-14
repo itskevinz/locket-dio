@@ -2,6 +2,7 @@ const store = require("./store");
 const { getEncryptionKey } = require("./crypto");
 const { getPublicConfig } = require("./service");
 const { getNotificationSettings } = require("./notificationService");
+const { pollingIntervalsFromConfig } = require("./pollingPolicy");
 
 function toMs(value) {
   if (!value) return null;
@@ -35,6 +36,7 @@ async function getAccountHealth(userUid) {
   );
   const sessionExists = Boolean(session?.enabled && session?.refresh_token_enc);
   const providerConfig = notificationSettings?.providers || {};
+  const polling = pollingIntervalsFromConfig(publicConfig || {});
 
   const checks = [
     makeCheck({
@@ -49,7 +51,7 @@ async function getAccountHealth(userUid) {
       ok: sessionReady,
       warning: sessionExists,
       detail: sessionReady
-        ? "Railway có phiên nền để canh slot khi đóng web."
+        ? "Render worker có phiên nền để canh slot khi đóng web."
         : sessionExists
           ? `Phiên nền còn lưu nhưng lần gần nhất có lỗi: ${String(session?.last_error || "không rõ").slice(0, 220)}`
           : "Chưa có phiên nền. Hãy bật Canh Slot 24/7.",
@@ -64,12 +66,15 @@ async function getAccountHealth(userUid) {
       label: "Canh Slot",
       ok: Boolean(publicConfig?.enabled && store.isConfigured() && getEncryptionKey()),
       detail: publicConfig?.enabled
-        ? `${enabledWatches}/${watches.length} Celeb đang hoạt động • chu kỳ ${Math.round(Number(publicConfig?.pollIntervalMs || 0) / 1000)} giây.`
+        ? `${enabledWatches}/${watches.length} Celeb đang hoạt động • nền ${polling.normalSeconds} giây • nhanh ${polling.fastSeconds} giây • tự động ${polling.autoRequestSeconds} giây.`
         : "Canh Slot backend chưa sẵn sàng.",
       meta: {
         watchCount: watches.length,
         activeWatchCount: enabledWatches,
         pollIntervalMs: Number(publicConfig?.pollIntervalMs) || 0,
+        fastPollIntervalMs: Number(publicConfig?.fastPollIntervalMs) || 0,
+        autoRequestPollIntervalMs: Number(publicConfig?.autoRequestPollIntervalMs) || 0,
+        fastWindowMs: Number(publicConfig?.fastWindowMs) || 0,
       },
     }),
     makeCheck({
@@ -79,7 +84,7 @@ async function getAccountHealth(userUid) {
       warning: true,
       detail: subscriptions.length > 0
         ? `${subscriptions.length} thiết bị đang đăng ký nhận push.`
-        : "Chưa có thiết bị Web Push hoạt động; Railway vẫn có thể canh nền nếu phiên nền đã bật.",
+        : "Chưa có thiết bị Web Push hoạt động; Render vẫn có thể canh nền nếu phiên nền đã bật.",
       meta: { deviceCount: subscriptions.length },
     }),
     makeCheck({

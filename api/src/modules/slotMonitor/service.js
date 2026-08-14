@@ -126,6 +126,7 @@ async function getPublicConfig() {
       pollIntervalMs: POLL_INTERVAL_MS,
       fastPollIntervalMs: FAST_INTERVAL_MS,
       autoRequestPollIntervalMs: AUTO_REQUEST_INTERVAL_MS,
+      fastWindowMs: FAST_WINDOW_MS,
       adaptivePolling: true,
     };
   }
@@ -137,6 +138,7 @@ async function getPublicConfig() {
     pollIntervalMs: POLL_INTERVAL_MS,
     fastPollIntervalMs: FAST_INTERVAL_MS,
     autoRequestPollIntervalMs: AUTO_REQUEST_INTERVAL_MS,
+    fastWindowMs: FAST_WINDOW_MS,
     adaptivePolling: true,
   };
 }

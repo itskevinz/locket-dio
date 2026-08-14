@@ -12,6 +12,7 @@ const {
   pollIntervalForState,
   rateLimitBackoffMs,
   jitteredIntervalMs,
+  pollingIntervalsFromConfig,
 } = require("../src/modules/slotMonitor/pollingPolicy");
 
 test("normal polling defaults to 30 seconds and stays within safe bounds", () => {
@@ -62,4 +63,28 @@ test("poll jitter is bounded and never creates a sub-1-second worker delay", () 
 
   assert.equal(jitteredIntervalMs(AUTO_REQUEST_INTERVAL_MS, () => 0), 1_000);
   assert.ok(jitteredIntervalMs(AUTO_REQUEST_INTERVAL_MS, () => 1) <= 1_150);
+});
+
+test("public polling data reports every adaptive interval", () => {
+  assert.deepEqual(pollingIntervalsFromConfig({}), {
+    normalSeconds: 30,
+    fastSeconds: 10,
+    autoRequestSeconds: 1,
+    fastWindowMinutes: 3,
+  });
+
+  assert.deepEqual(
+    pollingIntervalsFromConfig({
+      pollIntervalMs: 45_000,
+      fastPollIntervalMs: 8_000,
+      autoRequestPollIntervalMs: 2_000,
+      fastWindowMs: 120_000,
+    }),
+    {
+      normalSeconds: 45,
+      fastSeconds: 8,
+      autoRequestSeconds: 2,
+      fastWindowMinutes: 2,
+    },
+  );
 });

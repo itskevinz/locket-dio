@@ -178,10 +178,10 @@ export default function AdminCelebCenter() {
                 <h2 className="text-xl font-bold sm:text-2xl">Celeb Center toàn server</h2>
               </div>
               <p className="mt-1 text-sm text-base-content/60">
-                Admin thấy toàn bộ Celeb mà mọi người dùng đã thêm vào Railway. Người dùng thường chỉ thấy danh sách của chính họ.
+                Admin thấy toàn bộ Celeb mà mọi người dùng đã thêm vào hệ thống. Người dùng thường chỉ thấy danh sách của chính họ.
               </p>
               <p className="mt-1 text-xs text-base-content/45">
-                Dữ liệu trạng thái do worker Canh Slot cập nhật theo chu kỳ 45 giây.
+                Worker chạy thích ứng: nền 30 giây • nhanh 10 giây • tự động kết bạn 1 giây.
               </p>
             </div>
             <button
@@ -258,7 +258,7 @@ export default function AdminCelebCenter() {
                         </p>
                       </div>
                       <div className={`badge badge-sm ${sessionEnabled && !sessionError ? "badge-success" : "badge-warning"}`}>
-                        {sessionEnabled && !sessionError ? "Phiên Railway ổn" : "Cần kiểm tra phiên"}
+                        {sessionEnabled && !sessionError ? "Phiên Render ổn" : "Cần kiểm tra phiên"}
                       </div>
                     </div>
                     {sessionError && (

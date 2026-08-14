@@ -2,6 +2,7 @@ const store = require("./store");
 const { getEncryptionKey } = require("./crypto");
 const { getPublicConfig } = require("./service");
 const { getProviderConfig } = require("./notifiers");
+const { pollingIntervalsFromConfig } = require("./pollingPolicy");
 
 function item(id, label, status, detail, meta = {}) {
   return { id, label, status, detail, ...meta };
@@ -156,7 +157,7 @@ async function getSystemStatus() {
 
   const providers = getProviderConfig();
   const slotReady = Boolean(slotConfig?.enabled && databaseOk && getEncryptionKey());
-  const pollSeconds = Math.round(Number(slotConfig?.pollIntervalMs || 0) / 1000);
+  const polling = pollingIntervalsFromConfig(slotConfig || {});
   const uptimeSeconds = Math.max(0, Math.floor(process.uptime()));
   const apiCommit = String(
     process.env.RAILWAY_GIT_COMMIT_SHA ||
@@ -219,9 +220,14 @@ async function getSystemStatus() {
       "Cấu hình Canh Slot",
       slotReady ? "OK" : "ERROR",
       slotReady
-        ? `Canh Slot đã đủ cấu hình database/encryption • chu kỳ ${pollSeconds || 45} giây.`
+        ? `Canh Slot thích ứng • nền ${polling.normalSeconds} giây • nhanh ${polling.fastSeconds} giây trong ${polling.fastWindowMinutes} phút • tự động kết bạn ${polling.autoRequestSeconds} giây.`
         : slotError || "Canh Slot chưa đủ cấu hình database/encryption.",
-      { pollIntervalMs: Number(slotConfig?.pollIntervalMs) || 0 },
+      {
+        pollIntervalMs: Number(slotConfig?.pollIntervalMs) || 0,
+        fastPollIntervalMs: Number(slotConfig?.fastPollIntervalMs) || 0,
+        autoRequestPollIntervalMs: Number(slotConfig?.autoRequestPollIntervalMs) || 0,
+        fastWindowMs: Number(slotConfig?.fastWindowMs) || 0,
+      },
     ),
     item(
       "auth",

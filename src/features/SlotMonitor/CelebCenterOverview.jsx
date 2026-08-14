@@ -269,7 +269,7 @@ export default function CelebCenterOverview() {
                 Trạng thái slot thật, lịch sử mở slot và kết quả auto request trên cùng một màn hình.
               </p>
               <p className="mt-1 text-xs text-base-content/45">
-                Worker nền vẫn giữ chu kỳ 45 giây; lịch sử trên trang tự làm mới mỗi 45 giây.
+                Worker: nền 30 giây • nhanh 10 giây • tự động 1 giây; trang làm mới mỗi 45 giây.
               </p>
             </div>
 
@@ -428,7 +428,7 @@ export default function CelebCenterOverview() {
                   <History size={16} /> Lịch sử Celeb
                 </h2>
                 <p className="text-[11px] text-base-content/50">
-                  Mở slot, request thành công và request thất bại đều được lưu từ worker Railway.
+                  Mở slot, request thành công và request thất bại đều được lưu từ Render worker.
                 </p>
               </div>
               <select

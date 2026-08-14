@@ -253,7 +253,13 @@ export default function AccountHealth() {
 
                         {check.id === "slot-monitor" && Number(check.pollIntervalMs) > 0 && (
                           <p className="mt-1 text-[11px] text-base-content/45">
-                            Chu kỳ server: {Math.round(check.pollIntervalMs / 1000)} giây
+                            Nền {Math.round(check.pollIntervalMs / 1000)} giây
+                            {Number(check.fastPollIntervalMs) > 0 && (
+                              <> • Nhanh {Math.round(check.fastPollIntervalMs / 1000)} giây</>
+                            )}
+                            {Number(check.autoRequestPollIntervalMs) > 0 && (
+                              <> • Tự động {Math.round(check.autoRequestPollIntervalMs / 1000)} giây</>
+                            )}
                           </p>
                         )}
 

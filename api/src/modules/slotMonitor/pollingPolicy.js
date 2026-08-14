@@ -50,6 +50,26 @@ function jitteredIntervalMs(baseMs, random = Math.random) {
   return Math.max(MIN_WORKER_DELAY_MS, Math.round(safeBase + jitter));
 }
 
+function pollingIntervalsFromConfig(config = {}) {
+  const seconds = (value, fallback) => Math.max(
+    1,
+    Math.round((Number(value) || fallback) / 1000),
+  );
+
+  return {
+    normalSeconds: seconds(config.pollIntervalMs, DEFAULT_NORMAL_INTERVAL_MS),
+    fastSeconds: seconds(config.fastPollIntervalMs, FAST_INTERVAL_MS),
+    autoRequestSeconds: seconds(
+      config.autoRequestPollIntervalMs,
+      AUTO_REQUEST_INTERVAL_MS,
+    ),
+    fastWindowMinutes: Math.max(
+      1,
+      Math.round((Number(config.fastWindowMs) || FAST_WINDOW_MS) / 60_000),
+    ),
+  };
+}
+
 module.exports = {
   DEFAULT_NORMAL_INTERVAL_MS,
   FAST_INTERVAL_MS,
@@ -62,4 +82,5 @@ module.exports = {
   pollIntervalForState,
   rateLimitBackoffMs,
   jitteredIntervalMs,
+  pollingIntervalsFromConfig,
 };
