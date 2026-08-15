@@ -10,9 +10,17 @@
     "api/socket-io.js": {
       "includeFiles": "google/**",
       "maxDuration": 60
+    },
+    "api/telegram-update.js": {
+      "includeFiles": "google/**",
+      "maxDuration": 60
     }
   },
   "rewrites": [
+    {
+      "source": "/telegram-webhook",
+      "destination": "/api/telegram-update"
+    },
     {
       "source": "/(.*)",
       "destination": "/api/vercel-web?__path=/$1"
