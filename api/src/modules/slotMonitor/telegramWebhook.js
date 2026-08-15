@@ -3,7 +3,7 @@ const { handleUpdate } = require("./telegramBot");
 
 const TELEGRAM_API_BASE = "https://api.telegram.org";
 const DEFAULT_WEBHOOK_BASE = "https://huy-locket-api-huy-locket.vercel.app";
-const WEBHOOK_PATH = "/api/telegram/webhook";
+const WEBHOOK_PATH = "/telegram-webhook";
 const ENSURE_TTL_MS = 10 * 60 * 1000;
 
 let lastEnsureAt = 0;
@@ -154,7 +154,7 @@ async function handleTelegramWebhook(req, res) {
     return res.status(503).json({ success: false, code: "TELEGRAM_NOT_CONFIGURED" });
   }
 
-  const actualSecret = req.get("x-telegram-bot-api-secret-token") || "";
+  const actualSecret = req.headers?.["x-telegram-bot-api-secret-token"] || "";
   if (!safeSecretMatches(actualSecret, expectedSecret)) {
     return res.status(401).json({ success: false, code: "TELEGRAM_WEBHOOK_UNAUTHORIZED" });
   }
