@@ -15,7 +15,6 @@ import { useTranslation } from "react-i18next";
 import { FallbackAvatar } from "@/components/common";
 import { blockFriend } from "@/services";
 import { useFriendStoreV3 } from "@/stores";
-import WebPollModal from "../WebPoll/WebPollModal";
 
 function formatFriendDate(value) {
   if (!value) return "";
@@ -52,7 +51,6 @@ const FriendItem = memo(function FriendItem({ friend, onDelete, onHidden }) {
   const [openDeleteModal, setOpenDeleteModal] = useState(false);
   const [openHiddenModal, setOpenHiddenModal] = useState(false);
   const [openBlockModal, setOpenBlockModal] = useState(false);
-  const [openPollModal, setOpenPollModal] = useState(false);
   const [selectedFriend, setSelectedFriend] = useState(null);
 
   const menuRefs = useRef({});
@@ -138,13 +136,13 @@ const FriendItem = memo(function FriendItem({ friend, onDelete, onHidden }) {
 
           <div className="min-w-0">
             <h2
-              className={`font-medium truncate max-w-[46vw] sm:max-w-[320px] lg:max-w-[520px] ${
+              className={`font-medium truncate max-w-[52vw] sm:max-w-[360px] lg:max-w-[560px] ${
                 isHidden ? "text-gray-400" : ""
               }`}
             >
               {friend.firstName} {friend.lastName}
             </h2>
-            <p className="text-sm text-gray-500 truncate max-w-[46vw] sm:max-w-[390px] lg:max-w-[610px]">
+            <p className="text-sm text-gray-500 truncate max-w-[52vw] sm:max-w-[430px] lg:max-w-[650px]">
               @{friend.username || "Không có username"}
               {friendDate ? ` • Ngày kết bạn: ${friendDate}` : ""}
             </p>
@@ -165,17 +163,7 @@ const FriendItem = memo(function FriendItem({ friend, onDelete, onHidden }) {
         </div>
 
         {/* RIGHT ACTIONS */}
-        <div className="flex shrink-0 items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setOpenPollModal(true)}
-            className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[#6956ff] px-2.5 text-xs font-extrabold text-white shadow-md transition hover:-translate-y-0.5 hover:bg-[#5947ef] hover:shadow-lg active:translate-y-0 active:scale-95 sm:px-3"
-            title="Bình chọn"
-          >
-            <span className="text-base leading-none">〽</span>
-            <span className="hidden sm:inline">Bình chọn</span>
-          </button>
-
+        <div className="flex items-center gap-1">
           {/* INFO */}
           {!isHidden && (
             <div
@@ -235,12 +223,6 @@ const FriendItem = memo(function FriendItem({ friend, onDelete, onHidden }) {
           </div>
         </div>
       </div>
-
-      <WebPollModal
-        open={openPollModal}
-        onClose={() => setOpenPollModal(false)}
-        friend={friend}
-      />
 
       {/* DELETE MODAL */}
       <ConfirmPoup
