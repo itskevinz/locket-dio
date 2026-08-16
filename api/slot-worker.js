@@ -13,6 +13,10 @@ dotenv.config({ path: isProd ? ".env.production" : ".env.development" });
 dotenv.config();
 
 const { startSlotMonitorWorker } = require("./src/modules/slotMonitor");
+const {
+  checkNotificationRelay,
+  getRelayUrl,
+} = require("./src/modules/slotMonitor/notificationRelay");
 
 const PORT = Number(process.env.PORT) || 10000;
 const startedAt = new Date().toISOString();
@@ -48,6 +52,24 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, "0.0.0.0", () => {
   workerStarted = startSlotMonitorWorker();
   console.log(`[slot-worker] health server listening on 0.0.0.0:${PORT}`);
+
+  checkNotificationRelay()
+    .then((status) => {
+      const providers = status?.providers || {};
+      console.log("[slot-worker] Vercel notification relay ready", {
+        relayUrl: getRelayUrl(),
+        telegramConfigured: Boolean(providers?.telegram?.configured),
+        emailConfigured: Boolean(providers?.email?.configured),
+      });
+    })
+    .catch((error) => {
+      console.warn("[slot-worker] Vercel notification relay unavailable", {
+        relayUrl: getRelayUrl(),
+        code: error?.code || null,
+        status: error?.status || null,
+        message: error?.message || "unknown",
+      });
+    });
 });
 
 function shutdown(signal) {
