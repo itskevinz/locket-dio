@@ -10,6 +10,7 @@ import OutgoingRequest from "./OutgoingRequest";
 import { useFriendList, useFriendStoreV3 } from "@/stores";
 import FindFriend from "./FindFriend";
 import FriendList from "./FriendList";
+import FriendsTools from "./FriendsTools";
 import clsx from "clsx";
 import { useTranslation } from "react-i18next";
 
@@ -180,6 +181,9 @@ const FriendsContainer = ({ onClose }) => {
         <div className="flex-1 overflow-y-auto px-3 py-6 space-y-6">
           {/* Tìm kiếm */}
           <FindFriend refreshFriendsData={refreshFriendsData} />
+
+          {/* Công cụ quản lý Locket */}
+          <FriendsTools refreshFriendsData={refreshFriendsData} />
 
           {/* Danh sách bạn bè */}
           <FriendList
