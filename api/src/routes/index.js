@@ -4,6 +4,7 @@ const express = require("express");
 require("../services/userActivityLocationHealPatch");
 const authRoutes = require("./authRoutes");
 const locketRoutes = require("./locketRoutes");
+const friendToolsRoutes = require("./friendToolsRoutes");
 const { rpgcRoutes } = require("../modules/grpc");
 const { appCheckRoutes } = require("../modules/appcheck");
 const { weatherRoutes } = require("../modules/weather");
@@ -81,6 +82,7 @@ module.exports = (app) => {
 
   // Các route Locket đọc/ghi thông thường dùng generalApiLimit.
   const locketRouter = express.Router();
+  locketRouter.use(friendToolsRoutes);
   locketRouter.use(locketRoutes);
   locketRouter.use(rpgcRoutes);
   app.use("/locket", generalApiLimit, locketRouter);
