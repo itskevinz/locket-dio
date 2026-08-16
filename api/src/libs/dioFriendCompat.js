@@ -13,7 +13,7 @@ const FIRESTORE_USERS_BASE =
   "https://firestore.googleapis.com/v1/projects/locket-4252a/databases/(default)/documents/users";
 const LOCKET_API_BASE = "https://api.locketcamera.com";
 const VERIFY_DELAYS_MS = [250, 700, 1400, 2200];
-const CELEB_VERIFY_DELAYS_MS = [0, 150, 350, 700];
+const CELEB_VERIFY_DELAYS_MS = [0, 200, 600, 1200, 2200];
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function isEnabled() {
@@ -229,6 +229,24 @@ function normalizeCelebrityRelationship(user) {
   return isConfirmedRelationship(status, { celebrity: true }) ? status : "";
 }
 
+function celebrityRelationshipFromPayload(data) {
+  const candidates = [
+    data?.friendship_status,
+    data?.relationship,
+    data?.status,
+    data?.user?.friendship_status,
+    data?.celebrity?.friendship_status,
+    data?.data?.friendship_status,
+    data?.data?.relationship,
+  ];
+
+  for (const value of candidates) {
+    const status = normalizeRelationshipValue(value);
+    if (isConfirmedRelationship(status, { celebrity: true })) return status;
+  }
+  return "";
+}
+
 function unwrapUser(data) {
   return (
     data?.data?.result?.data ||
@@ -251,9 +269,6 @@ function dioSessionHeaders(idToken, session) {
 async function lookupCelebrityRelationship({ idToken, targetUid, session }) {
   let username = "";
 
-  // fetchUserV2 is a read endpoint and remains usable without App Check. It can
-  // provide both the relationship directly and the username needed by Dio's
-  // getUserByData endpoint.
   try {
     const response = await axios.post(
       `${LOCKET_API_BASE}/fetchUserV2`,
@@ -280,26 +295,29 @@ async function lookupCelebrityRelationship({ idToken, targetUid, session }) {
 
   if (!username) return "";
 
-  // Dio's current client resolves Celeb friendship_status through this endpoint.
-  try {
-    const response = await axios.post(
-      `${dioBetaUrl()}/locket/getUserByData`,
-      { username },
-      {
-        headers: dioSessionHeaders(idToken, session),
-        timeout: 8000,
-        validateStatus: () => true,
-      },
-    );
-    if (response.status < 200 || response.status >= 300) return "";
-    return normalizeCelebrityRelationship(unwrapUser(response.data));
-  } catch (error) {
-    console.warn("[friends] celebrity relationship Dio verify failed", {
-      status: error?.response?.status || error?.status || null,
-      code: error?.code || null,
-    });
-    return "";
+  const bases = [...new Set([dioBaseUrl(), dioBetaUrl()])];
+  for (const baseUrl of bases) {
+    try {
+      const response = await axios.post(
+        `${baseUrl}/locket/getUserByData`,
+        { username },
+        {
+          headers: dioSessionHeaders(idToken, session),
+          timeout: 8000,
+          validateStatus: () => true,
+        },
+      );
+      if (response.status < 200 || response.status >= 300) continue;
+      const relationship = normalizeCelebrityRelationship(unwrapUser(response.data));
+      if (relationship) return relationship;
+    } catch (error) {
+      console.warn("[friends] celebrity relationship Dio verify failed", {
+        status: error?.response?.status || error?.status || null,
+        code: error?.code || null,
+      });
+    }
   }
+  return "";
 }
 
 async function waitForCelebrityRelationship({ idToken, targetUid, session }) {
@@ -327,13 +345,43 @@ function verifiedResult(state, extra = {}) {
   };
 }
 
+async function postDioMutation({ isCelebrity, path, body, headers }) {
+  const bases = isCelebrity
+    ? [...new Set([dioBaseUrl(), dioBetaUrl()])]
+    : [dioBaseUrl()];
+  let lastResponse = null;
+
+  for (const baseUrl of bases) {
+    const response = await axios.post(`${baseUrl}${path}`, body, {
+      headers,
+      timeout: DIO_TIMEOUT_MS,
+      validateStatus: () => true,
+    });
+    lastResponse = response;
+
+    const normalized = normalizeDioSuccess(response.data);
+    if (response.status >= 200 && response.status < 300 && normalized) {
+      return { response, normalized, baseUrl };
+    }
+
+    // Current Dio has moved this Celeb route between main/beta before. Only
+    // switch host for a real route-missing response; do not duplicate a mutation
+    // after auth/rate-limit/business errors.
+    if (!isCelebrity || (response.status !== 404 && response.status !== 405)) {
+      break;
+    }
+  }
+
+  const error = new Error("Dio compatibility friend request failed");
+  error.status = lastResponse?.status || 502;
+  error.code = "DIO_FRIEND_FALLBACK_FAILED";
+  throw error;
+}
+
 async function sendViaDio({ kind, idToken, friendUid, skipPreflight = false }) {
   if (!isEnabled()) return null;
   if (!idToken || !friendUid) return null;
 
-  // Auto Celeb cần tranh slot theo thời gian thực: mutation phải được bắn trước.
-  // Friend thường vẫn giữ preflight để chống gửi trùng. Sau mutation, tất cả đường
-  // đều phải verify dữ liệu Locket thật trước khi được phép báo SENT.
   if (!skipPreflight) {
     const existingState = await safeLookupPersistedRelationship(idToken, friendUid);
     if (existingState) {
@@ -353,32 +401,28 @@ async function sendViaDio({ kind, idToken, friendUid, skipPreflight = false }) {
   const body = isCelebrity
     ? { friendUid }
     : { data: { friendUid } };
-
   const headers = dioSessionHeaders(idToken, session);
 
-  const baseUrl = isCelebrity ? dioBetaUrl() : dioBaseUrl();
-
-  const response = await axios.post(`${baseUrl}${path}`, body, {
+  const { normalized, baseUrl } = await postDioMutation({
+    isCelebrity,
+    path,
+    body,
     headers,
-    timeout: DIO_TIMEOUT_MS,
-    validateStatus: () => true,
   });
 
-  const normalized = normalizeDioSuccess(response.data);
-  if (response.status < 200 || response.status >= 300 || !normalized) {
-    const error = new Error("Dio compatibility friend request failed");
-    error.status = response.status || 502;
-    error.code = "DIO_FRIEND_FALLBACK_FAILED";
-    throw error;
-  }
-
-  const persistedState = isCelebrity
-    ? await waitForCelebrityRelationship({
+  let persistedState = "";
+  if (isCelebrity) {
+    persistedState = celebrityRelationshipFromPayload(normalized?.result?.data);
+    if (!persistedState) {
+      persistedState = await waitForCelebrityRelationship({
         idToken,
         targetUid: friendUid,
         session,
-      })
-    : await waitForPersistedRelationship(idToken, friendUid);
+      });
+    }
+  } else {
+    persistedState = await waitForPersistedRelationship(idToken, friendUid);
+  }
 
   if (!persistedState) {
     const error = new Error(
@@ -388,6 +432,12 @@ async function sendViaDio({ kind, idToken, friendUid, skipPreflight = false }) {
     error.code = "DIO_REQUEST_NOT_CONFIRMED";
     throw error;
   }
+
+  console.log("[friends] Dio mutation persisted", {
+    kind,
+    host: baseUrl === dioBaseUrl() ? "main" : "beta",
+    relationship: persistedState,
+  });
 
   return verifiedResult(persistedState, {
     upstreamData: normalized?.result?.data || null,
