@@ -17,14 +17,7 @@ export async function getSlotPushConfig() {
 export async function fetchServerSlotWatches() {
   const response = await instanceMain.get("api/slot-monitor/watches");
   const watches = response?.data?.data;
-  if (!Array.isArray(watches)) return [];
-
-  // Khi Locket đã xác nhận request/quan hệ Celeb, backend không còn poll watch đó.
-  // Ẩn luôn khỏi danh sách Canh Slot để local không đồng bộ ngược và bật lại.
-  return watches.filter(
-    (watch) =>
-      String(watch?.lastAutoRequestStatus || "").trim().toUpperCase() !== "SENT",
-  );
+  return Array.isArray(watches) ? watches : [];
 }
 
 async function getRegistration() {
