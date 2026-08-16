@@ -61,6 +61,22 @@ const makeTabId = () => {
 const isAuthError = (error) =>
   error?.code === "AUTH_REQUIRED" || error?.status === 401 || error?.response?.status === 401;
 
+const friendshipStatusFromLookup = (result) =>
+  String(
+    result?.data?.friendship_status ||
+      result?.result?.data?.friendship_status ||
+      result?.friendship_status ||
+      "",
+  )
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, "-");
+
+const isFriendsLookup = (result) => {
+  const status = friendshipStatusFromLookup(result);
+  return status === "friends" || status === "friend";
+};
+
 export function SlotMonitorProvider({ children }) {
   const navigate = useNavigate();
   const tabIdRef = useRef(makeTabId());
@@ -235,6 +251,24 @@ export function SlotMonitorProvider({ children }) {
       try {
         const result = await FindFriendByUserName(latest.username);
         if (result?.success === false) throw new Error("Slot lookup rejected");
+
+        // Quan hệ bạn bè đã hình thành thì Canh Slot đã hoàn thành nhiệm vụ.
+        // Xóa cả local lẫn watch nền để không tiếp tục poll/auto-request tốn tài nguyên.
+        if (isFriendsLookup(result)) {
+          removeWatch(latest.uid);
+          await removeSlotWatch(latest.uid).catch(() => {});
+          syncFromStorage();
+          broadcast({ type: "SYNC_STATE" });
+          toast.success("✓ Đã kết bạn", {
+            description: `@${latest.username} đã được tự động gỡ khỏi Canh Slot.`,
+          });
+          return {
+            ok: true,
+            removed: true,
+            relationship: "friends",
+          };
+        }
+
         const snapshot = extractCelebritySnapshot(result);
         if (!snapshot) throw new Error("Celebrity slot data unavailable");
 

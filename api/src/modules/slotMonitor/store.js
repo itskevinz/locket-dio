@@ -280,7 +280,9 @@ async function listActiveUsers() {
     SELECT DISTINCT w.user_uid
     FROM slot_monitor_watches w
     INNER JOIN slot_monitor_sessions s ON s.user_uid = w.user_uid
-    WHERE w.enabled = TRUE AND s.enabled = TRUE
+    WHERE w.enabled = TRUE
+      AND s.enabled = TRUE
+      AND COALESCE(w.last_auto_request_status, '') <> 'SENT'
     ORDER BY w.user_uid ASC
   `;
 }
@@ -294,7 +296,9 @@ async function listActiveWatchesForUser(userUid) {
            auto_request_enabled, last_auto_request_at,
            last_auto_request_status, last_auto_request_error
     FROM slot_monitor_watches
-    WHERE user_uid = ${String(userUid)} AND enabled = TRUE
+    WHERE user_uid = ${String(userUid)}
+      AND enabled = TRUE
+      AND COALESCE(last_auto_request_status, '') <> 'SENT'
     ORDER BY created_at ASC
     LIMIT 20
   `;
