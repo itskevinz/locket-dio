@@ -9,10 +9,12 @@ import {
   CircleEllipsis,
   Heart,
 } from "lucide-react";
-import { SonnerInfo } from "@/components/uikit/SonnerToast";
+import { SonnerPromiseV2 } from "@/components/uikit/SonnerToast";
 import ConfirmPoup from "@/features/PoupScreen/ConfirmPoup";
 import { useTranslation } from "react-i18next";
 import { FallbackAvatar } from "@/components/common";
+import { blockFriend } from "@/services";
+import { useFriendStoreV3 } from "@/stores";
 
 function formatFriendDate(value) {
   if (!value) return "";
@@ -43,6 +45,7 @@ const AccountLabel = memo(function AccountLabel({ children }) {
 // memo tránh re-render khi parent re-render nhưng props không đổi
 const FriendItem = memo(function FriendItem({ friend, onDelete, onHidden }) {
   const { t } = useTranslation("features");
+  const { removeFriendLocal } = useFriendStoreV3();
   const [openMenuUid, setOpenMenuUid] = useState(null);
   const [openInfoUid, setOpenInfoUid] = useState(null);
   const [openDeleteModal, setOpenDeleteModal] = useState(false);
@@ -101,8 +104,26 @@ const FriendItem = memo(function FriendItem({ friend, onDelete, onHidden }) {
   }, [onHidden, relation, selectedFriend]);
 
   const handleBlock = useCallback(() => {
-    SonnerInfo(t("friends.item.slow_down"), t("friends.item.feature_developing"));
-  }, [t]);
+    const uid = selectedFriend?.uid;
+    if (!uid) return;
+
+    return SonnerPromiseV2(
+      blockFriend(uid).then((result) => {
+        if (!result?.confirmed) throw new Error("BLOCK_NOT_CONFIRMED");
+        removeFriendLocal(uid);
+        setOpenBlockModal(false);
+        return result;
+      }),
+      {
+        loading: "Đang block trên Locket...",
+        success: "Đã block tài khoản trên Locket",
+        error: (error) =>
+          error?.response?.data?.message ||
+          error?.message ||
+          "Locket chưa xác nhận block. Vui lòng thử lại.",
+      },
+    );
+  }, [removeFriendLocal, selectedFriend]);
 
   return (
     <>
