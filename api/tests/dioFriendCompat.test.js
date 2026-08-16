@@ -137,6 +137,5 @@ test("fallback urls are routed correctly: friend -> main, celebrity -> beta", as
   assert.ok(celebUrl, "celebUrl should be called");
   assert.match(friendUrl, /api\.locket-dio\.com/);
   assert.doesNotMatch(friendUrl, /api-beta\.locket-dio\.com/);
-  assert.match(celebUrl, /api\.locket-dio\.com/);
-  assert.doesNotMatch(celebUrl, /api-beta\.locket-dio\.com/);
+  assert.match(celebUrl, /api-beta\.locket-dio\.com/);
 });

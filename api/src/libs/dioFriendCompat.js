@@ -283,7 +283,7 @@ async function lookupCelebrityRelationship({ idToken, targetUid, session }) {
   // Dio's current client resolves Celeb friendship_status through this endpoint.
   try {
     const response = await axios.post(
-      `${dioBaseUrl()}/locket/getUserByData`,
+      `${dioBetaUrl()}/locket/getUserByData`,
       { username },
       {
         headers: dioSessionHeaders(idToken, session),
@@ -356,7 +356,7 @@ async function sendViaDio({ kind, idToken, friendUid, skipPreflight = false }) {
 
   const headers = dioSessionHeaders(idToken, session);
 
-  const baseUrl = dioBaseUrl();
+  const baseUrl = isCelebrity ? dioBetaUrl() : dioBaseUrl();
 
   const response = await axios.post(`${baseUrl}${path}`, body, {
     headers,
