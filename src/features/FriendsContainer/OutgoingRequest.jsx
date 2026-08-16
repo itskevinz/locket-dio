@@ -11,6 +11,8 @@ import { SonnerError, SonnerSuccess } from "@/components/uikit/SonnerToast";
 import { useAuthStore } from "@/stores";
 import { useTranslation } from "react-i18next";
 
+import { FallbackAvatar } from "@/components/common";
+
 const OutgoingRequest = () => {
   const { t } = useTranslation("features");
   const { navigation } = useApp();
@@ -122,8 +124,9 @@ const OutgoingRequest = () => {
                 className="flex items-center gap-3 justify-between"
               >
                 <div className="flex items-center gap-3">
-                  <img
-                    src={friend.profilePic || "./default-avatar.png"}
+                  <FallbackAvatar
+                    src={friend.profilePic && friend.profilePic !== "./default-avatar.png" ? friend.profilePic : null}
+                    name={friend.firstName || friend.lastName || friend.displayName || friend.username}
                     alt={`${friend.firstName} ${friend.lastName}`}
                     className="w-16 h-16 rounded-full border-[3.5px] p-0.5 border-amber-400 object-cover"
                   />
