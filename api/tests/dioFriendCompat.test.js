@@ -91,7 +91,7 @@ test("Dio success payloads require explicit non-null mutation data", () => {
   );
 });
 
-test("fallback urls are routed correctly: friend -> main, celebrity -> beta", async (t) => {
+test("fallback urls use Dio main as current primary for friend and celebrity", async (t) => {
   const axios = require("axios");
 
   t.mock.method(axios, "get", async (url) => {
@@ -105,7 +105,10 @@ test("fallback urls are routed correctly: friend -> main, celebrity -> beta", as
   t.mock.method(axios, "post", async (url) => {
     postUrls.push(url);
     if (url.includes("fetchUserV2")) {
-      return { status: 200, data: { data: { result: { data: { friendship_status: 2 } } } } }; // Confirmed celeb relationship
+      return { status: 200, data: { data: { result: { data: { friendship_status: "outgoing-follow-request" } } } } };
+    }
+    if (url.includes("sendCelebrityRequestV2")) {
+      return { status: 200, data: { success: true, data: { result: { data: { relationship: "outgoing-follow-request" } } } } };
     }
     return { status: 200, data: { success: true, data: { result: { data: { ok: 1, relationship: "FRIEND" } } } } };
   });
@@ -137,5 +140,46 @@ test("fallback urls are routed correctly: friend -> main, celebrity -> beta", as
   assert.ok(celebUrl, "celebUrl should be called");
   assert.match(friendUrl, /api\.locket-dio\.com/);
   assert.doesNotMatch(friendUrl, /api-beta\.locket-dio\.com/);
-  assert.match(celebUrl, /api-beta\.locket-dio\.com/);
+  assert.match(celebUrl, /api\.locket-dio\.com/);
+  assert.doesNotMatch(celebUrl, /api-beta\.locket-dio\.com/);
+});
+
+test("celebrity mutation tries beta only when the main route is missing", async (t) => {
+  const axios = require("axios");
+
+  t.mock.method(axios, "get", async (url) => {
+    if (url.includes("/api/cn")) {
+      return { status: 200, data: { data: { session: { member_token: "mt", header: "mh" } } }, headers: {} };
+    }
+    return { status: 200, data: { documents: [] } };
+  });
+
+  const postUrls = [];
+  t.mock.method(axios, "post", async (url) => {
+    postUrls.push(url);
+    if (url.includes("api.locket-dio.com/locket/sendCelebrityRequestV2")) {
+      return { status: 404, data: { success: false } };
+    }
+    if (url.includes("api-beta.locket-dio.com/locket/sendCelebrityRequestV2")) {
+      return { status: 200, data: { success: true, data: { result: { data: { relationship: "follower-waitlist" } } } } };
+    }
+    return { status: 200, data: { data: { result: { data: {} } } } };
+  });
+
+  const { tryDioFriendFallback } = loadWithEnv("true");
+  const response = await tryDioFriendFallback({
+    response: { status: 401 },
+    config: {
+      url: "sendFollowRequest",
+      meta: { idToken: "token" },
+      data: { data: { celebrity_uid: "target" } }
+    }
+  });
+
+  assert.ok(response, "fallback response should be verified");
+  assert.equal(response.data.result.data.relationship, "follower-waitlist");
+  assert.equal(
+    postUrls.filter(u => u.includes("/locket/sendCelebrityRequestV2")).length,
+    2,
+  );
 });
