@@ -11,13 +11,14 @@ const {
   sendEmail,
   sendZalo,
 } = require("./notifiers");
+const {
+  isRenderRuntime,
+  relayConfiguredNotifications,
+} = require("./notificationRelay");
 
 const CHANNELS = new Set(["telegram", "email", "zalo"]);
 const DEFAULT_WEB_ORIGIN = "https://duchi.vercel.app";
-const BUILTIN_WEB_ORIGINS = new Set([
-  DEFAULT_WEB_ORIGIN,
-  "https://huy-locket-production.up.railway.app",
-]);
+const BUILTIN_WEB_ORIGINS = new Set([DEFAULT_WEB_ORIGIN]);
 
 notificationHistoryStore.ensureSchema().catch((error) => {
   console.warn("[slot-monitor] notification history bootstrap failed", {
@@ -268,6 +269,26 @@ async function sendTrackedNotification({
 }
 
 async function sendConfiguredNotifications(userUid, payload, { eventId = "" } = {}) {
+  if (isRenderRuntime()) {
+    try {
+      const result = await relayConfiguredNotifications(userUid, payload, { eventId });
+      console.log("[slot-monitor] external notifications relayed through Vercel", {
+        userUid,
+        eventId: eventId || null,
+        channels: Object.keys(result || {}),
+      });
+      return result;
+    } catch (error) {
+      console.warn("[slot-monitor] Vercel notification relay failed", {
+        userUid,
+        eventId: eventId || null,
+        code: error?.code || null,
+        status: error?.status || null,
+      });
+      return { relay: publicError(error) };
+    }
+  }
+
   const [settings, webOrigin] = await Promise.all([
     store.getNotificationSettings(userUid),
     getNotificationWebOrigin(userUid),
