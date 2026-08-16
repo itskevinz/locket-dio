@@ -154,13 +154,6 @@ export default function CelebItemFriend({
     };
   }, [friend]);
 
-  // Nếu Locket xác nhận đã là bạn bè thì Canh Slot không còn ý nghĩa.
-  // Gỡ ngay cả watch local và watch nền để không tiếp tục poll/auto-request.
-  useEffect(() => {
-    if (!isAlreadyFriend || !friend?.uid || !watch?.uid) return;
-    unwatchCeleb(friend.uid);
-  }, [friend?.uid, isAlreadyFriend, unwatchCeleb, watch?.uid]);
-
   const progressPercent =
     maxFriends > 0 ? Math.min((friendCount / maxFriends) * 100, 100) : 0;
 
@@ -280,7 +273,7 @@ export default function CelebItemFriend({
               <SearchAccountLabel>Celebrity</SearchAccountLabel>
               {isGold && <SearchAccountLabel>Locket Gold</SearchAccountLabel>}
             </div>
-            {watch && !isAlreadyFriend && (
+            {watch && (
               <p className="mt-1 text-[11px] text-base-content/55">
                 Railway đang canh • kiểm tra gần nhất {formatDateTime(watch.lastCheckedAt)}
               </p>
@@ -325,7 +318,7 @@ export default function CelebItemFriend({
             />
           </div>
 
-          {watch?.lastAutoRequestStatus && !isAlreadyFriend && (
+          {watch?.lastAutoRequestStatus && (
             <p
               className={`mt-2 text-xs ${
                 watch.lastAutoRequestStatus === "SENT"
@@ -381,7 +374,7 @@ export default function CelebItemFriend({
           <History className="w-4 h-4" /> Lịch sử slot
         </button>
 
-        {watch && canShowWatch && (
+        {watch && (
           <button
             type="button"
             className="btn btn-sm btn-ghost"
@@ -528,7 +521,7 @@ function FriendActionButton({
     return (
       <div className={`${baseClass} bg-primary text-primary-content`}>
         <UserRoundCheck className="w-5 h-5" />
-        Đã kết bạn
+        {t("friends.action.friends")}
       </div>
     );
   }
