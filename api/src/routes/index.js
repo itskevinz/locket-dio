@@ -15,6 +15,7 @@ const { planRoutes } = require("../modules/locketdio");
 const { storageRoutes } = require("../modules/storage/routes");
 const { draftRoutes } = require("../modules/drafts");
 const { slotMonitorRoutes } = require("../modules/slotMonitor");
+const webPollRoutes = require("../modules/webPoll/routes");
 const slotMonitorAdminRoutes = require("../modules/slotMonitor/adminRoutes");
 const adminOpsDashboardRoutes = require("../modules/adminOps/dashboardRoutes");
 const vercelDriveRoutes = require("../modules/vercelDrive");
@@ -96,5 +97,6 @@ module.exports = (app) => {
   apiRouter.use(storageRoutes);
   apiRouter.use(draftRoutes);
   apiRouter.use("/slot-monitor", slotMonitorRoutes);
+  apiRouter.use("/web-polls", webPollRoutes);
   app.use("/api", generalApiLimit, apiRouter);
 };
