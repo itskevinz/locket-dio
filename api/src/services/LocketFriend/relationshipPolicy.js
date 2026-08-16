@@ -6,6 +6,7 @@ const NORMAL_CONFIRMED_RELATIONSHIPS = new Set([
 const CELEBRITY_CONFIRMED_RELATIONSHIPS = new Set([
   ...NORMAL_CONFIRMED_RELATIONSHIPS,
   "outgoing-follow-request",
+  "follower-waitlist",
 ]);
 
 function normalizeRelationshipValue(value) {
