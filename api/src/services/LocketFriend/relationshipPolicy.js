@@ -6,7 +6,6 @@ const NORMAL_CONFIRMED_RELATIONSHIPS = new Set([
 const CELEBRITY_CONFIRMED_RELATIONSHIPS = new Set([
   ...NORMAL_CONFIRMED_RELATIONSHIPS,
   "outgoing-follow-request",
-  "follower-waitlist",
 ]);
 
 function normalizeRelationshipValue(value) {
@@ -25,7 +24,19 @@ function isConfirmedRelationship(value, { celebrity = false } = {}) {
   return confirmed.has(status);
 }
 
+function isFriendRelationship(value) {
+  return normalizeRelationshipValue(value) === "friends";
+}
+
+function isPendingRelationship(value, { celebrity = false } = {}) {
+  const status = normalizeRelationshipValue(value);
+  if (status === "friends") return false;
+  return isConfirmedRelationship(status, { celebrity });
+}
+
 module.exports = {
   isConfirmedRelationship,
+  isFriendRelationship,
+  isPendingRelationship,
   normalizeRelationshipValue,
 };
