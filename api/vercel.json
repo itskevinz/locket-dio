@@ -14,12 +14,20 @@
     "api/telegram-update.js": {
       "includeFiles": "google/**",
       "maxDuration": 60
+    },
+    "api/slot-notification-relay.js": {
+      "includeFiles": "google/**",
+      "maxDuration": 60
     }
   },
   "rewrites": [
     {
       "source": "/telegram-webhook",
       "destination": "/api/telegram-update"
+    },
+    {
+      "source": "/slot-notification-relay",
+      "destination": "/api/slot-notification-relay"
     },
     {
       "source": "/(.*)",
