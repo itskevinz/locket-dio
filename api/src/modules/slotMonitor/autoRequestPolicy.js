@@ -125,10 +125,14 @@ function shouldAttemptAutoRequest(
   );
   if (!enabled || Number(availableSlots) <= 0) return false;
 
-  // SENT only protects one open-slot episode. A later full -> open transition
-  // or a capacity increase is a new opportunity and must send again.
-  if (isNewSlotEvent) return true;
+  // Sau khi Locket đã xác nhận request/quan hệ (SENT), tuyệt đối không gửi lại
+  // chỉ vì Celeb full rồi mở slot lần nữa. follower-waitlist và
+  // outgoing-follow-request đều là request đã tồn tại; gửi lặp có thể spam
+  // upstream và làm UI nhảy qua lại giữa các trạng thái chờ.
   if (autoRequestAlreadySent(watch)) return false;
+
+  // Chưa từng SENT: ưu tiên gửi ngay ở lần phát hiện slot mới.
+  if (isNewSlotEvent) return true;
 
   const lastStatus = String(
     watch?.last_auto_request_status || watch?.lastAutoRequestStatus || "",
