@@ -70,7 +70,7 @@ test("retry delay backs off and gives 429 extra space", () => {
   assert.equal(getAutoRequestRetryDelayMs(2, 429), 3000);
 });
 
-test("a SENT result only blocks duplicates inside the same open-slot episode", () => {
+test("a SENT result blocks duplicate celeb mutations across later slot episodes", () => {
   const watch = {
     auto_request_enabled: true,
     last_auto_request_status: "SENT",
@@ -89,11 +89,11 @@ test("a SENT result only blocks duplicates inside the same open-slot episode", (
       isNewSlotEvent: true,
       now: 20_000,
     }),
-    true,
+    false,
   );
 });
 
-test("successful Auto watches keep fast polling for the next slot episode", () => {
+test("successful Auto watches keep fast polling without resending", () => {
   assert.equal(
     hasEnabledAutoRequest([
       { auto_request_enabled: true, last_auto_request_status: "SENT" },
