@@ -517,16 +517,16 @@ const getUserController = async (req, res, next) => {
     if (upstreamStatus === 401 || upstreamStatus === 403) {
       return res.status(401).json({
         success: false,
-        code: "SESSION_EXPIRED",
-        message: "Phiên đăng nhập không còn hợp lệ.",
+        code: "UPSTREAM_AUTH_FAILED",
+        message: "Không thể xác thực với máy chủ. Vui lòng thử lại.",
         data: null,
       });
     }
 
-    return res.status(404).json({
+    return res.status(502).json({
       success: false,
-      code: "USER_NOT_FOUND",
-      message: "Người dùng không tồn tại hoặc không thể tìm thấy vào lúc này.",
+      code: "UPSTREAM_ERROR",
+      message: "Lỗi kết nối máy chủ hoặc dịch vụ đang bận. Vui lòng thử lại sau.",
       data: null,
     });
   }
