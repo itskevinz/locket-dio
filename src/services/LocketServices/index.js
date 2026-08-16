@@ -4,4 +4,5 @@ export * from "./chat.services";
 export * from "./rollcall.services";
 export * from "./fetch.services"
 export * from "./friend.services";
+export * from "./friendTools.services";
 export * from "./group.services";
