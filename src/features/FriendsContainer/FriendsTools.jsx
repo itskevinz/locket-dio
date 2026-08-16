@@ -6,6 +6,7 @@ import {
   QrCode,
   RefreshCw,
   Share2,
+  ThumbsUp,
   UserRoundCheck,
   X,
 } from "lucide-react";
@@ -16,6 +17,7 @@ import {
   getLocketQr,
   unblockFriend,
 } from "@/services";
+import MyWebPollModal from "./WebPoll/MyWebPollModal";
 
 function displayName(user) {
   return (
@@ -39,6 +41,7 @@ export default function FriendsTools({ refreshFriendsData }) {
   const [qrLoading, setQrLoading] = useState(false);
   const [qrData, setQrData] = useState(null);
   const [qrError, setQrError] = useState("");
+  const [pollOpen, setPollOpen] = useState(false);
 
   const loadBlocked = useCallback(async () => {
     setBlockedLoading(true);
@@ -149,7 +152,7 @@ export default function FriendsTools({ refreshFriendsData }) {
               Công cụ Locket
             </p>
             <p className="mt-0.5 text-sm font-semibold text-base-content/80">
-              Quản lý riêng tư và chia sẻ tài khoản
+              Quản lý riêng tư, chia sẻ và tương tác
             </p>
           </div>
           <span className="badge badge-primary badge-sm font-semibold">MỚI</span>
@@ -201,8 +204,35 @@ export default function FriendsTools({ refreshFriendsData }) {
               <ChevronRight className="h-5 w-5 shrink-0 text-warning transition-transform group-hover:translate-x-1" />
             </div>
           </button>
+
+          <button
+            type="button"
+            className="group relative overflow-hidden rounded-2xl border-2 border-[#6956ff]/55 bg-gradient-to-br from-[#6956ff]/25 via-[#8b5cf6]/10 to-base-100 p-4 text-left shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:border-[#6956ff]/80 hover:shadow-lg active:translate-y-0 active:scale-[0.99] sm:col-span-2"
+            onClick={() => setPollOpen(true)}
+          >
+            <span className="pointer-events-none absolute -right-7 -top-10 h-32 w-32 rounded-full bg-[#6956ff]/12 transition-transform duration-300 group-hover:scale-125" />
+            <div className="relative flex items-center gap-3">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#6956ff]/30 bg-[#6956ff]/15 text-[#6956ff] shadow-sm">
+                <ThumbsUp className="h-6 w-6" strokeWidth={2.4} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className="block text-base font-extrabold">Bình chọn</span>
+                  <span className="rounded-full bg-[#6956ff] px-2 py-0.5 text-[10px] font-extrabold text-white">
+                    THỬ NGAY
+                  </span>
+                </span>
+                <span className="mt-1 block text-xs font-medium text-base-content/60">
+                  Tạo câu hỏi 👍 / 👎 để bạn bè trên Huy Locket bình chọn
+                </span>
+              </span>
+              <ChevronRight className="h-5 w-5 shrink-0 text-[#6956ff] transition-transform group-hover:translate-x-1" />
+            </div>
+          </button>
         </div>
       </section>
+
+      <MyWebPollModal open={pollOpen} onClose={() => setPollOpen(false)} />
 
       {blockedOpen && (
         <div
