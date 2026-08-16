@@ -16,6 +16,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { fetchUserById, getListIdFriends } from "@/services";
+import { FallbackAvatar } from "@/components/common";
 import { useSlotMonitor } from "../../SlotMonitor/useSlotMonitor";
 import { SLOT_STATUS } from "../../SlotMonitor/slotMonitorCore";
 import {
@@ -235,14 +236,11 @@ export default function CelebItemFriend({
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <div className="relative w-16 h-16 flex-shrink-0">
-            <img
-              src={friend.profile_picture_url || "/images/default_profile.png"}
+            <FallbackAvatar
+              src={friend.profile_picture_url && friend.profile_picture_url !== "/images/default_profile.png" ? friend.profile_picture_url : null}
+              name={friend.first_name || friend.last_name || friend.displayName || friend.username}
               alt={`${friend?.first_name} ${friend?.last_name}`}
               className="w-16 h-16 rounded-full border-[3.5px] p-0.5 border-amber-400 object-cover"
-              onError={(e) => {
-                e.target.onerror = null;
-                e.target.src = "/images/default_profile.png";
-              }}
             />
             <img
               src="https://cdn.locket-dio.com/v1/caption/caption-icon/celebrity_badge.png"

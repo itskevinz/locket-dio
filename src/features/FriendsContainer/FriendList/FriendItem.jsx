@@ -12,6 +12,7 @@ import {
 import { SonnerInfo } from "@/components/uikit/SonnerToast";
 import ConfirmPoup from "@/features/PoupScreen/ConfirmPoup";
 import { useTranslation } from "react-i18next";
+import { FallbackAvatar } from "@/components/common";
 
 function formatFriendDate(value) {
   if (!value) return "";
@@ -272,16 +273,11 @@ export default FriendItem;
 const Avatar = memo(function Avatar({ friend }) {
   return (
     <div className="relative w-16 h-16 flex-shrink-0">
-      <img
-        src={friend.profilePic || "/images/default_profile.png"}
+      <FallbackAvatar
+        src={friend.profilePic && friend.profilePic !== "/images/default_profile.png" ? friend.profilePic : null}
+        name={friend.firstName || friend.lastName || friend.displayName || friend.username}
         alt={`${friend.firstName} ${friend.lastName}`}
         className="w-16 h-16 rounded-full border-[3.5px] p-0.5 border-amber-400 object-cover"
-        loading="lazy"
-        decoding="async"
-        onError={(e) => {
-          e.target.onerror = null;
-          e.target.src = "/images/default_profile.png";
-        }}
       />
 
       {friend.badge === "locket_gold" ? (

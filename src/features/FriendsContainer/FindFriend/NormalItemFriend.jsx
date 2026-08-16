@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Heart } from "lucide-react";
 import FriendActionButton from "../components/FriendActionButton";
 import { fetchUserById, getListIdFriends } from "@/services";
+import { FallbackAvatar } from "@/components/common";
 
 const getBadge = (user) =>
   user?.badge ??
@@ -110,8 +111,9 @@ export default function NormalItemFriend({
     >
       <div className="flex min-w-0 items-center gap-3">
         <div className="relative shrink-0 w-16 h-16">
-          <img
-            src={friend.profile_picture_url || "./default-avatar.png"}
+          <FallbackAvatar
+            src={friend.profile_picture_url && friend.profile_picture_url !== "./default-avatar.png" ? friend.profile_picture_url : null}
+            name={friend.first_name || friend.last_name || friend.displayName || friend.username}
             alt={`${friend?.first_name} ${friend?.last_name}`}
             className="w-16 h-16 rounded-full border-[3.5px] p-0.5 border-amber-400 object-cover"
           />
