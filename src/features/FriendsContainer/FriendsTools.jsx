@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from "react";
 import {
   Ban,
+  ChevronRight,
   Copy,
   QrCode,
   RefreshCw,
@@ -75,8 +76,6 @@ export default function FriendsTools({ refreshFriendsData }) {
       toast.success("Đã unblock trên Locket", {
         description: `@${user.username || user.uid} đã được gỡ khỏi danh sách block.`,
       });
-      // Locket không tự kết bạn lại sau unblock; refresh chỉ để trạng thái web
-      // đồng bộ nếu upstream đã thay đổi quan hệ.
       refreshFriendsData?.().catch(() => {});
     } catch (error) {
       toast.error("Unblock chưa thành công", {
@@ -143,35 +142,67 @@ export default function FriendsTools({ refreshFriendsData }) {
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-2 rounded-2xl border border-base-300 bg-base-200/35 p-2">
-        <button
-          type="button"
-          className="btn btn-ghost justify-start gap-2"
-          onClick={openBlocked}
-        >
-          <Ban className="h-5 w-5 text-error" />
-          <span className="min-w-0 text-left">
-            <span className="block text-sm font-semibold">Đã block</span>
-            <span className="block truncate text-[11px] font-normal opacity-55">
-              Xem và unblock
-            </span>
-          </span>
-        </button>
+      <section className="rounded-3xl border border-base-300 bg-base-100/70 p-3 shadow-sm sm:p-4">
+        <div className="mb-3 flex items-center justify-between gap-3 px-1">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-base-content/45">
+              Công cụ Locket
+            </p>
+            <p className="mt-0.5 text-sm font-semibold text-base-content/80">
+              Quản lý riêng tư và chia sẻ tài khoản
+            </p>
+          </div>
+          <span className="badge badge-primary badge-sm font-semibold">MỚI</span>
+        </div>
 
-        <button
-          type="button"
-          className="btn btn-ghost justify-start gap-2"
-          onClick={openQr}
-        >
-          <QrCode className="h-5 w-5 text-warning" />
-          <span className="min-w-0 text-left">
-            <span className="block text-sm font-semibold">Locket QR</span>
-            <span className="block truncate text-[11px] font-normal opacity-55">
-              QR thêm bạn chính chủ
-            </span>
-          </span>
-        </button>
-      </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            className="group relative overflow-hidden rounded-2xl border-2 border-error/45 bg-gradient-to-br from-error/20 via-error/10 to-base-100 p-4 text-left shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:border-error/70 hover:shadow-lg active:translate-y-0 active:scale-[0.99]"
+            onClick={openBlocked}
+          >
+            <span className="pointer-events-none absolute -right-5 -top-7 h-24 w-24 rounded-full bg-error/10 transition-transform duration-300 group-hover:scale-125" />
+            <div className="relative flex items-center gap-3">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-error/25 bg-error/15 text-error shadow-sm">
+                <Ban className="h-6 w-6" strokeWidth={2.4} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-2">
+                  <span className="block text-base font-extrabold">Đã block</span>
+                  <span className="badge badge-error badge-xs">RIÊNG TƯ</span>
+                </span>
+                <span className="mt-1 block text-xs font-medium text-base-content/60">
+                  Xem danh sách và unblock tài khoản
+                </span>
+              </span>
+              <ChevronRight className="h-5 w-5 shrink-0 text-error transition-transform group-hover:translate-x-1" />
+            </div>
+          </button>
+
+          <button
+            type="button"
+            className="group relative overflow-hidden rounded-2xl border-2 border-warning/55 bg-gradient-to-br from-warning/25 via-warning/10 to-base-100 p-4 text-left shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:border-warning/80 hover:shadow-lg active:translate-y-0 active:scale-[0.99]"
+            onClick={openQr}
+          >
+            <span className="pointer-events-none absolute -right-5 -top-7 h-24 w-24 rounded-full bg-warning/15 transition-transform duration-300 group-hover:scale-125" />
+            <div className="relative flex items-center gap-3">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-warning/35 bg-warning/20 text-warning shadow-sm">
+                <QrCode className="h-6 w-6" strokeWidth={2.4} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-2">
+                  <span className="block text-base font-extrabold">Locket QR</span>
+                  <span className="badge badge-warning badge-xs">CHIA SẺ</span>
+                </span>
+                <span className="mt-1 block text-xs font-medium text-base-content/60">
+                  Mở QR thêm bạn chính chủ của bạn
+                </span>
+              </span>
+              <ChevronRight className="h-5 w-5 shrink-0 text-warning transition-transform group-hover:translate-x-1" />
+            </div>
+          </button>
+        </div>
+      </section>
 
       {blockedOpen && (
         <div
