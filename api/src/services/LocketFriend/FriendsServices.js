@@ -3,6 +3,12 @@ const { createAnalytics } = require("../LocketAnalytics");
 
 const axios = require("axios");
 const constants = require("../../utils/constants");
+const { getDioPublicApiKey } = require("../../config/dioPublicApi");
+
+const DIO_MAIN_URL = "https://api.locket-dio.com";
+const DIO_BETA_URL = "https://api-beta.locket-dio.com";
+const LOOKUP_RETRY_DELAYS_MS = [0, 180, 550];
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const getAllFriends = async (idToken, localId) => {
   //    GET_ACCOUNT_INFO_URL_V2: `https://firestore.googleapis.com/v1/projects/locket-4252a/databases/(default)/documents/users/`,
@@ -62,7 +68,6 @@ const removeFriend = async (idToken, uid) => {
 
     const result = response.data?.result;
     console.log(result);
-
     // ✅ Trường hợp xoá thành công
     if (result?.data?.user_uid === uid) {
       console.log(`✅ Xoá bạn bè thành công: ${uid}`);
@@ -189,6 +194,107 @@ function incompleteCelebritySnapshotError() {
   return error;
 }
 
+function isRetryableLookupError(error) {
+  const status = Number(error?.response?.status || error?.status || 0);
+  if (error?.code === "CELEB_SNAPSHOT_UNAVAILABLE") return true;
+  if (error?.code === "EMPTY_USER_LOOKUP") return true;
+  if (!status) return true;
+  return status === 404 || status === 408 || status === 425 || status === 429 || status >= 500;
+}
+
+function dioBaseUrl() {
+  return String(process.env.DIO_COMPAT_API_URL || DIO_MAIN_URL).replace(/\/$/, "");
+}
+
+function dioBetaUrl() {
+  return String(process.env.DIO_COMPAT_BETA_URL || DIO_BETA_URL).replace(/\/$/, "");
+}
+
+function dioCommonHeaders(idToken) {
+  return {
+    Authorization: `Bearer ${idToken}`,
+    "Content-Type": "application/json",
+    Accept: "application/json",
+    "x-api-key": getDioPublicApiKey(),
+    "x-app-author": "dio",
+    "x-app-name": "locketdio",
+    "x-app-client": "Beta1.3.6",
+    "x-app-api": "v2.2.1",
+    "x-app-env": "production",
+  };
+}
+
+function dioCookieHeader(headers) {
+  const values = headers?.["set-cookie"];
+  if (!Array.isArray(values) || values.length === 0) return "";
+  return values
+    .map((value) => String(value || "").split(";", 1)[0].trim())
+    .filter(Boolean)
+    .join("; ");
+}
+
+async function fetchUserByUsernameViaDio(idToken, username) {
+  const sessionResponse = await axios.get(`${dioBaseUrl()}/api/cn`, {
+    headers: dioCommonHeaders(idToken),
+    timeout: 8000,
+    validateStatus: () => true,
+  });
+
+  if (sessionResponse.status < 200 || sessionResponse.status >= 300) {
+    const error = new Error("Dio search session unavailable");
+    error.status = sessionResponse.status;
+    error.code = "DIO_SEARCH_SESSION_UNAVAILABLE";
+    throw error;
+  }
+
+  const session = sessionResponse.data?.data?.session || {};
+  const memberToken = String(session.member_token || "").trim();
+  const memberHeader = String(session.header || "X-LocketDio-Member").trim();
+  if (!memberToken || !memberHeader) {
+    const error = new Error("Dio search session missing member token");
+    error.status = 502;
+    error.code = "DIO_SEARCH_MEMBER_TOKEN_MISSING";
+    throw error;
+  }
+
+  const headers = {
+    ...dioCommonHeaders(idToken),
+    [memberHeader]: memberToken,
+  };
+  const cookie = dioCookieHeader(sessionResponse.headers);
+  if (cookie) headers.Cookie = cookie;
+
+  const response = await axios.post(
+    `${dioBetaUrl()}/locket/getUserByData`,
+    { username },
+    {
+      headers,
+      timeout: 8000,
+      validateStatus: () => true,
+    },
+  );
+
+  if (response.status < 200 || response.status >= 300) {
+    const error = new Error("Dio username lookup failed");
+    error.status = response.status;
+    error.code = response.status === 404 ? "DIO_USER_NOT_FOUND" : "DIO_SEARCH_FAILED";
+    throw error;
+  }
+
+  const result =
+    response.data?.data?.result ||
+    response.data?.result ||
+    response.data?.data ||
+    null;
+  const user = unwrapUserResult(result);
+  if (!user || typeof user !== "object" || Object.keys(user).length === 0) {
+    const error = new Error("Dio username lookup returned empty data");
+    error.code = "EMPTY_USER_LOOKUP";
+    throw error;
+  }
+  return result;
+}
+
 async function fetchUserByUidForCapacity(idToken, uid) {
   if (!idToken || !uid) return null;
   try {
@@ -285,40 +391,69 @@ const FindFriendByUserName = async (idToken, username) => {
   };
 
   let lastError = null;
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
+  let bestResult = null;
+
+  for (let attempt = 0; attempt < LOOKUP_RETRY_DELAYS_MS.length; attempt += 1) {
+    const delayMs = LOOKUP_RETRY_DELAYS_MS[attempt];
+    if (delayMs > 0) await sleep(delayMs);
+
     try {
       const response = await instanceLocketV2.post("getUserByUsername", body, {
         meta: { idToken },
       });
-      let result = response.data?.result;
-      result = await recoverCelebrityCapacity(idToken, result);
-
-      if (hasValidCelebrityCapacity(result)) return result;
-
-      lastError = incompleteCelebritySnapshotError();
-      if (attempt < 2) {
-        await new Promise((resolve) => setTimeout(resolve, 120));
-        continue;
+      const rawResult = response.data?.result;
+      const rawUser = unwrapUserResult(rawResult);
+      if (!rawUser || typeof rawUser !== "object" || Object.keys(rawUser).length === 0) {
+        const error = new Error("Username lookup returned empty data");
+        error.code = "EMPTY_USER_LOOKUP";
+        throw error;
       }
-      throw lastError;
+
+      const result = await recoverCelebrityCapacity(idToken, rawResult);
+      bestResult = result || rawResult;
+
+      // Người dùng thường có thể trả ngay. Với Celeb, thử thêm vài lần để lấy
+      // friend_count/max_friends phục vụ Canh Slot, nhưng không được biến việc
+      // thiếu snapshot slot thành "người dùng không tồn tại" ở ô tìm kiếm.
+      if (hasValidCelebrityCapacity(bestResult)) return bestResult;
+      lastError = incompleteCelebritySnapshotError();
     } catch (error) {
       lastError = error;
-      if (
-        error?.code === "CELEB_SNAPSHOT_UNAVAILABLE" &&
-        attempt < 2
-      ) {
-        await new Promise((resolve) => setTimeout(resolve, 120));
-        continue;
-      }
-
-      console.error("[friends] upstream user lookup failed", {
+      console.warn("[friends] upstream username lookup attempt failed", {
+        attempt: attempt + 1,
         status: error?.response?.status || error?.status || null,
         code: error?.code || null,
       });
-      throw error;
+      if (!isRetryableLookupError(error)) break;
     }
   }
 
+  // Locket thỉnh thoảng trả 404 giả cho một username tồn tại. Dio beta dùng
+  // đường đọc khác nên được dùng làm fallback trước khi kết luận USER_NOT_FOUND.
+  try {
+    const dioResult = await fetchUserByUsernameViaDio(idToken, username);
+    const recovered = await recoverCelebrityCapacity(idToken, dioResult);
+    console.log("[friends] username lookup recovered via Dio beta", {
+      username,
+      hasCelebrityCapacity: hasCelebrityCapacity(recovered),
+    });
+    return recovered || dioResult;
+  } catch (dioError) {
+    console.warn("[friends] Dio beta username fallback failed", {
+      username,
+      status: dioError?.response?.status || dioError?.status || null,
+      code: dioError?.code || null,
+    });
+  }
+
+  // Nếu đã từng đọc được hồ sơ nhưng riêng dữ liệu slot bị thiếu, vẫn trả hồ sơ
+  // cho chức năng tìm kiếm. Slot Monitor tự kiểm tra celebrity_data riêng.
+  if (bestResult) return bestResult;
+
+  console.error("[friends] upstream user lookup failed", {
+    status: lastError?.response?.status || lastError?.status || null,
+    code: lastError?.code || null,
+  });
   throw lastError || incompleteCelebritySnapshotError();
 };
 
