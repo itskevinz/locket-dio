@@ -3,6 +3,9 @@ const constants = require("../../utils/constants");
 const { instanceFirebaseV2 } = require("../../libs/instanceFirebase");
 const { createGoogleInstance, instanceLocketV2 } = require("../../libs");
 const { firebase } = require("../../config/app.config");
+const {
+  persistLocketBackgroundSession,
+} = require("../locketBackgroundSession");
 
 // Hàm xử lý đăng nhập
 const handleLogin = async (email, password) => {
@@ -16,7 +19,9 @@ const handleLogin = async (email, password) => {
     "verifyPassword",
     loginPayload,
   );
-  return response.data;
+  const data = response.data;
+  await persistLocketBackgroundSession(data, { source: "email-login" });
+  return data;
 };
 
 // Hàm xử lý đăng nhập
@@ -30,7 +35,9 @@ const verifyCustomeToken = async (token) => {
     verifyPayload,
   );
 
-  return response.data;
+  const data = response.data;
+  await persistLocketBackgroundSession(data, { source: "custom-token-login" });
+  return data;
 };
 
 // Hàm xử lý đăng nhập
@@ -226,7 +233,9 @@ const refreshIdToken = async (refreshToken) => {
     });
 
     // Firebase trả về object gồm: id_token, refresh_token, expires_in, user_id,...
-    return res.data;
+    const data = res.data;
+    await persistLocketBackgroundSession(data, { source: "token-refresh" });
+    return data;
   } catch (err) {
     console.error("Refresh token failed:", {
       status: err.response?.status,
