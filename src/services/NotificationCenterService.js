@@ -179,3 +179,26 @@ export function subscribeNotifications(callback) {
     window.removeEventListener("storage", onStorage);
   };
 }
+
+if (typeof window !== "undefined" && !window.__HUY_NOTIFICATION_RECOVERY_BOUND__) {
+  window.__HUY_NOTIFICATION_RECOVERY_BOUND__ = true;
+  window.addEventListener("huy-locket-realtime-recovered", (event) => {
+    const detail = event?.detail || {};
+    const failed = Math.max(0, Number(detail.failed || 0));
+    if (failed <= 0) return;
+
+    addNotification({
+      type: "sync",
+      title: "Đồng bộ sau khi kết nối lại chưa hoàn tất",
+      message: `${failed} tác vụ đồng bộ chưa thành công. Web sẽ tiếp tục dùng dữ liệu hiện có và đồng bộ lại ở lần kết nối tiếp theo.`,
+      level: "warning",
+      dedupeKey: `recovery-sync:${detail.recoveryEpoch || detail.at || Date.now()}`,
+      dedupeWindowMs: 10 * 60 * 1000,
+      meta: {
+        failed,
+        completed: Number(detail.completed || 0),
+        reason: detail.reason || "socket-reconnect",
+      },
+    });
+  });
+}
