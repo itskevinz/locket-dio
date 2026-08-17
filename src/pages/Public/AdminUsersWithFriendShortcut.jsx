@@ -1,3 +1,4 @@
+// Restored pre-mobile admin layout.
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { UsersRound } from "lucide-react";
