@@ -1,5 +1,6 @@
 import api from "@/libs/axios";
 import { reconcilePostedMedia } from "@/utils/upload/reconcilePostedMedia";
+import { addNotification } from "@/services/NotificationCenterService";
 
 function resolveClientUploadId(payload) {
   const explicit = String(payload?.clientUploadId || "").trim();
@@ -13,6 +14,55 @@ function resolveClientUploadId(payload) {
   }
   if (payload?.draftId) return `draft-${payload.draftId}`;
   return "";
+}
+
+function notificationUploadKey(payload) {
+  return (
+    resolveClientUploadId(payload) ||
+    String(payload?.draftId || payload?.id || "") ||
+    "current"
+  );
+}
+
+function postTypeLabel(payload) {
+  return payload?.mediaInfo?.type === "video" ? "video" : "ảnh";
+}
+
+function postErrorMessage(error) {
+  return (
+    error?.response?.data?.message ||
+    error?.response?.data?.error?.message ||
+    error?.message ||
+    "Không thể đăng bài lên Locket."
+  );
+}
+
+function recordPostSuccess(payload) {
+  addNotification({
+    type: "post",
+    title: "Đăng bài thành công",
+    message: `${postTypeLabel(payload)} đã được gửi lên Locket.`,
+    level: "success",
+    actionUrl: "/",
+    dedupeKey: `post:${notificationUploadKey(payload)}:success`,
+    dedupeWindowMs: 24 * 60 * 60 * 1000,
+  });
+}
+
+function recordPostFailure(payload, error) {
+  addNotification({
+    type: "post",
+    title: "Đăng bài thất bại",
+    message: postErrorMessage(error),
+    level: "error",
+    actionUrl: "/",
+    dedupeKey: `post:${notificationUploadKey(payload)}:failed`,
+    dedupeWindowMs: 5 * 60 * 1000,
+    meta: {
+      status: error?.response?.status || null,
+      code: error?.response?.data?.code || error?.code || null,
+    },
+  });
 }
 
 function emitUploadProgress(payload, progressEvent, phase = "uploading") {
@@ -102,9 +152,11 @@ export const uploadMediaV2 = async (payload) => {
     );
     emitServerProcessing(payload);
     reconcilePostedMedia(payload, response.data);
+    recordPostSuccess(payload);
     console.log("✅ Upload thành công:", response.data);
     return response.data;
   } catch (error) {
+    recordPostFailure(payload, error);
     console.error("❌ Lỗi khi upload:", error.response?.data || error.message);
     throw error;
   } finally {
@@ -124,10 +176,12 @@ export const PostMoments = async (payload) => {
     // The queue examines payload.mediaInfo again after this promise resolves.
     // Preserve the permanent API URLs before it builds the optimistic moment.
     reconcilePostedMedia(payload, response.data);
+    recordPostSuccess(payload);
 
     console.log("✅ Upload thành công:", response.data);
     return response.data;
   } catch (error) {
+    recordPostFailure(payload, error);
     console.error("❌ Lỗi khi upload:", error.response?.data || error.message);
     throw error;
   }
