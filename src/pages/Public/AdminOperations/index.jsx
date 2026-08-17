@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, LoaderCircle, ShieldAlert, ShieldCheck } from "lucide-react";
 import AccountHealth from "@/features/SlotMonitor/AccountHealth";
-import AdminCelebCenter from "@/features/SlotMonitor/AdminCelebCenter";
+import AdminCelebCenter from "@/features/SlotMonitor/AdminCelebCenterLive";
 import SystemStatus from "@/features/SlotMonitor/SystemStatus";
 import { getAdminRoleInfo } from "@/services/AdminAuthService";
 import AdminSystemHealth from "../AdminSystemHealth";
@@ -70,7 +70,7 @@ export default function AdminOperations() {
                 Vận hành Admin
               </h1>
               <p className="mt-1 text-sm text-base-content/65">
-                Toàn bộ Celeb trên Railway, sức khỏe Canh Slot và trạng thái backend chỉ hiển thị cho Admin.
+                Toàn bộ Celeb từ worker Render, sức khỏe Canh Slot và trạng thái backend chỉ hiển thị cho Admin.
               </p>
             </div>
           </div>
