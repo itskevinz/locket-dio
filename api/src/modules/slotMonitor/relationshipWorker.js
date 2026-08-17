@@ -1,3 +1,5 @@
+const axios = require("axios");
+const constants = require("../../utils/constants");
 const friendServices = require("../../services/LocketFriend/FriendsServices");
 const store = require("./store");
 const { decryptSecret } = require("./crypto");
@@ -92,7 +94,68 @@ async function probeRelationship(idToken, watch) {
   }
 }
 
-async function processSentWatch(userUid, idToken, watch) {
+// The user-specific /friends document is the authoritative source for an
+// accepted friendship. Username/profile relationship lookups can temporarily
+// return stale/empty data, so always reconcile SENT/FAILED watches against the
+// exact friend document before deciding that a request still needs work.
+async function probeFriendDocument(idToken, userUid, watch) {
+  const uid = String(userUid || "").trim();
+  const celebUid = String(watch?.celeb_uid || "").trim();
+  if (!uid || !celebUid) {
+    return { definitive: false, isFriend: false };
+  }
+
+  const url = `${constants.GET_ACCOUNT_INFO_URL_V2}${encodeURIComponent(uid)}/friends/${encodeURIComponent(celebUid)}`;
+  try {
+    await axios.get(url, {
+      timeout: 10_000,
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+        Accept: "application/json",
+      },
+    });
+    return { definitive: true, isFriend: true };
+  } catch (error) {
+    const status = Number(error?.response?.status || error?.status || 0);
+    if (status === 404) {
+      return { definitive: true, isFriend: false };
+    }
+
+    console.warn("[slot-relationship] friend document lookup failed", {
+      userUid: uid,
+      celebUid,
+      username: watch?.username,
+      status: status || null,
+      code: error?.code || null,
+    });
+    return { definitive: false, isFriend: false, error };
+  }
+}
+
+async function completeFriendWatch(userUid, watch, source, relationship = "friends") {
+  await store.markAutoRequestResult(userUid, watch.celeb_uid, {
+    status: "FRIENDS",
+    error: null,
+  });
+  await store.setWatchAutoRequestEnabled(userUid, watch.celeb_uid, false);
+  await store.setWatchEnabled(userUid, watch.celeb_uid, false);
+  console.log("[slot-relationship] friendship confirmed; watch completed", {
+    userUid,
+    celebUid: watch.celeb_uid,
+    username: watch.username,
+    source,
+  });
+  return { state: "FRIENDS", relationship };
+}
+
+async function processSentWatch(userUid, idToken, watch, options = {}) {
+  if (!options.skipFriendDocument) {
+    const friendDocument = await probeFriendDocument(idToken, userUid, watch);
+    if (friendDocument.definitive && friendDocument.isFriend) {
+      return completeFriendWatch(userUid, watch, "friends-document");
+    }
+  }
+
   const probe = await probeRelationship(idToken, watch);
   if (!probe.definitive) return { state: "UNKNOWN" };
 
@@ -101,17 +164,7 @@ async function processSentWatch(userUid, idToken, watch) {
     // SENT chỉ có nghĩa là request đã tồn tại. Chỉ FRIENDS mới là hoàn tất.
     // Giữ record trong DB để UI vẫn hiển thị tài khoản với trạng thái Bạn bè,
     // nhưng tắt worker slot để không poll/gửi lại nữa.
-    await store.markAutoRequestResult(userUid, watch.celeb_uid, {
-      status: "FRIENDS",
-      error: null,
-    });
-    await store.setWatchEnabled(userUid, watch.celeb_uid, false);
-    console.log("[slot-relationship] friendship confirmed; watch completed", {
-      userUid,
-      celebUid: watch.celeb_uid,
-      username: watch.username,
-    });
-    return { state: "FRIENDS", relationship };
+    return completeFriendWatch(userUid, watch, "relationship", relationship);
   }
 
   if (isPendingRelationship(relationship, { celebrity: true })) {
@@ -133,6 +186,30 @@ async function processSentWatch(userUid, idToken, watch) {
     relationship: relationship || "none",
   });
   return { state: "RETRY", relationship };
+}
+
+async function reconcileWatch(userUid, idToken, watch) {
+  const status = String(watch?.last_auto_request_status || "")
+    .trim()
+    .toUpperCase();
+
+  // A FAILED row may still represent a request that actually got accepted
+  // after the mutation response/relationship probe failed. Check the user's
+  // real friend document so such rows self-heal instead of polling forever.
+  if (status === "SENT" || status === "FAILED") {
+    const friendDocument = await probeFriendDocument(idToken, userUid, watch);
+    if (friendDocument.definitive && friendDocument.isFriend) {
+      return completeFriendWatch(userUid, watch, "friends-document");
+    }
+
+    if (status === "SENT") {
+      return processSentWatch(userUid, idToken, watch, {
+        skipFriendDocument: true,
+      });
+    }
+  }
+
+  return { state: "NO_CHANGE" };
 }
 
 async function runRelationshipCycle() {
@@ -158,13 +235,13 @@ async function runRelationshipCycle() {
         continue;
       }
 
-      const sentWatches = watches.filter(
-        (watch) =>
-          String(watch?.last_auto_request_status || "")
-            .trim()
-            .toUpperCase() === "SENT",
-      );
-      if (!sentWatches.length) continue;
+      const relationshipWatches = watches.filter((watch) => {
+        const status = String(watch?.last_auto_request_status || "")
+          .trim()
+          .toUpperCase();
+        return status === "SENT" || status === "FAILED";
+      });
+      if (!relationshipWatches.length) continue;
 
       let idToken;
       try {
@@ -180,8 +257,8 @@ async function runRelationshipCycle() {
       }
       if (!idToken) continue;
 
-      for (const watch of sentWatches) {
-        await processSentWatch(userUid, idToken, watch);
+      for (const watch of relationshipWatches) {
+        await reconcileWatch(userUid, idToken, watch);
       }
     }
   } catch (error) {
@@ -217,7 +294,9 @@ module.exports = {
   RELATIONSHIP_POLL_MS,
   relationshipFromLookup,
   probeRelationship,
+  probeFriendDocument,
   processSentWatch,
+  reconcileWatch,
   runRelationshipCycle,
   startRelationshipWorker,
 };
