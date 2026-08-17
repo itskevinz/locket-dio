@@ -7,6 +7,7 @@ import {
   RefreshCw,
   Send,
   Trash2,
+  UserRoundCheck,
   X,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -27,10 +28,18 @@ import {
 } from "./slotMonitorStorage";
 import { getMyLocalId } from "@/utils/auth/getMyLocalId";
 
+const isCompletedFriendWatch = (item) =>
+  item?.status === SLOT_STATUS.FRIENDS ||
+  String(item?.lastAutoRequestStatus || item?.last_auto_request_status || "")
+    .trim()
+    .toUpperCase() === "FRIENDS";
+
 const statusLabel = (status) => {
   switch (status) {
     case SLOT_STATUS.SLOT_OPEN:
       return "🔥 Đã mở slot";
+    case SLOT_STATUS.FRIENDS:
+      return "✓ Đã kết bạn";
     case SLOT_STATUS.PAUSED:
       return "⏸ Tạm dừng";
     case SLOT_STATUS.ERROR:
@@ -49,28 +58,35 @@ const timeAgo = (value) => {
   return `${Math.floor(minutes / 60)} giờ trước`;
 };
 
-const serverWatchToLocal = (item) => ({
-  uid: item?.uid,
-  username: item?.username,
-  displayName: item?.displayName || item?.username,
-  avatar: item?.avatar || "",
-  friendCount: Number(item?.friendCount) || 0,
-  maxFriends: Number(item?.maxFriends) || 0,
-  status: item?.enabled === false ? SLOT_STATUS.PAUSED : item?.status,
-  createdAt: Date.now(),
-  lastCheckedAt: item?.lastCheckedAt || null,
-  notifiedAt: item?.notifiedAt || null,
-  errorCount: 0,
-  lastWasFull:
-    typeof item?.lastWasFull === "boolean"
-      ? item.lastWasFull
-      : Number(item?.maxFriends || 0) > 0 &&
-        Number(item?.friendCount || 0) >= Number(item?.maxFriends || 0),
-  autoRequestEnabled: Boolean(item?.autoRequestEnabled),
-  lastAutoRequestAt: item?.lastAutoRequestAt || null,
-  lastAutoRequestStatus: item?.lastAutoRequestStatus || "",
-  lastAutoRequestError: item?.lastAutoRequestError || "",
-});
+const serverWatchToLocal = (item) => {
+  const completedFriend = isCompletedFriendWatch(item);
+  return {
+    uid: item?.uid,
+    username: item?.username,
+    displayName: item?.displayName || item?.username,
+    avatar: item?.avatar || "",
+    friendCount: Number(item?.friendCount) || 0,
+    maxFriends: Number(item?.maxFriends) || 0,
+    status: completedFriend
+      ? SLOT_STATUS.FRIENDS
+      : item?.enabled === false
+        ? SLOT_STATUS.PAUSED
+        : item?.status,
+    createdAt: Date.now(),
+    lastCheckedAt: item?.lastCheckedAt || null,
+    notifiedAt: item?.notifiedAt || null,
+    errorCount: 0,
+    lastWasFull:
+      typeof item?.lastWasFull === "boolean"
+        ? item.lastWasFull
+        : Number(item?.maxFriends || 0) > 0 &&
+          Number(item?.friendCount || 0) >= Number(item?.maxFriends || 0),
+    autoRequestEnabled: completedFriend ? false : Boolean(item?.autoRequestEnabled),
+    lastAutoRequestAt: item?.lastAutoRequestAt || null,
+    lastAutoRequestStatus: item?.lastAutoRequestStatus || "",
+    lastAutoRequestError: item?.lastAutoRequestError || "",
+  };
+};
 
 function notifySameTabStorageRefresh(items) {
   try {
@@ -114,11 +130,11 @@ export default function SlotWatchModal({ isOpen, onClose }) {
     if (!isOpen) return undefined;
     let cancelled = false;
 
-    const syncAccountWatches = async () => {
+    const syncAccountWatches = async ({ silent = false } = {}) => {
       const ownerUid = getMyLocalId();
       if (!ownerUid) return;
 
-      setSyncingAccount(true);
+      if (!silent) setSyncingAccount(true);
       setSyncError("");
       try {
         let local = getWatchedCelebs();
@@ -157,13 +173,18 @@ export default function SlotWatchModal({ isOpen, onClose }) {
           );
         }
       } finally {
-        if (!cancelled) setSyncingAccount(false);
+        if (!cancelled && !silent) setSyncingAccount(false);
       }
     };
 
     syncAccountWatches();
+    const syncTimer = window.setInterval(
+      () => syncAccountWatches({ silent: true }),
+      12_000,
+    );
     return () => {
       cancelled = true;
+      window.clearInterval(syncTimer);
     };
   }, [isOpen]);
 
@@ -176,12 +197,16 @@ export default function SlotWatchModal({ isOpen, onClose }) {
     "PUSH_UNSUPPORTED",
     "SERVICE_WORKER_UNAVAILABLE",
   ].includes(slotPushState?.reason);
+  const activeWatchCount = watchedCelebs.filter(
+    (item) => !isCompletedFriendWatch(item),
+  ).length;
+  const completedFriendCount = watchedCelebs.length - activeWatchCount;
 
   const subtitle = pushEnabled
     ? "Canh 24/7 đang bật — có slot sẽ báo ra điện thoại/màn hình khóa."
     : backgroundEnabled
-      ? "Railway đang canh 24/7. Thiết bị này chưa bật được thông báo hệ thống."
-      : "Bật Canh Slot 24/7 để Railway vẫn theo dõi khi bạn đóng Huy Locket.";
+      ? "Hệ thống đang canh 24/7. Thiết bị này chưa bật được thông báo hệ thống."
+      : "Bật Canh Slot 24/7 để hệ thống vẫn theo dõi khi bạn đóng Huy Locket.";
 
   return (
     <div
@@ -201,6 +226,12 @@ export default function SlotWatchModal({ isOpen, onClose }) {
             <div>
               <h2 className="flex items-center gap-2 font-bold"><Bell size={18} /> Canh Slot</h2>
               <p className="text-xs text-base-content/60">{subtitle}</p>
+              <p className="mt-1 text-[11px] text-base-content/45">
+                {activeWatchCount}/20 đang canh
+                {completedFriendCount > 0
+                  ? ` • ${completedFriendCount} đã kết bạn`
+                  : ""}
+              </p>
             </div>
             <button className="btn btn-ghost btn-circle btn-sm" onClick={onClose} aria-label="Đóng">
               <X size={18} />
@@ -249,7 +280,7 @@ export default function SlotWatchModal({ isOpen, onClose }) {
           )}
           {backgroundEnabled && pushUnsupported && (
             <p className="mt-2 text-xs text-info">
-              Railway vẫn canh slot 24/7 và đồng bộ tài khoản. Muốn nhận ngoài màn hình khóa, hãy bật Web Push trên điện thoại/trình duyệt có hỗ trợ.
+              Hệ thống vẫn canh slot 24/7 và đồng bộ tài khoản. Muốn nhận ngoài màn hình khóa, hãy bật Web Push trên điện thoại/trình duyệt có hỗ trợ.
             </p>
           )}
         </header>
@@ -263,70 +294,127 @@ export default function SlotWatchModal({ isOpen, onClose }) {
                 : "Chưa có Celeb nào đang được canh."}
             </div>
           ) : watchedCelebs.map((celeb) => {
-            const checking = checkingUids.includes(celeb.uid);
-            const slotOpen = celeb.status === SLOT_STATUS.SLOT_OPEN;
+            const completedFriend = isCompletedFriendWatch(celeb);
+            const checking =
+              !completedFriend && checkingUids.includes(celeb.uid);
+            const slotOpen =
+              !completedFriend && celeb.status === SLOT_STATUS.SLOT_OPEN;
             return (
-              <article key={celeb.uid} className="rounded-xl bg-base-200/60 p-3">
+              <article
+                key={celeb.uid}
+                className={`rounded-xl border p-3 ${
+                  completedFriend
+                    ? "border-success/35 bg-success/10"
+                    : "border-transparent bg-base-200/60"
+                }`}
+              >
                 <div className="flex items-center gap-3">
                   <img
                     src={celeb.avatar || "/images/default_profile.png"}
                     alt={celeb.displayName}
-                    className="h-11 w-11 rounded-full object-cover"
+                    className={`h-11 w-11 rounded-full object-cover ring-2 ${
+                      completedFriend ? "ring-success/50" : "ring-transparent"
+                    }`}
                     onError={(event) => { event.currentTarget.src = "/images/default_profile.png"; }}
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold">{celeb.displayName}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate font-semibold">{celeb.displayName}</p>
+                      {completedFriend && (
+                        <span className="badge badge-success badge-xs">BẠN BÈ</span>
+                      )}
+                    </div>
                     <p className="truncate text-xs text-base-content/60">@{celeb.username}</p>
                     <div className="mt-1 flex flex-wrap gap-x-3 text-[11px] text-base-content/60">
-                      <span>{checking ? "⏳ Đang kiểm tra..." : statusLabel(celeb.status)}</span>
+                      <span>
+                        {checking
+                          ? "⏳ Đang kiểm tra..."
+                          : statusLabel(
+                              completedFriend
+                                ? SLOT_STATUS.FRIENDS
+                                : celeb.status,
+                            )}
+                      </span>
                       <span>{celeb.friendCount.toLocaleString()} / {celeb.maxFriends.toLocaleString()}</span>
                       <span>{timeAgo(celeb.lastCheckedAt)}</span>
                     </div>
-                    {celeb.autoRequestEnabled && (
+                    {completedFriend ? (
+                      <p className="mt-1 text-[11px] font-medium text-success">
+                        ✓ Canh Slot đã tự dừng — không còn dùng worker
+                      </p>
+                    ) : celeb.autoRequestEnabled ? (
                       <p className="mt-1 text-[11px] font-medium text-warning">
                         ⚡ Tự gửi request Celeb thật đang bật
                       </p>
-                    )}
+                    ) : null}
                   </div>
                 </div>
 
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  {slotOpen && (
+                {completedFriend ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
                     <button
-                      className="btn btn-error btn-sm"
+                      className="btn btn-success btn-sm"
                       onClick={() => {
                         onClose();
-                        navigate(`/friends?slot=1&username=${encodeURIComponent(celeb.username)}`);
+                        navigate(`/friends?username=${encodeURIComponent(celeb.username)}`);
                       }}
                     >
-                      Kết bạn ngay
+                      <UserRoundCheck size={14} /> Bạn bè
                     </button>
-                  )}
-                  <button
-                    className="btn btn-ghost btn-sm"
-                    disabled={checking}
-                    onClick={() => checkNow(celeb.uid)}
-                  >
-                    <RefreshCw size={14} className={checking ? "animate-spin" : ""} /> Kiểm tra
-                  </button>
-                  {celeb.status === SLOT_STATUS.PAUSED ? (
-                    <button className="btn btn-ghost btn-sm" onClick={() => resumeWatch(celeb.uid)}>
-                      <Play size={14} /> Tiếp tục
+                    <button
+                      className="btn btn-ghost btn-sm ml-auto text-base-content/55"
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `Xóa @${celeb.username} khỏi danh sách Canh Slot đã hoàn tất?`,
+                          )
+                        ) {
+                          unwatchCeleb(celeb.uid);
+                        }
+                      }}
+                    >
+                      <Trash2 size={14} /> Xóa khỏi danh sách
                     </button>
-                  ) : (
-                    <button className="btn btn-ghost btn-sm" onClick={() => pauseWatch(celeb.uid)}>
-                      <Pause size={14} /> Tạm dừng
+                  </div>
+                ) : (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    {slotOpen && (
+                      <button
+                        className="btn btn-error btn-sm"
+                        onClick={() => {
+                          onClose();
+                          navigate(`/friends?slot=1&username=${encodeURIComponent(celeb.username)}`);
+                        }}
+                      >
+                        Kết bạn ngay
+                      </button>
+                    )}
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      disabled={checking}
+                      onClick={() => checkNow(celeb.uid)}
+                    >
+                      <RefreshCw size={14} className={checking ? "animate-spin" : ""} /> Kiểm tra
                     </button>
-                  )}
-                  <button
-                    className="btn btn-ghost btn-sm ml-auto text-error"
-                    onClick={() => {
-                      if (window.confirm(`Hủy canh @${celeb.username}?`)) unwatchCeleb(celeb.uid);
-                    }}
-                  >
-                    <Trash2 size={14} /> Hủy
-                  </button>
-                </div>
+                    {celeb.status === SLOT_STATUS.PAUSED ? (
+                      <button className="btn btn-ghost btn-sm" onClick={() => resumeWatch(celeb.uid)}>
+                        <Play size={14} /> Tiếp tục
+                      </button>
+                    ) : (
+                      <button className="btn btn-ghost btn-sm" onClick={() => pauseWatch(celeb.uid)}>
+                        <Pause size={14} /> Tạm dừng
+                      </button>
+                    )}
+                    <button
+                      className="btn btn-ghost btn-sm ml-auto text-error"
+                      onClick={() => {
+                        if (window.confirm(`Hủy canh @${celeb.username}?`)) unwatchCeleb(celeb.uid);
+                      }}
+                    >
+                      <Trash2 size={14} /> Hủy
+                    </button>
+                  </div>
+                )}
               </article>
             );
           })}
@@ -334,14 +422,19 @@ export default function SlotWatchModal({ isOpen, onClose }) {
 
         {watchedCelebs.length > 0 && (
           <footer className="flex items-center justify-between border-t border-base-300 p-3 text-xs">
-            <span className="text-base-content/60">{watchedCelebs.length}/20 tài khoản • đồng bộ theo tài khoản</span>
+            <span className="text-base-content/60">
+              {activeWatchCount}/20 đang canh
+              {completedFriendCount > 0
+                ? ` • ${completedFriendCount} đã kết bạn`
+                : ""}
+            </span>
             <button
               className="btn btn-ghost btn-xs text-error"
               onClick={() => {
-                if (window.confirm("Hủy canh tất cả tài khoản?")) clearAll();
+                if (window.confirm("Hủy/xóa tất cả mục trong danh sách?")) clearAll();
               }}
             >
-              Hủy tất cả
+              Xóa tất cả
             </button>
           </footer>
         )}
