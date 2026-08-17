@@ -1,49 +1,61 @@
-import { ChevronRight, ShieldCheck, Users } from "lucide-react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { UsersRound } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import AdminUsers from "./AdminUsers";
 
 export default function AdminUsersWithFriendShortcut() {
   const navigate = useNavigate();
+  const [adminNavRow, setAdminNavRow] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const findAdminNavRow = () => {
+      const buttons = Array.from(document.querySelectorAll("button"));
+      const usersTab = buttons.find((button) =>
+        String(button.textContent || "").includes("Người dùng & Phân quyền"),
+      );
+
+      if (!cancelled && usersTab?.parentElement) {
+        setAdminNavRow(usersTab.parentElement);
+        return true;
+      }
+      return false;
+    };
+
+    if (findAdminNavRow()) return undefined;
+
+    const observer = new MutationObserver(() => {
+      if (findAdminNavRow()) observer.disconnect();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    const timer = window.setTimeout(() => observer.disconnect(), 10000);
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+      window.clearTimeout(timer);
+    };
+  }, []);
 
   return (
     <>
-      <div className="w-full max-w-[1260px] mx-auto px-3 sm:px-6 pt-3 sm:pt-4">
-        <button
-          type="button"
-          onClick={() => navigate("/admin/user-friends")}
-          className="w-full sm:w-[360px] sm:ml-auto text-left rounded-2xl border-2 border-indigo-400 bg-white/95 backdrop-blur-xl shadow-lg shadow-indigo-500/15 hover:-translate-y-0.5 hover:border-indigo-600 hover:shadow-xl hover:shadow-indigo-500/20 active:scale-[0.99] transition-all p-3 group"
-          title="Xem danh sách bạn bè Locket của user"
-        >
-          <div className="flex items-center gap-3">
-            <div className="relative w-11 h-11 rounded-xl bg-gradient-to-tr from-indigo-600 via-violet-600 to-blue-500 text-white flex items-center justify-center shadow-lg shrink-0">
-              <Users size={21} />
-              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white" />
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-indigo-600">
-                <ShieldCheck size={12} /> Công cụ Admin
-              </div>
-              <div className="font-black text-slate-900 text-sm sm:text-[15px] mt-0.5">
-                Bạn bè Locket của user
-              </div>
-              <div className="text-[10px] sm:text-[11px] text-slate-500 font-semibold mt-0.5 truncate">
-                Chọn user → xem danh sách bạn bè thật
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1 rounded-lg bg-indigo-50 text-indigo-700 px-2 py-1.5 font-black text-[10px] shrink-0 group-hover:bg-indigo-100">
-              MỞ
-              <ChevronRight
-                size={15}
-                className="group-hover:translate-x-0.5 transition-transform"
-              />
-            </div>
-          </div>
-        </button>
-      </div>
-
       <AdminUsers />
+
+      {adminNavRow &&
+        createPortal(
+          <button
+            type="button"
+            onClick={() => navigate("/admin/user-friends")}
+            className="flex items-center justify-center gap-2 rounded-2xl border border-indigo-200 bg-indigo-50/90 px-5 py-3 font-black text-indigo-900 shadow-sm transition-all hover:-translate-y-0.5 hover:border-indigo-300 hover:bg-indigo-100 hover:shadow-md active:scale-[0.98]"
+            title="Chọn user và xem danh sách bạn bè Locket"
+          >
+            <UsersRound size={18} className="text-indigo-600" />
+            <span>Bạn bè Locket của user</span>
+          </button>,
+          adminNavRow,
+        )}
     </>
   );
 }
