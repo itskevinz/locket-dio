@@ -339,7 +339,7 @@ const HeaderHome = ({
 
       <div
         data-floating-notifications="true"
-        className="fixed right-4 bottom-24 md:bottom-4 z-[80] w-12 h-12 [&>button]:w-12 [&>button]:h-12 [&>button]:min-h-0 [&>button]:bg-base-100/80 [&>button]:backdrop-blur-xl [&>button]:border [&>button]:border-base-300 [&>button]:shadow-lg [&>button]:rounded-full [&>button]:hover:bg-base-200 [&>button]:transition [&>button]:active:scale-95"
+        className="fixed right-6 bottom-28 md:bottom-8 z-[80] w-12 h-12 [&>button]:w-12 [&>button]:h-12 [&>button]:min-h-0 [&>button]:bg-base-100/80 [&>button]:backdrop-blur-xl [&>button]:border [&>button]:border-base-300 [&>button]:shadow-lg [&>button]:rounded-full [&>button]:hover:bg-base-200 [&>button]:transition [&>button]:active:scale-95"
       >
         <GlobalNotificationCenter />
       </div>
