@@ -13,7 +13,7 @@ const AccountHealth = lazy(
   () => import("@/features/SlotMonitor/AccountHealth"),
 );
 const AdminCelebCenter = lazy(
-  () => import("@/features/SlotMonitor/AdminCelebCenter"),
+  () => import("@/features/SlotMonitor/AdminCelebCenterLive"),
 );
 const SystemStatus = lazy(
   () => import("@/features/SlotMonitor/SystemStatus"),
