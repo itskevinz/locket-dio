@@ -304,12 +304,6 @@ const HeaderHome = ({
             >
               <MessageCircle strokeWidth={2} />
             </button>
-            <div
-              data-header-notifications="true"
-              className="w-11 h-11 [&>button]:w-11 [&>button]:h-11 [&>button]:min-h-0 [&>button]:bg-base-300/70 [&>button]:backdrop-blur-[4px] [&>button]:rounded-full [&>button]:hover:bg-base-300 [&>button]:transition [&>button]:active:scale-105"
-            >
-              <GlobalNotificationCenter />
-            </div>
             <button
               type="button"
               id="hamburger-menu-trigger"
@@ -342,6 +336,13 @@ const HeaderHome = ({
           />
         </div>
       )}
+
+      <div
+        data-floating-notifications="true"
+        className="fixed right-4 bottom-24 md:bottom-4 z-[80] w-12 h-12 [&>button]:w-12 [&>button]:h-12 [&>button]:min-h-0 [&>button]:bg-base-100/80 [&>button]:backdrop-blur-xl [&>button]:border [&>button]:border-base-300 [&>button]:shadow-lg [&>button]:rounded-full [&>button]:hover:bg-base-200 [&>button]:transition [&>button]:active:scale-95"
+      >
+        <GlobalNotificationCenter />
+      </div>
     </>
   );
 };
