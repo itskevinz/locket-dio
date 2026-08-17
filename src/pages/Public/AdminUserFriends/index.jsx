@@ -186,7 +186,7 @@ export default function AdminUserFriends() {
     return (
       <div className="min-h-screen pt-28 flex items-center justify-center bg-slate-50">
         <div className="flex items-center gap-3 text-slate-600 font-bold">
-          <span className="loading loading-spinner loading-md text-indigo-600 block mx-auto mb-4" />
+          <span className="loading loading-spinner loading-md text-indigo-600" />
           Đang xác minh quyền Admin...
         </div>
       </div>
