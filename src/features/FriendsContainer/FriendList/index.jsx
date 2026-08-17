@@ -3,7 +3,7 @@ import LoadingRing from "@/components/uikit/Loading/ring";
 import { SonnerPromiseV2 } from "@/components/uikit/SonnerToast";
 import { removeFriend, toggleHiddenFriend } from "@/services";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { RefreshCcw } from "lucide-react";
+import { EyeOff, RefreshCcw } from "lucide-react";
 import { useRef, useMemo, useState, useCallback } from "react";
 import { FaUserFriends } from "react-icons/fa";
 import FriendItem from "./FriendItem";
@@ -32,6 +32,7 @@ const FriendList = ({
   );
   const [searchTerm, setSearchTerm] = useState("");
   const [isFocused, setIsFocused] = useState(null);
+  const [viewMode, setViewMode] = useState("visible");
 
   // --------- handlers (memoized để tránh re-render FriendItem) ---------
 
@@ -46,7 +47,7 @@ const FriendList = ({
       },
       error: (err) => err?.message || t("friends.list.sync_failed"),
     });
-  }, [refreshFriendsData]);
+  }, [refreshFriendsData, t]);
 
   const handleDeleteFriend = useCallback(
     (uid) =>
@@ -62,7 +63,7 @@ const FriendList = ({
           error: t("friends.list.error_retry"),
         },
       ),
-    [removeFriendLocal],
+    [removeFriendLocal, t],
   );
 
   const handleHiddenFriend = useCallback(
@@ -85,30 +86,47 @@ const FriendList = ({
         },
       );
     },
-    [hiddenUserState],
+    [hiddenUserState, t],
   );
 
-  // --------- filter & slice ---------
+  // --------- visible / hidden + search ---------
+
+  const visibleFriends = useMemo(
+    () => friendObjects.filter((friend) => !friend.relation?.hidden),
+    [friendObjects],
+  );
+
+  const hiddenFriends = useMemo(
+    () => friendObjects.filter((friend) => friend.relation?.hidden),
+    [friendObjects],
+  );
 
   const filteredFriends = useMemo(() => {
-    const term = searchTerm.toLowerCase();
-    return friendObjects.filter((friend) => {
-      const fullName = `${friend.firstName} ${friend.lastName}`.toLowerCase();
+    const source = viewMode === "hidden" ? hiddenFriends : visibleFriends;
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return source;
+
+    return source.filter((friend) => {
+      const fullName = `${friend.firstName || ""} ${friend.lastName || ""}`.toLowerCase();
       const username = (friend.username || "").toLowerCase();
       return fullName.includes(term) || username.includes(term);
     });
-  }, [friendObjects, searchTerm]);
+  }, [hiddenFriends, searchTerm, viewMode, visibleFriends]);
 
-  // Khi chưa "Xem thêm" và không search → chỉ lấy INITIAL_COUNT items
+  // Danh sách ẩn luôn hiển thị đầy đủ để người dùng tìm và gỡ ẩn ngay.
+  // Danh sách thường vẫn giữ hành vi "Xem thêm" cũ.
   const listItems = useMemo(() => {
-    if (searchTerm || showAllFriends) return filteredFriends;
+    if (viewMode === "hidden" || searchTerm || showAllFriends) {
+      return filteredFriends;
+    }
     return filteredFriends.slice(0, INITIAL_COUNT);
-  }, [filteredFriends, showAllFriends, searchTerm]);
+  }, [filteredFriends, showAllFriends, searchTerm, viewMode]);
 
   // --------- virtualizer (chỉ kích hoạt khi danh sách dài) ---------
 
   const shouldVirtualize =
-    (showAllFriends || !!searchTerm) && listItems.length > INITIAL_COUNT;
+    (viewMode === "hidden" || showAllFriends || !!searchTerm) &&
+    listItems.length > INITIAL_COUNT;
 
   const rowVirtualizer = useVirtualizer({
     count: listItems.length,
@@ -118,17 +136,57 @@ const FriendList = ({
     enabled: shouldVirtualize,
   });
 
+  const switchView = useCallback((mode) => {
+    setViewMode(mode);
+    setSearchTerm("");
+    setIsFocused(null);
+  }, []);
+
   return (
     <div>
       <h1 className="flex items-center gap-2 font-semibold text-md mb-1">
         <FaUserFriends size={25} className="scale-x-[-1]" /> {t("friends.list.title")}
       </h1>
       <div className="mt-1 space-y-1 text-sm text-base-content/80">
-        <p>
-          {t("friends.list.sync_tip")}
-        </p>
+        <p>{t("friends.list.sync_tip")}</p>
         {/* Free-for-all Premium: full friend list — no paywall tip */}
       </div>
+
+      {/* Chuyển nhanh giữa bạn bè thường và bạn bè đã ẩn */}
+      <div className="mt-3 grid grid-cols-2 gap-2 rounded-2xl bg-base-200 p-1">
+        <button
+          type="button"
+          onClick={() => switchView("visible")}
+          className={`btn btn-sm h-auto min-h-10 rounded-xl border-0 ${
+            viewMode === "visible"
+              ? "btn-primary text-primary-content"
+              : "btn-ghost"
+          }`}
+        >
+          <FaUserFriends size={17} />
+          <span>Bạn bè</span>
+          <span className="opacity-70">({visibleFriends.length})</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => switchView("hidden")}
+          className={`btn btn-sm h-auto min-h-10 rounded-xl border-0 ${
+            viewMode === "hidden"
+              ? "btn-primary text-primary-content"
+              : "btn-ghost"
+          }`}
+        >
+          <EyeOff className="h-4 w-4" />
+          <span>Bạn bè đã ẩn</span>
+          <span className="opacity-70">({hiddenFriends.length})</span>
+        </button>
+      </div>
+
+      {viewMode === "hidden" && (
+        <p className="mt-2 text-xs text-base-content/60">
+          Mở menu của người bạn muốn khôi phục rồi chọn “Gỡ ẩn”.
+        </p>
+      )}
 
       {/* Search + refresh */}
       <div className="flex gap-2 items-center mt-2">
@@ -137,7 +195,11 @@ const FriendList = ({
           setSearchTerm={setSearchTerm}
           isFocused={isFocused}
           setIsFocused={setIsFocused}
-          placeholder={t("friends.list.search_placeholder")}
+          placeholder={
+            viewMode === "hidden"
+              ? "Tìm trong bạn bè đã ẩn..."
+              : t("friends.list.search_placeholder")
+          }
         />
         <button
           className={`btn btn-base-200 text-sm flex items-center gap-2 ${
@@ -163,7 +225,9 @@ const FriendList = ({
       {/* Last updated */}
       {lastUpdated && (
         <p className="text-xs text-gray-500 mt-1">
-          {t("friends.list.last_updated", { time: new Date(lastUpdated).toLocaleString() })}
+          {t("friends.list.last_updated", {
+            time: new Date(lastUpdated).toLocaleString(),
+          })}
         </p>
       )}
 
@@ -171,7 +235,11 @@ const FriendList = ({
       <div className="mt-4">
         {filteredFriends.length === 0 && (
           <p className="text-gray-400 text-center mt-10">
-            {t("friends.list.no_friends_to_show")}
+            {viewMode === "hidden"
+              ? searchTerm
+                ? "Không tìm thấy bạn bè đã ẩn phù hợp"
+                : "Chưa có bạn bè nào bị ẩn"
+              : t("friends.list.no_friends_to_show")}
           </p>
         )}
 
@@ -219,21 +287,25 @@ const FriendList = ({
           ))
         )}
 
-        {/* Expand / Collapse button */}
-        {!searchTerm && filteredFriends.length > INITIAL_COUNT && (
-          <div className="flex items-center gap-4 mt-4">
-            <hr className="flex-grow border-t border-base-content" />
-            <button
-              onClick={() => setShowAllFriends(!showAllFriends)}
-              className="bg-base-200 hover:bg-base-300 text-base-content font-semibold px-4 py-2 rounded-3xl"
-            >
-              {showAllFriends
-                ? t("friends.list.collapse")
-                : t("friends.list.expand", { count: filteredFriends.length - INITIAL_COUNT })}
-            </button>
-            <hr className="flex-grow border-t border-base-content" />
-          </div>
-        )}
+        {/* Expand / Collapse button - chỉ áp dụng danh sách bạn bè thường */}
+        {viewMode === "visible" &&
+          !searchTerm &&
+          filteredFriends.length > INITIAL_COUNT && (
+            <div className="flex items-center gap-4 mt-4">
+              <hr className="flex-grow border-t border-base-content" />
+              <button
+                onClick={() => setShowAllFriends(!showAllFriends)}
+                className="bg-base-200 hover:bg-base-300 text-base-content font-semibold px-4 py-2 rounded-3xl"
+              >
+                {showAllFriends
+                  ? t("friends.list.collapse")
+                  : t("friends.list.expand", {
+                      count: filteredFriends.length - INITIAL_COUNT,
+                    })}
+              </button>
+              <hr className="flex-grow border-t border-base-content" />
+            </div>
+          )}
       </div>
     </div>
   );
