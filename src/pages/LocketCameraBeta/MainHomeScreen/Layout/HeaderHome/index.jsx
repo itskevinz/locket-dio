@@ -14,6 +14,7 @@ import { downloadBlob } from "@/services";
 import { useTranslation } from "react-i18next";
 import { useAutoDriveBackup } from "@/hooks/useAutoDriveBackup";
 import AppUpdateButton from "@/components/AppUpdateButton";
+import GlobalNotificationCenter from "@/components/GlobalNotificationCenter";
 import { SonnerInfo, SonnerWarning } from "@/components/uikit/SonnerToast";
 
 /**
@@ -303,6 +304,12 @@ const HeaderHome = ({
             >
               <MessageCircle strokeWidth={2} />
             </button>
+            <div
+              data-header-notifications="true"
+              className="w-11 h-11 [&>button]:w-11 [&>button]:h-11 [&>button]:min-h-0 [&>button]:bg-base-300/70 [&>button]:backdrop-blur-[4px] [&>button]:rounded-full [&>button]:hover:bg-base-300 [&>button]:transition [&>button]:active:scale-105"
+            >
+              <GlobalNotificationCenter />
+            </div>
             <button
               type="button"
               id="hamburger-menu-trigger"
