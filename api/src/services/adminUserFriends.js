@@ -25,7 +25,7 @@ async function getTargetIdToken(userUid) {
   const session = await slotStore.getSession(uid);
   if (!session?.enabled || !session?.refresh_token_enc) {
     throw makeError(
-      "User chưa có phiên nền Canh Slot 24/7 hợp lệ.",
+      "User chưa có phiên Locket nền hợp lệ.",
       "USER_BACKGROUND_SESSION_UNAVAILABLE",
       409,
     );
