@@ -8,6 +8,7 @@ import {
   Search,
   Send,
   Trash2,
+  UserRoundCheck,
   Zap,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -31,10 +32,18 @@ import {
 import { getMyLocalId } from "@/utils/auth/getMyLocalId";
 import NormalFriendRequestTest from "./NormalFriendRequestTest";
 
+const isCompletedFriendWatch = (item) =>
+  item?.status === SLOT_STATUS.FRIENDS ||
+  String(item?.lastAutoRequestStatus || item?.last_auto_request_status || "")
+    .trim()
+    .toUpperCase() === "FRIENDS";
+
 const statusLabel = (status) => {
   switch (status) {
     case SLOT_STATUS.SLOT_OPEN:
       return "🔥 Đã mở slot";
+    case SLOT_STATUS.FRIENDS:
+      return "✓ Đã kết bạn";
     case SLOT_STATUS.PAUSED:
       return "⏸ Tạm dừng";
     case SLOT_STATUS.ERROR:
@@ -53,28 +62,35 @@ const timeAgo = (value) => {
   return `${Math.floor(minutes / 60)} giờ trước`;
 };
 
-const serverWatchToLocal = (item) => ({
-  uid: item?.uid,
-  username: item?.username,
-  displayName: item?.displayName || item?.username,
-  avatar: item?.avatar || "",
-  friendCount: Number(item?.friendCount) || 0,
-  maxFriends: Number(item?.maxFriends) || 0,
-  status: item?.enabled === false ? SLOT_STATUS.PAUSED : item?.status,
-  createdAt: Date.now(),
-  lastCheckedAt: item?.lastCheckedAt || null,
-  notifiedAt: item?.notifiedAt || null,
-  errorCount: 0,
-  lastWasFull:
-    typeof item?.lastWasFull === "boolean"
-      ? item.lastWasFull
-      : Number(item?.maxFriends || 0) > 0 &&
-        Number(item?.friendCount || 0) >= Number(item?.maxFriends || 0),
-  autoRequestEnabled: Boolean(item?.autoRequestEnabled),
-  lastAutoRequestAt: item?.lastAutoRequestAt || null,
-  lastAutoRequestStatus: item?.lastAutoRequestStatus || "",
-  lastAutoRequestError: item?.lastAutoRequestError || "",
-});
+const serverWatchToLocal = (item) => {
+  const completedFriend = isCompletedFriendWatch(item);
+  return {
+    uid: item?.uid,
+    username: item?.username,
+    displayName: item?.displayName || item?.username,
+    avatar: item?.avatar || "",
+    friendCount: Number(item?.friendCount) || 0,
+    maxFriends: Number(item?.maxFriends) || 0,
+    status: completedFriend
+      ? SLOT_STATUS.FRIENDS
+      : item?.enabled === false
+        ? SLOT_STATUS.PAUSED
+        : item?.status,
+    createdAt: Date.now(),
+    lastCheckedAt: item?.lastCheckedAt || null,
+    notifiedAt: item?.notifiedAt || null,
+    errorCount: 0,
+    lastWasFull:
+      typeof item?.lastWasFull === "boolean"
+        ? item.lastWasFull
+        : Number(item?.maxFriends || 0) > 0 &&
+          Number(item?.friendCount || 0) >= Number(item?.maxFriends || 0),
+    autoRequestEnabled: completedFriend ? false : Boolean(item?.autoRequestEnabled),
+    lastAutoRequestAt: item?.lastAutoRequestAt || null,
+    lastAutoRequestStatus: item?.lastAutoRequestStatus || "",
+    lastAutoRequestError: item?.lastAutoRequestError || "",
+  };
+};
 
 function notifySameTabStorageRefresh(items) {
   try {
@@ -111,11 +127,11 @@ export default function SlotWatchInline() {
   useEffect(() => {
     let cancelled = false;
 
-    const syncAccountWatches = async () => {
+    const syncAccountWatches = async ({ silent = false } = {}) => {
       const ownerUid = getMyLocalId();
       if (!ownerUid) return;
 
-      setSyncingAccount(true);
+      if (!silent) setSyncingAccount(true);
       setSyncError("");
       try {
         let local = getWatchedCelebs();
@@ -156,13 +172,18 @@ export default function SlotWatchInline() {
           );
         }
       } finally {
-        if (!cancelled) setSyncingAccount(false);
+        if (!cancelled && !silent) setSyncingAccount(false);
       }
     };
 
     syncAccountWatches();
+    const syncTimer = window.setInterval(
+      () => syncAccountWatches({ silent: true }),
+      12_000,
+    );
     return () => {
       cancelled = true;
+      window.clearInterval(syncTimer);
     };
   }, []);
 
@@ -173,19 +194,29 @@ export default function SlotWatchInline() {
     "PUSH_UNSUPPORTED",
     "SERVICE_WORKER_UNAVAILABLE",
   ].includes(slotPushState?.reason);
+  const activeWatchCount = watchedCelebs.filter(
+    (item) => !isCompletedFriendWatch(item),
+  ).length;
+  const completedFriendCount = watchedCelebs.length - activeWatchCount;
 
   const subtitle = pushEnabled
     ? "Canh 24/7 đang bật — có slot sẽ báo ra điện thoại/màn hình khóa."
     : backgroundEnabled
-      ? "Railway đang canh 24/7. Thiết bị này chưa bật được thông báo hệ thống."
-      : "Bật Canh Slot 24/7 để Railway vẫn theo dõi khi bạn đóng Huy Locket.";
+      ? "Hệ thống đang canh 24/7. Thiết bị này chưa bật được thông báo hệ thống."
+      : "Bật Canh Slot 24/7 để hệ thống vẫn theo dõi khi bạn đóng Huy Locket.";
 
   const openFriendsFromSlot = (path = "/friends") => {
     navigate(path, { state: { fromSlotPage: true } });
   };
 
   const toggleAutoRequest = async (celeb, enabled) => {
-    if (!celeb?.uid || autoRequestSavingUids.includes(celeb.uid)) return;
+    if (
+      !celeb?.uid ||
+      isCompletedFriendWatch(celeb) ||
+      autoRequestSavingUids.includes(celeb.uid)
+    ) {
+      return;
+    }
     setAutoRequestSavingUids((current) => [...current, celeb.uid]);
     setSyncError("");
     try {
@@ -225,7 +256,11 @@ export default function SlotWatchInline() {
               </h1>
               <p className="mt-1 text-sm text-base-content/60">{subtitle}</p>
               <p className="mt-1 text-xs text-base-content/45">
-                {watchedCelebs.length}/20 tài khoản đang được đồng bộ theo tài khoản Huy Locket.
+                {activeWatchCount}/20 tài khoản đang canh
+                {completedFriendCount > 0
+                  ? ` • ${completedFriendCount} tài khoản đã kết bạn`
+                  : ""}
+                .
               </p>
             </div>
 
@@ -271,8 +306,8 @@ export default function SlotWatchInline() {
 
           <p className="mt-3 text-xs text-base-content/55">
             <Zap size={13} className="inline -mt-0.5 mr-1" />
-            Railway chỉ báo “vừa gửi” khi đọc lại thấy request trên Locket. Nếu
-            request/quan hệ đã có từ trước, hệ thống sẽ nói rõ và không gửi lặp.
+            Hệ thống chỉ báo “vừa gửi” khi đọc lại thấy request trên Locket. Khi
+            Locket xác nhận đã là bạn bè, Canh Slot tự dừng và thẻ chuyển sang “Bạn bè”.
           </p>
 
           {syncingAccount && (
@@ -288,7 +323,7 @@ export default function SlotWatchInline() {
           )}
           {backgroundEnabled && pushUnsupported && (
             <p className="mt-3 text-xs text-info">
-              Railway vẫn canh slot 24/7 và đồng bộ tài khoản. Muốn nhận ngoài màn hình khóa, hãy bật Web Push trên thiết bị có hỗ trợ.
+              Hệ thống vẫn canh slot 24/7 và đồng bộ tài khoản. Muốn nhận ngoài màn hình khóa, hãy bật Web Push trên thiết bị có hỗ trợ.
             </p>
           )}
         </header>
@@ -317,9 +352,12 @@ export default function SlotWatchInline() {
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
               {watchedCelebs.map((celeb) => {
-                const checking = checkingUids.includes(celeb.uid);
+                const completedFriend = isCompletedFriendWatch(celeb);
+                const checking =
+                  !completedFriend && checkingUids.includes(celeb.uid);
                 const autoSaving = autoRequestSavingUids.includes(celeb.uid);
-                const slotOpen = celeb.status === SLOT_STATUS.SLOT_OPEN;
+                const slotOpen =
+                  !completedFriend && celeb.status === SLOT_STATUS.SLOT_OPEN;
                 const availableSlots = Math.max(
                   0,
                   Number(celeb.maxFriends || 0) - Number(celeb.friendCount || 0),
@@ -329,16 +367,20 @@ export default function SlotWatchInline() {
                   <article
                     key={celeb.uid}
                     className={`rounded-2xl border p-4 transition-colors ${
-                      slotOpen
-                        ? "border-error/40 bg-error/10"
-                        : "border-base-300 bg-base-200/45"
+                      completedFriend
+                        ? "border-success/45 bg-success/10"
+                        : slotOpen
+                          ? "border-error/40 bg-error/10"
+                          : "border-base-300 bg-base-200/45"
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <img
                         src={celeb.avatar || "/images/default_profile.png"}
                         alt={celeb.displayName}
-                        className="h-14 w-14 rounded-full object-cover ring-2 ring-base-300"
+                        className={`h-14 w-14 rounded-full object-cover ring-2 ${
+                          completedFriend ? "ring-success/50" : "ring-base-300"
+                        }`}
                         onError={(event) => {
                           event.currentTarget.src = "/images/default_profile.png";
                         }}
@@ -346,15 +388,25 @@ export default function SlotWatchInline() {
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="truncate font-bold">{celeb.displayName}</p>
-                          {slotOpen && (
+                          {completedFriend ? (
+                            <span className="badge badge-success badge-sm">BẠN BÈ</span>
+                          ) : slotOpen ? (
                             <span className="badge badge-error badge-sm">MỞ SLOT</span>
-                          )}
+                          ) : null}
                         </div>
                         <p className="truncate text-sm text-base-content/60">
                           @{celeb.username}
                         </p>
                         <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-base-content/60">
-                          <span>{checking ? "⏳ Đang kiểm tra..." : statusLabel(celeb.status)}</span>
+                          <span>
+                            {checking
+                              ? "⏳ Đang kiểm tra..."
+                              : statusLabel(
+                                  completedFriend
+                                    ? SLOT_STATUS.FRIENDS
+                                    : celeb.status,
+                                )}
+                          </span>
                           <span>
                             {celeb.friendCount.toLocaleString()} / {celeb.maxFriends.toLocaleString()}
                           </span>
@@ -368,97 +420,137 @@ export default function SlotWatchInline() {
                       </div>
                     </div>
 
-                    <div className="mt-3 rounded-xl border border-warning/25 bg-warning/5 p-3">
-                      <label className="flex cursor-pointer items-center gap-3">
-                        <input
-                          type="checkbox"
-                          className="toggle toggle-warning toggle-sm"
-                          checked={Boolean(celeb.autoRequestEnabled)}
-                          disabled={autoSaving}
-                          onChange={(event) =>
-                            toggleAutoRequest(celeb, event.target.checked)
-                          }
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="flex items-center gap-1.5 text-sm font-semibold">
-                            <Zap size={14} /> Tự gửi request Celeb khi có slot
+                    {completedFriend ? (
+                      <div className="mt-3 rounded-xl border border-success/30 bg-success/10 p-3 text-sm text-success">
+                        <div className="flex items-center gap-2 font-semibold">
+                          <UserRoundCheck size={16} /> Đã kết bạn trên Locket
+                        </div>
+                        <p className="mt-1 text-[11px] text-base-content/60">
+                          Canh Slot và Auto Request đã tự dừng. Tài khoản này không còn được worker theo dõi.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="mt-3 rounded-xl border border-warning/25 bg-warning/5 p-3">
+                        <label className="flex cursor-pointer items-center gap-3">
+                          <input
+                            type="checkbox"
+                            className="toggle toggle-warning toggle-sm"
+                            checked={Boolean(celeb.autoRequestEnabled)}
+                            disabled={autoSaving}
+                            onChange={(event) =>
+                              toggleAutoRequest(celeb, event.target.checked)
+                            }
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="flex items-center gap-1.5 text-sm font-semibold">
+                              <Zap size={14} /> Tự gửi request Celeb khi có slot
+                            </span>
+                            <span className="block text-[11px] text-base-content/55">
+                              Gửi thật qua Locket ngay khi hệ thống phát hiện full → có slot.
+                            </span>
                           </span>
-                          <span className="block text-[11px] text-base-content/55">
-                            Gửi thật qua Locket ngay khi Railway phát hiện full → có slot.
-                          </span>
-                        </span>
-                        {autoSaving && (
-                          <span className="loading loading-spinner loading-xs" />
+                          {autoSaving && (
+                            <span className="loading loading-spinner loading-xs" />
+                          )}
+                        </label>
+
+                        {celeb.lastAutoRequestStatus === "SENT" && (
+                          <p className="mt-2 text-[11px] text-success">
+                            ✓ Request đã được Locket xác nhận • đang chờ chấp nhận • {timeAgo(celeb.lastAutoRequestAt)}
+                          </p>
                         )}
-                      </label>
+                        {celeb.lastAutoRequestStatus === "FAILED" && (
+                          <p className="mt-2 text-[11px] text-warning" title={celeb.lastAutoRequestError || ""}>
+                            ⚠ Lần gần nhất request chưa thành công • {timeAgo(celeb.lastAutoRequestAt)}
+                          </p>
+                        )}
+                        {celeb.autoRequestEnabled && !backgroundEnabled && (
+                          <p className="mt-2 text-[11px] text-warning">
+                            Hãy bật Canh 24/7 để hệ thống có phiên đăng nhập nền và tự gửi khi bạn đóng web.
+                          </p>
+                        )}
+                      </div>
+                    )}
 
-                      {celeb.lastAutoRequestStatus === "SENT" && (
-                        <p className="mt-2 text-[11px] text-success">
-                          ✓ Lần gần nhất Locket đã xác nhận trạng thái request/quan hệ • {timeAgo(celeb.lastAutoRequestAt)}
-                        </p>
-                      )}
-                      {celeb.lastAutoRequestStatus === "FAILED" && (
-                        <p className="mt-2 text-[11px] text-warning" title={celeb.lastAutoRequestError || ""}>
-                          ⚠ Lần gần nhất request chưa thành công • {timeAgo(celeb.lastAutoRequestAt)}
-                        </p>
-                      )}
-                      {celeb.autoRequestEnabled && !backgroundEnabled && (
-                        <p className="mt-2 text-[11px] text-warning">
-                          Hãy bật Canh 24/7 để Railway có phiên đăng nhập nền và tự gửi khi bạn đóng web.
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="mt-4 flex flex-wrap items-center gap-2">
-                      {slotOpen && (
+                    {completedFriend ? (
+                      <div className="mt-4 flex flex-wrap items-center gap-2">
                         <button
-                          className="btn btn-error btn-sm"
+                          className="btn btn-success btn-sm"
                           onClick={() =>
                             openFriendsFromSlot(
                               `/friends?username=${encodeURIComponent(celeb.username)}`,
                             )
                           }
                         >
-                          Kết bạn ngay
+                          <UserRoundCheck size={14} /> Bạn bè
                         </button>
-                      )}
-                      <button
-                        className="btn btn-ghost btn-sm"
-                        disabled={checking}
-                        onClick={() => checkNow(celeb.uid)}
-                      >
-                        <RefreshCw
-                          size={14}
-                          className={checking ? "animate-spin" : ""}
-                        />
-                        Kiểm tra
-                      </button>
-                      {celeb.status === SLOT_STATUS.PAUSED ? (
+                        <button
+                          className="btn btn-ghost btn-sm ml-auto text-base-content/55"
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                `Xóa @${celeb.username} khỏi danh sách Canh Slot đã hoàn tất?`,
+                              )
+                            ) {
+                              unwatchCeleb(celeb.uid);
+                            }
+                          }}
+                        >
+                          <Trash2 size={14} /> Xóa khỏi danh sách
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="mt-4 flex flex-wrap items-center gap-2">
+                        {slotOpen && (
+                          <button
+                            className="btn btn-error btn-sm"
+                            onClick={() =>
+                              openFriendsFromSlot(
+                                `/friends?username=${encodeURIComponent(celeb.username)}`,
+                              )
+                            }
+                          >
+                            Kết bạn ngay
+                          </button>
+                        )}
                         <button
                           className="btn btn-ghost btn-sm"
-                          onClick={() => resumeWatch(celeb.uid)}
+                          disabled={checking}
+                          onClick={() => checkNow(celeb.uid)}
                         >
-                          <Play size={14} /> Tiếp tục
+                          <RefreshCw
+                            size={14}
+                            className={checking ? "animate-spin" : ""}
+                          />
+                          Kiểm tra
                         </button>
-                      ) : (
+                        {celeb.status === SLOT_STATUS.PAUSED ? (
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => resumeWatch(celeb.uid)}
+                          >
+                            <Play size={14} /> Tiếp tục
+                          </button>
+                        ) : (
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => pauseWatch(celeb.uid)}
+                          >
+                            <Pause size={14} /> Tạm dừng
+                          </button>
+                        )}
                         <button
-                          className="btn btn-ghost btn-sm"
-                          onClick={() => pauseWatch(celeb.uid)}
+                          className="btn btn-ghost btn-sm ml-auto text-error"
+                          onClick={() => {
+                            if (window.confirm(`Hủy canh @${celeb.username}?`)) {
+                              unwatchCeleb(celeb.uid);
+                            }
+                          }}
                         >
-                          <Pause size={14} /> Tạm dừng
+                          <Trash2 size={14} /> Hủy
                         </button>
-                      )}
-                      <button
-                        className="btn btn-ghost btn-sm ml-auto text-error"
-                        onClick={() => {
-                          if (window.confirm(`Hủy canh @${celeb.username}?`)) {
-                            unwatchCeleb(celeb.uid);
-                          }
-                        }}
-                      >
-                        <Trash2 size={14} /> Hủy
-                      </button>
-                    </div>
+                      </div>
+                    )}
                   </article>
                 );
               })}
@@ -469,15 +561,18 @@ export default function SlotWatchInline() {
         {watchedCelebs.length > 0 && (
           <footer className="flex items-center justify-between gap-3 border-t border-base-300 p-4 text-xs">
             <span className="text-base-content/60">
-              {watchedCelebs.length}/20 tài khoản • Railway canh theo trạng thái đã đồng bộ
+              {activeWatchCount}/20 đang canh
+              {completedFriendCount > 0
+                ? ` • ${completedFriendCount} đã kết bạn`
+                : ""}
             </span>
             <button
               className="btn btn-ghost btn-xs text-error"
               onClick={() => {
-                if (window.confirm("Hủy canh tất cả tài khoản?")) clearAll();
+                if (window.confirm("Hủy/xóa tất cả mục trong danh sách?")) clearAll();
               }}
             >
-              Hủy tất cả
+              Xóa tất cả
             </button>
           </footer>
         )}
