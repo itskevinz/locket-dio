@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
+  addNotification,
   clearNotifications,
   getNotifications,
   markAllNotificationsRead,
@@ -21,6 +22,8 @@ import {
   subscribeNotifications,
 } from "@/services/NotificationCenterService";
 import { fetchSlotNotificationHistory } from "@/features/SlotMonitor/slotNotificationService";
+import { useSlotMonitor } from "@/features/SlotMonitor/useSlotMonitor";
+import { SLOT_STATUS } from "@/features/SlotMonitor/slotMonitorCore";
 import { getMyLocalId } from "@/utils/auth/getMyLocalId";
 
 const REMOTE_SEEN_PREFIX = "huy-locket-notification-remote-seen:v1";
@@ -104,6 +107,7 @@ function mapRemoteRows(rows, seenAt) {
 
 export default function GlobalNotificationCenter() {
   const navigate = useNavigate();
+  const { watchedCelebs = [] } = useSlotMonitor();
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState("all");
   const [localRows, setLocalRows] = useState(() => getNotifications());
@@ -129,6 +133,52 @@ export default function GlobalNotificationCenter() {
     const timer = window.setInterval(() => loadRemote(true), 60_000);
     return () => window.clearInterval(timer);
   }, [loadRemote]);
+
+  useEffect(() => {
+    const now = Date.now();
+    watchedCelebs.forEach((celeb) => {
+      const notifiedAt = Number(celeb?.notifiedAt || 0);
+      const recent = notifiedAt > 0 && now - notifiedAt <= 15 * 60 * 1000;
+
+      if (celeb?.status === SLOT_STATUS.SLOT_OPEN && recent) {
+        const friendCount = Number(celeb?.friendCount || 0);
+        const maxFriends = Number(celeb?.maxFriends || 0);
+        const availableSlots = Math.max(0, maxFriends - friendCount);
+        addNotification({
+          type: "celeb_slot",
+          title: `@${celeb.username || "Celebrity"} vừa mở slot`,
+          message:
+            availableSlots > 0
+              ? `Đang có ${availableSlots.toLocaleString("vi-VN")} slot trống. Bấm để mở hồ sơ.`
+              : "Canh Slot vừa ghi nhận trạng thái có chỗ trống.",
+          level: "success",
+          username: celeb?.username || "",
+          actionUrl: `/friends?slot=1&username=${encodeURIComponent(celeb?.username || "")}`,
+          dedupeKey: `slot-open:${celeb?.uid || celeb?.username}:${notifiedAt}`,
+          dedupeWindowMs: 24 * 60 * 60 * 1000,
+          meta: { uid: celeb?.uid || "", availableSlots },
+        });
+      }
+
+      if (
+        celeb?.status === SLOT_STATUS.ERROR &&
+        Number(celeb?.errorCount || 0) >= 3 &&
+        Number(celeb?.lastCheckedAt || 0) > now - 15 * 60 * 1000
+      ) {
+        addNotification({
+          type: "sync",
+          title: "Canh Slot đang gặp lỗi đồng bộ",
+          message: `Chưa cập nhật được @${celeb?.username || "Celebrity"} sau nhiều lần kiểm tra.`,
+          level: "warning",
+          username: celeb?.username || "",
+          actionUrl: "/friends?slot=1",
+          dedupeKey: `slot-sync-error:${celeb?.uid || celeb?.username}`,
+          dedupeWindowMs: 30 * 60 * 1000,
+          meta: { uid: celeb?.uid || "", errorCount: Number(celeb?.errorCount || 0) },
+        });
+      }
+    });
+  }, [watchedCelebs]);
 
   useEffect(() => {
     if (!open) return undefined;
