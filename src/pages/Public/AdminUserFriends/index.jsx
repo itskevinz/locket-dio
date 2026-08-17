@@ -48,7 +48,7 @@ function friendLoadError(error) {
     return {
       title: "Chưa có phiên Locket nền để đọc",
       message:
-        "User này chưa có phiên Canh Slot 24/7 hợp lệ hoặc phiên đã hết hạn. Hệ thống không thu thêm token chỉ để Admin xem bạn bè.",
+        "User này chưa có phiên Locket nền hợp lệ hoặc phiên đã hết hạn. Hãy để user đăng nhập lại Locket để hệ thống tạo hoặc cập nhật phiên nền.",
     };
   }
   if (error?.code === "ADMIN_SESSION_EXPIRED" || error?.status === 401) {
@@ -186,7 +186,7 @@ export default function AdminUserFriends() {
     return (
       <div className="min-h-screen pt-28 flex items-center justify-center bg-slate-50">
         <div className="flex items-center gap-3 text-slate-600 font-bold">
-          <span className="loading loading-spinner loading-md text-indigo-600" />
+          <span className="loading loading-spinner loading-md text-indigo-600 block mx-auto mb-4" />
           Đang xác minh quyền Admin...
         </div>
       </div>
@@ -243,7 +243,7 @@ export default function AdminUserFriends() {
                 </div>
               </div>
               <p className="text-sm text-slate-600 font-medium mt-3 max-w-3xl">
-                Đọc danh sách bạn bè Locket thật bằng phiên nền đã được user bật cho Canh Slot 24/7. Mỗi lần xem được ghi vào Audit Log.
+                Đọc danh sách bạn bè Locket thật bằng phiên Locket nền được lưu an toàn khi user đăng nhập. Mỗi lần xem được ghi vào Audit Log.
               </p>
             </div>
 
