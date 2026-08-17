@@ -4,6 +4,76 @@ import { instanceMain } from "@/libs/instanceMain";
 import { fetchUserById } from "../LocketServices";
 import axios from "axios";
 
+const SEARCH_RETRY_DELAYS_MS = [0, 700, 1600, 3200];
+const SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
+const successfulSearchCache = new Map();
+
+const normalizeSearchUsername = (value) =>
+  String(value || "")
+    .trim()
+    .replace(/^@+/, "")
+    .trim()
+    .toLowerCase();
+
+const isNonEmptyUserResult = (result) =>
+  Boolean(
+    result?.success &&
+      result?.data &&
+      typeof result.data === "object" &&
+      Object.keys(result.data).length > 0,
+  );
+
+const getCachedSearchResult = (username) => {
+  const cached = successfulSearchCache.get(username);
+  if (!cached) return null;
+  if (Date.now() - cached.savedAt > SEARCH_CACHE_TTL_MS) {
+    successfulSearchCache.delete(username);
+    return null;
+  }
+  return cached.result;
+};
+
+const cacheSearchResult = (username, result) => {
+  if (!username || !isNonEmptyUserResult(result)) return;
+  successfulSearchCache.set(username, {
+    savedAt: Date.now(),
+    result,
+  });
+};
+
+const isRecoverableSearchError = (error) => {
+  const status = Number(error?.response?.status || error?.status || 0);
+  if (status === 401 || status === 403 || status === 429) return false;
+  if (!status) return true;
+  return [404, 408, 425, 500, 502, 503, 504].includes(status);
+};
+
+const waitForSearchRetry = (delayMs, signal) =>
+  new Promise((resolve, reject) => {
+    if (!delayMs) {
+      resolve();
+      return;
+    }
+
+    if (signal?.aborted) {
+      reject(new axios.CanceledError("Search aborted"));
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      signal?.removeEventListener?.("abort", onAbort);
+      resolve();
+    }, delayMs);
+
+    const onAbort = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener?.("abort", onAbort);
+      reject(new axios.CanceledError("Search aborted"));
+    };
+
+    signal?.addEventListener?.("abort", onAbort, { once: true });
+  });
+
 //lấy toàn bộ danh sách bạn bè (uid, createdAt) từ API
 // {
 //     "uid": "",
@@ -80,7 +150,8 @@ export const loadFriendDetailsV3 = async (friends) => {
   return allResults;
 };
 
-// Hàm tìm bạn qua username
+// Hàm tìm bạn qua username. Khi được gọi từ ô tìm kiếm (có AbortSignal),
+// tự retry các lỗi upstream tạm thời/404 giả thay vì bắt người dùng thoát web vào lại.
 export const FindFriendByUserName = async (eqfriend, config = {}) => {
   const { idToken } = utils.getToken();
   if (!idToken) {
@@ -90,20 +161,54 @@ export const FindFriendByUserName = async (eqfriend, config = {}) => {
     throw error;
   }
 
-  try {
-    const body = {
-      username: eqfriend,
-    };
-    const response = await instanceMain.post("locket/getUserByData", body, config);
+  const username = normalizeSearchUsername(eqfriend);
+  const body = { username };
+  const interactiveSearch = Boolean(config?.signal);
+  const retryDelays = interactiveSearch ? SEARCH_RETRY_DELAYS_MS : [0];
+  let lastError = null;
 
-    return response.data;
-  } catch (error) {
-    if (!axios.isCancel(error)) {
-      console.error("[friends] search request failed", {
-        status: error?.response?.status || null,
-        code: error?.code || null,
+  for (let attempt = 0; attempt < retryDelays.length; attempt += 1) {
+    try {
+      await waitForSearchRetry(retryDelays[attempt], config?.signal);
+      const response = await instanceMain.post("locket/getUserByData", body, config);
+      const result = response.data;
+
+      if (isNonEmptyUserResult(result)) {
+        cacheSearchResult(username, result);
+      }
+      return result;
+    } catch (error) {
+      if (axios.isCancel(error) || config?.signal?.aborted) throw error;
+      lastError = error;
+
+      const recoverable = isRecoverableSearchError(error);
+      const cached = recoverable ? getCachedSearchResult(username) : null;
+      if (cached) {
+        console.warn("[friends] transient search failure recovered from recent result", {
+          username,
+          status: error?.response?.status || error?.status || null,
+        });
+        return cached;
+      }
+
+      const hasRetry = attempt + 1 < retryDelays.length;
+      if (!recoverable || !hasRetry) break;
+
+      console.warn("[friends] transient search failure; retrying in-page", {
+        username,
+        attempt: attempt + 1,
+        status: error?.response?.status || error?.status || null,
+        nextDelayMs: retryDelays[attempt + 1],
       });
     }
-    throw error;
   }
+
+  if (!axios.isCancel(lastError)) {
+    console.error("[friends] search request failed after recovery attempts", {
+      username,
+      status: lastError?.response?.status || lastError?.status || null,
+      code: lastError?.code || null,
+    });
+  }
+  throw lastError;
 };
