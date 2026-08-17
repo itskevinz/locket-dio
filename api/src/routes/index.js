@@ -25,6 +25,7 @@ const {
   deepHealthController,
 } = require("../controllers/systemController");
 const adminRoutes = require("./adminRoutes");
+const adminUserFriendsRoutes = require("./adminUserFriendsRoutes");
 const celebrityRoutes = require("./celebrityRoutes");
 const activityRoutes = require("./activityRoutes");
 const { sensitiveApiShield } = require("../middlewares/antiBot");
@@ -69,6 +70,14 @@ module.exports = (app) => {
     adminLimit,
     sensitiveApiShield,
     slotMonitorAdminRoutes,
+  );
+  // Route đọc danh sách bạn bè Locket của user dùng cùng lớp bảo vệ Admin,
+  // nhưng tách riêng để không làm adminRoutes khổng lồ khó bảo trì hơn.
+  app.use(
+    "/api/admin",
+    adminLimit,
+    sensitiveApiShield,
+    adminUserFriendsRoutes,
   );
   app.use(
     "/api/admin",
