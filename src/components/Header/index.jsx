@@ -2,6 +2,7 @@ import "./header.css";
 import { Menu } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAppNavigation } from "@/context/AppContext";
+import GlobalNotificationCenter from "@/components/GlobalNotificationCenter";
 
 const Header = () => {
   const navigation = useAppNavigation();
@@ -23,7 +24,8 @@ const Header = () => {
           />
         </Link>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
+          <GlobalNotificationCenter />
           {/* <ThemeDropdown /> */}
           <button
             onClick={() => setIsSidebarOpen(true)}
