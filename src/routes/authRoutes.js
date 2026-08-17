@@ -29,7 +29,7 @@ const BirthdayPage = React.lazy(() => import("../pages/Public/BirthdayPage"));
 const LocketUpload = React.lazy(() => import("@/pages/Public/CollabPage/LocketUpload"));
 const TermsPage = React.lazy(() => import("@/pages/Public/TermsPage"));
 const AdminGoogleDrive = React.lazy(() => import("../pages/Public/AdminGoogleDrive"));
-const AdminUsers = React.lazy(() => import("../pages/Public/AdminUsers"));
+const AdminUsers = React.lazy(() => import("../pages/Public/AdminUsersWithFriendShortcut"));
 const AdminUserFriends = React.lazy(() => import("../pages/Public/AdminUserFriends"));
 const AdminOperations = React.lazy(() => import("../pages/Public/AdminOperations"));
 
