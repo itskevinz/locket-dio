@@ -1,4 +1,4 @@
-import { Palette, X } from "lucide-react";
+import { Palette, Users, X } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useApp } from "@/context/AppContext";
@@ -16,6 +16,7 @@ import JapaneseCaptionSections from "./components/JapaneseCaptionSections";
 import { useOverlayEditorStore } from "@/stores";
 import { SonnerInfo } from "@/components/uikit/SonnerToast";
 import NotesSection from "./components/NotesSection";
+import MyWebPollModal from "@/features/FriendsContainer/WebPoll/MyWebPollModal";
 import clsx from "clsx";
 
 const ScreenCustomeStudio = () => {
@@ -38,6 +39,7 @@ const ScreenCustomeStudio = () => {
     (s) => s.updateOverlayEditor,
   );
   const resetOverlayEditor = useOverlayEditorStore((s) => s.resetOverlayEditor);
+  const [pollManagerOpen, setPollManagerOpen] = useState(false);
 
   const savedCaptionSection = sectionOverlays.find(
     (s) => s.section_id === "saved_caption",
@@ -123,6 +125,25 @@ const ScreenCustomeStudio = () => {
     setIsFilterOpen(false);
   };
 
+  const handleUseWebPollCaption = (poll) => {
+    if (!poll?.question) return;
+    setPollManagerOpen(false);
+    handleSelectCaption({
+      overlay_id: "poll",
+      background: { colors: ["#685AF7", "#685AF7"] },
+      caption: poll.question,
+      text: poll.question,
+      type: "poll",
+      text_color: "#FFFFFFF0",
+      payload: {
+        right_emoji: "👎",
+        left_emoji: "👍",
+        web_poll_id: poll.id || poll.pollId || poll.poll_id || null,
+        question: poll.question,
+      },
+    });
+  };
+
   return (
     <div
       className={clsx(
@@ -170,6 +191,29 @@ const ScreenCustomeStudio = () => {
             onSelect={handleSelectCaption}
           />
 
+          <div className="px-4">
+            <button
+              type="button"
+              onClick={() => setPollManagerOpen(true)}
+              className="flex w-full items-center gap-3 rounded-3xl border border-[#6956ff]/35 bg-[#6956ff]/10 px-4 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:bg-[#6956ff]/15 hover:shadow-md active:translate-y-0"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#6956ff] text-white shadow-sm">
+                <Users size={20} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-extrabold text-[#6956ff]">
+                  Bình chọn & kết quả
+                </span>
+                <span className="mt-0.5 block text-xs text-base-content/55">
+                  Tạo câu hỏi, xem tổng lượt và danh sách ai đã chọn 👍 / 👎
+                </span>
+              </span>
+              <span className="rounded-full bg-[#6956ff] px-2.5 py-1 text-[10px] font-black text-white">
+                XEM
+              </span>
+            </button>
+          </div>
+
           {/* 🇯🇵 Caption Nhật Bản — right after Chung */}
           <JapaneseCaptionSections onSelect={handleSelectCaption} />
 
@@ -195,6 +239,12 @@ const ScreenCustomeStudio = () => {
           </div>
         </div>
       </div>
+
+      <MyWebPollModal
+        open={pollManagerOpen}
+        onClose={() => setPollManagerOpen(false)}
+        onUseCaption={handleUseWebPollCaption}
+      />
     </div>
   );
 };
