@@ -110,7 +110,12 @@ export default function CelebItemFriend({
   const isSlotFull = maxFriends > 0 && availableSlots <= 0;
   const watch = getWatch(friend.uid);
   const isAlreadyFriend = friend?.friendship_status === "friends";
-  const canShowWatch = !isAlreadyFriend;
+  const isCompletedWatch =
+    isAlreadyFriend ||
+    watch?.status === SLOT_STATUS.FRIENDS ||
+    String(watch?.lastAutoRequestStatus || "").trim().toUpperCase() ===
+      "FRIENDS";
+  const canShowWatch = !isCompletedWatch;
   const isGold = resolvedBadge === "locket_gold";
 
   useEffect(() => {
@@ -164,6 +169,7 @@ export default function CelebItemFriend({
 
   const handleWatchToggle = async (event) => {
     event.stopPropagation();
+    if (isCompletedWatch) return;
     if (watch) {
       unwatchCeleb(friend.uid);
       return;
@@ -203,7 +209,7 @@ export default function CelebItemFriend({
 
   const checkNow = async (event) => {
     event.stopPropagation();
-    if (!watch || checkingNow) return;
+    if (!watch || isCompletedWatch || checkingNow) return;
     setCheckingNow(true);
     try {
       const result = await checkCelebCenterNow(friend.uid);
@@ -274,8 +280,16 @@ export default function CelebItemFriend({
               {isGold && <SearchAccountLabel>Locket Gold</SearchAccountLabel>}
             </div>
             {watch && (
-              <p className="mt-1 text-[11px] text-base-content/55">
-                Railway đang canh • kiểm tra gần nhất {formatDateTime(watch.lastCheckedAt)}
+              <p
+                className={`mt-1 text-[11px] ${
+                  isCompletedWatch ? "text-success" : "text-base-content/55"
+                }`}
+              >
+                {isCompletedWatch
+                  ? "✓ Đã kết bạn • Canh Slot đã tự dừng"
+                  : `Hệ thống đang canh • kiểm tra gần nhất ${formatDateTime(
+                      watch.lastCheckedAt,
+                    )}`}
               </p>
             )}
           </div>
@@ -291,16 +305,34 @@ export default function CelebItemFriend({
       </div>
 
       {maxFriends > 0 && (
-        <div className="rounded-2xl border border-base-300 bg-base-200/35 p-3">
+        <div
+          className={`rounded-2xl border p-3 ${
+            isCompletedWatch
+              ? "border-success/35 bg-success/10"
+              : "border-base-300 bg-base-200/35"
+          }`}
+        >
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-base-content/45">
-                Trạng thái Celeb hiện tại
+                {isCompletedWatch
+                  ? "Trạng thái quan hệ"
+                  : "Trạng thái Celeb hiện tại"}
               </p>
-              <p className={`mt-1 text-sm font-bold ${isSlotFull ? "" : "text-error"}`}>
-                {isSlotFull
-                  ? "Đang full slot"
-                  : `Đang có ${availableSlots.toLocaleString("vi-VN")} slot trống`}
+              <p
+                className={`mt-1 text-sm font-bold ${
+                  isCompletedWatch
+                    ? "text-success"
+                    : isSlotFull
+                      ? ""
+                      : "text-error"
+                }`}
+              >
+                {isCompletedWatch
+                  ? "✓ Đã là bạn bè trên Locket"
+                  : isSlotFull
+                    ? "Đang full slot"
+                    : `Đang có ${availableSlots.toLocaleString("vi-VN")} slot trống`}
               </p>
             </div>
             <div className="text-right text-xs text-base-content/60">
@@ -313,12 +345,18 @@ export default function CelebItemFriend({
 
           <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-base-300">
             <div
-              className="h-full bg-yellow-400 transition-all duration-500"
+              className={`h-full transition-all duration-500 ${
+                isCompletedWatch ? "bg-success" : "bg-yellow-400"
+              }`}
               style={{ width: `${progressPercent}%` }}
             />
           </div>
 
-          {watch?.lastAutoRequestStatus && (
+          {isCompletedWatch ? (
+            <p className="mt-2 text-xs text-success">
+              ✓ Canh Slot và Auto Request đã dừng. Không còn theo dõi người này bằng worker.
+            </p>
+          ) : watch?.lastAutoRequestStatus ? (
             <p
               className={`mt-2 text-xs ${
                 watch.lastAutoRequestStatus === "SENT"
@@ -327,13 +365,13 @@ export default function CelebItemFriend({
               }`}
             >
               {watch.lastAutoRequestStatus === "SENT"
-                ? "✓ Auto request gần nhất đã được Locket xác nhận"
+                ? "✓ Request đã được Locket xác nhận • đang chờ chấp nhận"
                 : "⚠ Auto request gần nhất chưa thành công"}
               {watch.lastAutoRequestAt
                 ? ` • ${formatDateTime(watch.lastAutoRequestAt)}`
                 : ""}
             </p>
-          )}
+          ) : null}
         </div>
       )}
 
@@ -366,6 +404,12 @@ export default function CelebItemFriend({
           </button>
         )}
 
+        {isCompletedWatch && (
+          <div className="btn btn-sm btn-success pointer-events-none">
+            <UserRoundCheck className="w-4 h-4" /> Bạn bè
+          </div>
+        )}
+
         <button
           type="button"
           className="btn btn-sm btn-ghost"
@@ -374,7 +418,7 @@ export default function CelebItemFriend({
           <History className="w-4 h-4" /> Lịch sử slot
         </button>
 
-        {watch && (
+        {watch && !isCompletedWatch && (
           <button
             type="button"
             className="btn btn-sm btn-ghost"
@@ -412,7 +456,7 @@ export default function CelebItemFriend({
                 <p className="mt-1 text-xs text-base-content/55">
                   {openingCount > 0
                     ? `Đã ghi nhận ${openingCount} lần mở slot.`
-                    : "Dữ liệu được ghi bởi Canh Slot Railway, không tạo lịch sử giả."}
+                    : "Dữ liệu được ghi bởi hệ thống Canh Slot, không tạo lịch sử giả."}
                 </p>
               </div>
               <button
@@ -435,7 +479,7 @@ export default function CelebItemFriend({
                 </div>
               ) : historyEvents.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-base-300 p-5 text-center text-sm text-base-content/55">
-                  Chưa có sự kiện lịch sử cho Celeb này. Bật Canh Slot để Railway ghi nhận các lần full → có slot và kết quả auto request.
+                  Chưa có sự kiện lịch sử cho Celeb này. Bật Canh Slot để hệ thống ghi nhận các lần full → có slot và kết quả auto request.
                 </div>
               ) : (
                 historyEvents.map((event) => {
