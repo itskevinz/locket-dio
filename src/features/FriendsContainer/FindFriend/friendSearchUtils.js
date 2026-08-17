@@ -3,6 +3,7 @@ export const FRIENDSHIP_STATUS = Object.freeze({
   INCOMING: "INCOMING",
   OUTGOING: "OUTGOING",
   FRIENDS: "FRIENDS",
+  WAITLIST: "WAITLIST",
   UNKNOWN: "UNKNOWN",
 });
 
@@ -19,8 +20,10 @@ export function friendshipStatusFromUser(user) {
       return FRIENDSHIP_STATUS.INCOMING;
     case "outgoing-request":
     case "outgoing-follow-request":
-    case "follower-waitlist":
       return FRIENDSHIP_STATUS.OUTGOING;
+    case "follower-waitlist":
+      // Waitlist chỉ là trạng thái chờ slot, không phải bằng chứng request đã gửi.
+      return FRIENDSHIP_STATUS.WAITLIST;
     case "none":
     case undefined:
     case null:
@@ -44,6 +47,11 @@ export function classifyFriendRequestError(error) {
 
   if (code === "UPSTREAM_AUTH_FAILED") return "upstream-auth-failed";
   if (code === "AUTH_REQUIRED") return "auth-required";
+  if (code === "REQUEST_NOT_CONFIRMED") return "not-confirmed";
+  if (["CELEBRITY_SLOT_FULL", "SLOT_FULL", "MAX_FRIENDS"].includes(code)) {
+    return "slot-full";
+  }
+  if (code === "REQUEST_CONFLICT") return "conflict";
   if (status === 401) return "session-expired";
   if (status === 404) return "not-found";
   if (status === 429) return "rate-limit";
