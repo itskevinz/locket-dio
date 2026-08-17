@@ -1,5 +1,62 @@
 import api from "@/libs/axios";
 
+const NORMAL_CONFIRMED_RELATIONSHIPS = new Set([
+  "friends",
+  "outgoing-request",
+]);
+
+const CELEBRITY_CONFIRMED_RELATIONSHIPS = new Set([
+  ...NORMAL_CONFIRMED_RELATIONSHIPS,
+  "outgoing-follow-request",
+]);
+
+const normalizeRelationship = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, "-")
+    .replace(/^friend$/, "friends");
+
+const requireVerifiedSendResponse = (payload, { celebrity = false } = {}) => {
+  if (!payload?.success) return payload;
+
+  const data = payload?.data;
+  const relationship = normalizeRelationship(data?.relationship);
+  const confirmedRelationships = celebrity
+    ? CELEBRITY_CONFIRMED_RELATIONSHIPS
+    : NORMAL_CONFIRMED_RELATIONSHIPS;
+
+  if (data?.verified === true && confirmedRelationships.has(relationship)) {
+    return {
+      ...payload,
+      data: {
+        ...data,
+        relationship,
+      },
+    };
+  }
+
+  console.warn("[friends] backend returned an unverified success response", {
+    celebrity,
+    relationship: relationship || null,
+    verified: data?.verified === true,
+  });
+
+  return {
+    success: false,
+    status: 502,
+    code: "REQUEST_NOT_CONFIRMED",
+    message: celebrity
+      ? "Locket chưa xác nhận request Celeb. Web không tính trạng thái chờ/xếp hàng là gửi thành công."
+      : "Locket chưa xác nhận lời mời kết bạn. Web không báo thành công khi trạng thái chưa được ghi nhận.",
+    data: {
+      ...(data && typeof data === "object" ? data : {}),
+      verified: false,
+      relationship: relationship || null,
+    },
+  };
+};
+
 export const getAllRequestFriend = async (pageToken = null, limit = 100) => {
   try {
     const res = await api.post("/locket/getAllRequestsV2", {
@@ -141,7 +198,7 @@ export const SendRequestToFriend = async (uid) => {
       data: { friendUid: uid },
     });
 
-    return response.data;
+    return requireVerifiedSendResponse(response.data, { celebrity: false });
   } catch (error) {
     console.error("[friends] send request failed", {
       status: error?.response?.status || null,
@@ -156,7 +213,7 @@ export const SendRequestToCelebrity = async (uid) => {
     const response = await api.post("locket/sendCelebrityRequestV2", {
       friendUid: uid,
     });
-    return response.data;
+    return requireVerifiedSendResponse(response.data, { celebrity: true });
   } catch (error) {
     console.error("[friends] send celebrity request failed", {
       status: error?.response?.status || null,
