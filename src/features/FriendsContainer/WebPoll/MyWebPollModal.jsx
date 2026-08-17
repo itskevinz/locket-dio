@@ -14,7 +14,7 @@ const EXAMPLES = [
   "Ảnh đại diện này được không? 📸",
 ];
 
-export default function MyWebPollModal({ open, onClose }) {
+export default function MyWebPollModal({ open, onClose, onUseCaption }) {
   const [poll, setPoll] = useState(null);
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
@@ -100,7 +100,14 @@ export default function MyWebPollModal({ open, onClose }) {
     }
   };
 
+  const useAsCaption = () => {
+    if (!poll?.question || typeof onUseCaption !== "function") return;
+    onUseCaption(poll);
+  };
+
   if (!open || typeof document === "undefined") return null;
+
+  const totalVotes = Number(poll?.totalVotes || 0);
 
   return ReactDOM.createPortal(
     <div
@@ -121,11 +128,11 @@ export default function MyWebPollModal({ open, onClose }) {
             <X size={18} />
           </button>
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/70">
-            Huy Locket Web
+            Caption Bình chọn
           </p>
           <h2 className="mt-1 text-2xl font-black">Bình chọn của bạn</h2>
           <p className="mt-1 max-w-sm text-xs text-white/75">
-            Tạo một câu hỏi để bạn bè trên web chọn 👍 hoặc 👎.
+            Tạo câu hỏi, dùng làm Caption và xem chính xác ai đã chọn 👍 hoặc 👎.
           </p>
         </header>
 
@@ -191,7 +198,7 @@ export default function MyWebPollModal({ open, onClose }) {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-xs font-bold uppercase tracking-wide text-base-content/45">
-                          Đang hiển thị
+                          Caption hiện tại
                         </p>
                         <p className="mt-1 text-lg font-extrabold">{poll.question}</p>
                       </div>
@@ -213,9 +220,25 @@ export default function MyWebPollModal({ open, onClose }) {
                       </div>
                       <div className="rounded-2xl bg-base-100 p-3">
                         <Users size={18} className="mx-auto text-[#6956ff]" />
-                        <p className="mt-1 text-xl font-black">{poll.totalVotes || 0}</p>
+                        <p className="mt-1 text-xl font-black">{totalVotes}</p>
                       </div>
                     </div>
+
+                    <button
+                      type="button"
+                      className="mt-3 flex w-full items-center justify-between rounded-2xl bg-[#6956ff]/10 px-4 py-3 text-left text-[#6956ff] transition hover:bg-[#6956ff]/15"
+                      onClick={() => setShowVoters((value) => !value)}
+                    >
+                      <span className="flex items-center gap-2 text-sm font-extrabold">
+                        <Users size={17} />
+                        {totalVotes > 0
+                          ? `${totalVotes} bạn đã bình chọn`
+                          : "Chưa có ai bình chọn"}
+                      </span>
+                      <span className="text-xs font-bold">
+                        {showVoters ? "Ẩn" : "Xem danh sách"}
+                      </span>
+                    </button>
 
                     <div className="mt-3 grid grid-cols-2 gap-2">
                       <button
@@ -227,18 +250,29 @@ export default function MyWebPollModal({ open, onClose }) {
                         {toggling && <span className="loading loading-spinner loading-xs" />}
                         {poll.active ? "Tạm ẩn" : "Bật lại"}
                       </button>
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-ghost"
-                        onClick={() => setShowVoters((value) => !value)}
-                      >
-                        <Users size={14} /> {showVoters ? "Ẩn người vote" : "Xem người vote"}
-                      </button>
+                      {typeof onUseCaption === "function" ? (
+                        <button
+                          type="button"
+                          className="btn btn-sm border-0 bg-[#6956ff] text-white hover:bg-[#5745ee]"
+                          disabled={!poll.active}
+                          onClick={useAsCaption}
+                        >
+                          Dùng làm Caption
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-ghost"
+                          onClick={load}
+                        >
+                          <RefreshCw size={14} /> Làm mới
+                        </button>
+                      )}
                     </div>
                   </div>
 
                   {showVoters && (
-                    <div className="mt-3 max-h-52 space-y-1.5 overflow-y-auto rounded-2xl border border-base-300 p-2">
+                    <div className="mt-3 max-h-64 space-y-1.5 overflow-y-auto rounded-2xl border border-base-300 p-2">
                       {(poll.voters || []).length === 0 ? (
                         <p className="py-6 text-center text-xs text-base-content/45">
                           Chưa có ai bình chọn.
@@ -249,6 +283,12 @@ export default function MyWebPollModal({ open, onClose }) {
                             key={voter.uid}
                             className="flex items-center gap-2 rounded-xl bg-base-200/40 px-3 py-2"
                           >
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#6956ff]/12 text-sm font-black text-[#6956ff]">
+                              {(voter.displayName || voter.username || "?")
+                                .trim()
+                                .charAt(0)
+                                .toUpperCase()}
+                            </div>
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-xs font-semibold">{voter.displayName}</p>
                               {voter.username && (
@@ -257,7 +297,9 @@ export default function MyWebPollModal({ open, onClose }) {
                                 </p>
                               )}
                             </div>
-                            <span className="text-2xl">{voter.choice === "up" ? "👍" : "👎"}</span>
+                            <span className="rounded-full bg-base-100 px-3 py-1 text-2xl shadow-sm">
+                              {voter.choice === "up" ? "👍" : "👎"}
+                            </span>
                           </div>
                         ))
                       )}
@@ -267,7 +309,7 @@ export default function MyWebPollModal({ open, onClose }) {
               )}
 
               <p className="mt-4 text-center text-[10px] font-medium text-base-content/40">
-                Bản web thử nghiệm • hiện chưa gửi dữ liệu sang ứng dụng Locket chính hãng
+                Danh sách này là bình chọn trên Huy Locket Web • chưa đồng bộ sang app Locket chính hãng
               </p>
             </>
           )}
