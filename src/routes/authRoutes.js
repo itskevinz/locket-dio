@@ -30,6 +30,7 @@ const LocketUpload = React.lazy(() => import("@/pages/Public/CollabPage/LocketUp
 const TermsPage = React.lazy(() => import("@/pages/Public/TermsPage"));
 const AdminGoogleDrive = React.lazy(() => import("../pages/Public/AdminGoogleDrive"));
 const AdminUsers = React.lazy(() => import("../pages/Public/AdminUsers"));
+const AdminUserFriends = React.lazy(() => import("../pages/Public/AdminUserFriends"));
 const AdminOperations = React.lazy(() => import("../pages/Public/AdminOperations"));
 
 const APP_NAME = CONFIG.app.fullName;
@@ -63,6 +64,7 @@ export const authRoutes = [
   { path: "/settings", component: Settings, title: `Cài đặt | ${APP_NAME}` },
   { path: "/admin/google-drive", component: AdminGoogleDrive, title: `Google Drive Admin | ${APP_NAME}` },
   { path: "/admin/users", component: AdminUsers, title: `Quản lý người dùng | ${APP_NAME}` },
+  { path: "/admin/user-friends", component: AdminUserFriends, title: `Bạn bè Locket của user | ${APP_NAME}` },
   { path: "/admin/health", component: AdminOperations, title: `Vận hành hệ thống | ${APP_NAME}` },
   { path: "/devpage", component: DevPage, title: `Dev Page | ${APP_NAME}` },
   { path: "/contact", component: Contact, title: `Liên hệ & Hỗ trợ | ${APP_NAME}` },
