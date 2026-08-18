@@ -170,6 +170,110 @@ const getInfoMusicControllerV3 = async (req, res, next) => {
   }
 };
 
+function buildMashupSearchVariants(input) {
+  const raw = String(input || "").trim();
+  if (!raw) return [];
+
+  const hasSeparator = /\s(?:x|×|✕|✖)\s/i.test(raw);
+  const hasMashupWord = /\bmash[\s-]?up\b/i.test(raw);
+  if (!hasSeparator && !hasMashupWord) return [raw];
+
+  const normalizedX = raw
+    .replace(/\s*(?:×|✕|✖)\s*/g, " x ")
+    .replace(/\s+[xX]\s+/g, " x ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const combined = normalizedX
+    .replace(/\s+x\s+/gi, " ")
+    .replace(/\bmash[\s-]?up\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return [
+    ...new Set(
+      [
+        raw,
+        normalizedX,
+        combined ? `${combined} mashup` : "",
+      ].filter((value) => value && value.length >= 2),
+    ),
+  ].slice(0, 3);
+}
+
+function musicResultKey(track) {
+  if (!track) return "";
+  if (track.isrc) return `isrc:${String(track.isrc).toUpperCase()}`;
+  if (track.spotify_url) return `spotify:${track.spotify_url}`;
+  if (track.apple_music_url) return `apple:${track.apple_music_url}`;
+  if (track.deezer_url) return `deezer:${track.deezer_url}`;
+
+  const title = String(
+    track.song_title || track.song_name || track.name || track.title || "",
+  )
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+  const artist = String(track.artist || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+  return title || artist ? `ta:${title}|${artist}` : "";
+}
+
+function mergeMashupSearchResults(resultLists, limit) {
+  const merged = new Map();
+
+  const quality = (track) =>
+    (track?.isrc ? 8 : 0) +
+    (track?.spotify_url || track?.apple_music_url ? 4 : 0) +
+    (track?.preview_url ? 2 : 0) +
+    (track?.image_url ? 1 : 0);
+
+  for (const list of resultLists) {
+    for (const track of Array.isArray(list) ? list : []) {
+      const key = musicResultKey(track);
+      if (!key) continue;
+
+      const prev = merged.get(key);
+      if (!prev) {
+        merged.set(key, track);
+        continue;
+      }
+
+      if (quality(track) >= quality(prev)) {
+        merged.set(key, {
+          ...prev,
+          ...track,
+          isrc: track.isrc || prev.isrc,
+          spotify_url: track.spotify_url || prev.spotify_url,
+          apple_music_url: track.apple_music_url || prev.apple_music_url,
+          preview_url: track.preview_url || prev.preview_url,
+          image_url: track.image_url || prev.image_url,
+        });
+      } else {
+        merged.set(key, {
+          ...prev,
+          isrc: prev.isrc || track.isrc,
+          spotify_url: prev.spotify_url || track.spotify_url,
+          apple_music_url: prev.apple_music_url || track.apple_music_url,
+          preview_url: prev.preview_url || track.preview_url,
+          image_url: prev.image_url || track.image_url,
+        });
+      }
+    }
+  }
+
+  return [...merged.values()].slice(0, limit);
+}
+
 /**
  * Tìm nhạc theo tên (không cần liên kết Spotify user).
  * POST /api/searchMusic { query, limit? }
@@ -184,8 +288,39 @@ const searchMusicController = async (req, res, next) => {
         message: "Thiếu từ khóa tìm kiếm",
       });
     }
-    logInfo("searchMusic", `🔍 Search: ${String(query).slice(0, 80)}`);
-    const list = await searchMusicByQuery(query, limit);
+
+    const searchLimit = Math.min(Math.max(Number(limit) || 40, 1), 50);
+    const variants = buildMashupSearchVariants(query);
+    const isMashupSearch = variants.length > 1;
+
+    logInfo(
+      "searchMusic",
+      `🔍 Search: ${String(query).slice(0, 80)}${
+        isMashupSearch ? ` | mashup variants=${variants.length}` : ""
+      }`,
+    );
+
+    let list;
+    if (!isMashupSearch) {
+      list = await searchMusicByQuery(query, searchLimit);
+    } else {
+      // Chỉ mở rộng khi query có dấu hiệu mashup. Search thường giữ nguyên hành vi cũ.
+      // Giới hạn mỗi biến thể để tránh flood Deezer/iTunes/Spotify và giữ latency ổn định.
+      const perVariantLimit = Math.min(searchLimit, 24);
+      const settled = await Promise.allSettled(
+        variants.map((variant) => searchMusicByQuery(variant, perVariantLimit)),
+      );
+      const resultLists = settled
+        .filter((item) => item.status === "fulfilled")
+        .map((item) => item.value);
+
+      list = mergeMashupSearchResults(resultLists, searchLimit);
+      logInfo(
+        "searchMusic",
+        `🎚️ Mashup variants: ${variants.join(" | ")} -> ${list.length} merged`,
+      );
+    }
+
     logSuccess("searchMusic", `✅ ${list.length} kết quả`);
     return res.status(200).json({
       status: "success",
