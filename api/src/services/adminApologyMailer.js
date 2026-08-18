@@ -206,25 +206,27 @@ function buildAdminApologyEmail({
   <title>${escapeHtml(subject)}</title>
   <style>
     @media only screen and (max-width:620px) {
-      .email-shell { padding:8px 4px !important; }
+      .email-shell { padding:8px 4px 6px !important; }
       .email-card { border-radius:21px !important; }
       .brand-row { padding:15px 18px !important; }
-      .hero { padding:22px 20px 21px !important; }
-      .hero-title { font-size:26px !important; line-height:1.18 !important; margin:13px 0 7px !important; }
-      .email-body { padding:22px 20px 20px !important; }
+      .hero { padding:21px 20px 20px !important; }
+      .hero-title { font-size:24px !important; line-height:1.2 !important; margin:12px 0 7px !important; }
+      .email-body { padding:21px 20px 17px !important; }
       .email-copy { font-size:15px !important; line-height:1.7 !important; }
       .status-cell { padding:14px 15px !important; }
       .cta-table { width:100% !important; }
       .cta-cell { width:100% !important; text-align:center !important; }
       .cta-link { display:block !important; padding:15px 18px !important; }
-      .email-footer { padding:16px 20px !important; }
+      .domain-label { text-align:center !important; font-size:11px !important; }
+      .email-footer { padding:15px 20px !important; }
+      .footer-copy { font-size:11px !important; line-height:1.6 !important; }
     }
   </style>
 </head>
 <body style="margin:0;padding:0;background:#f3f2f8;font-family:Arial,Helvetica,sans-serif;color:#111827;-webkit-text-size-adjust:100%;">
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${escapeHtml(config.title)} · ${escapeHtml(config.statusLabel)} · Duchi Locket</div>
 
-  <table class="email-shell" role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#f3f2f8;padding:24px 10px;">
+  <table class="email-shell" role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#f3f2f8;padding:22px 10px 16px;">
     <tr>
       <td align="center">
         <table class="email-card" role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:600px;background:#ffffff;border:1px solid #e7e5ef;border-radius:26px;overflow:hidden;box-shadow:0 16px 44px rgba(49,46,129,.10);">
@@ -254,15 +256,15 @@ function buildAdminApologyEmail({
           </tr>
 
           <tr>
-            <td class="hero" style="padding:27px 28px 25px;background:#6d28d9;background-image:linear-gradient(135deg,#7c3aed 0%,#5b21b6 48%,#312e81 100%);">
+            <td class="hero" style="padding:25px 28px 23px;background:#6d28d9;background-image:linear-gradient(135deg,#7c3aed 0%,#5b21b6 48%,#312e81 100%);">
               <span style="display:inline-block;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.20);color:#ffffff;font-size:10px;font-weight:900;letter-spacing:1px;text-transform:uppercase;">${escapeHtml(config.badge)}</span>
-              <h1 class="hero-title" style="margin:14px 0 8px;font-size:29px;line-height:1.18;letter-spacing:-.65px;color:#ffffff;font-weight:900;">${escapeHtml(config.title)}</h1>
+              <h1 class="hero-title" style="margin:13px 0 7px;font-size:27px;line-height:1.2;letter-spacing:-.55px;color:#ffffff;font-weight:900;">${escapeHtml(config.title)}</h1>
               <div style="max-width:470px;color:#e9ddff;font-size:12px;line-height:1.55;">${escapeHtml(heroSubline)}</div>
             </td>
           </tr>
 
           <tr>
-            <td class="email-body" style="padding:26px 28px 24px;background:#ffffff;">
+            <td class="email-body" style="padding:25px 28px 19px;background:#ffffff;">
               <p class="email-copy" style="margin:0;color:#4b5563;font-size:15px;line-height:1.74;">
                 Chào <strong style="color:#111827;">${escapeHtml(name)}</strong>, ${escapeHtml(introText)} ${escapeHtml(config.followup)}
               </p>
@@ -288,25 +290,25 @@ function buildAdminApologyEmail({
                 </tr>
               </table>
 
-              <table class="cta-table" role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-top:22px;">
+              <table class="cta-table" role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-top:21px;">
                 <tr>
                   <td class="cta-cell" style="border-radius:14px;background:#6d28d9;background-image:linear-gradient(90deg,#7c3aed 0%,#4f46e5 100%);box-shadow:0 9px 22px rgba(79,70,229,.22);">
                     <a class="cta-link" href="${escapeHtml(appUrl)}" style="display:inline-block;padding:14px 24px;color:#ffffff;text-decoration:none;font-size:14px;line-height:1.2;font-weight:900;border-radius:14px;">Mở Duchi Locket&nbsp;&nbsp;→</a>
                   </td>
                 </tr>
               </table>
-              <div style="margin-top:8px;color:#a0a7b5;font-size:10px;line-height:1.45;">${escapeHtml(appHost)}</div>
+              <div class="domain-label" style="margin-top:9px;color:#8b93a5;font-size:11px;line-height:1.4;font-weight:700;letter-spacing:.1px;">${escapeHtml(appHost)}</div>
 
-              <p style="margin:23px 0 0;color:#4b5563;font-size:14px;line-height:1.68;">${escapeHtml(config.closing)}</p>
+              <p style="margin:18px 0 0;color:#4b5563;font-size:14px;line-height:1.68;">${escapeHtml(config.closing)}</p>
             </td>
           </tr>
 
           <tr>
-            <td class="email-footer" style="padding:17px 26px;background:#f8f8fb;border-top:1px solid #eeedf3;">
+            <td class="email-footer" style="padding:15px 26px;background:#f8f8fb;border-top:1px solid #eeedf3;">
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                 <tr>
-                  <td valign="top" style="color:#9299a8;font-size:10px;line-height:1.65;">
-                    <strong style="color:#6b7280;">Duchi Locket Security</strong><br>
+                  <td class="footer-copy" valign="top" style="color:#7f8796;font-size:11px;line-height:1.6;">
+                    <strong style="color:#5f6673;">Duchi Locket Security</strong><br>
                     Email tự động, bạn không cần phản hồi. Duchi Locket không bao giờ yêu cầu mật khẩu, mã OTP hoặc thông tin đăng nhập qua email.
                   </td>
                 </tr>
@@ -315,7 +317,7 @@ function buildAdminApologyEmail({
           </tr>
         </table>
 
-        <div style="max-width:600px;margin:11px auto 0;text-align:center;color:#a6acb8;font-size:10px;line-height:1.45;">© Duchi Locket · Thông báo hệ thống</div>
+        <div style="max-width:600px;margin:8px auto 0;text-align:center;color:#9ca3af;font-size:10px;line-height:1.4;">© Duchi Locket · Thông báo hệ thống</div>
       </td>
     </tr>
   </table>
