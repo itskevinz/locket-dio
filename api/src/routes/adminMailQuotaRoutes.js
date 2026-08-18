@@ -11,10 +11,22 @@ const {
 
 const router = express.Router();
 const CACHE_TTL_MS = 30_000;
+const STALE_CACHE_TTL_MS = 15 * 60_000;
+const RELAY_TIMEOUT_MS = 25_000;
+const RELAY_RETRY_TIMEOUT_MS = 15_000;
 let quotaCache = null;
 
 function clean(value, max = 1000) {
   return String(value || "").trim().slice(0, max);
+}
+
+function isTimeoutError(error) {
+  const name = String(error?.name || "").toLowerCase();
+  const message = String(error?.message || "").toLowerCase();
+  return name.includes("timeout")
+    || name.includes("abort")
+    || message.includes("timeout")
+    || message.includes("aborted");
 }
 
 async function requireAdminIdentity(req, res, next) {
@@ -55,6 +67,38 @@ async function requireAdminIdentity(req, res, next) {
   }
 }
 
+async function postQuotaRequest(endpoint, secret, timeoutMs) {
+  return fetch(endpoint, {
+    method: "POST",
+    redirect: "follow",
+    headers: {
+      "Content-Type": "text/plain;charset=utf-8",
+      "User-Agent": "Duchi-Locket-Mail-Quota/1.1",
+    },
+    body: JSON.stringify({ secret, action: "quota" }),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+}
+
+async function fetchQuotaResponse(endpoint, secret) {
+  try {
+    return await postQuotaRequest(endpoint, secret, RELAY_TIMEOUT_MS);
+  } catch (error) {
+    if (!isTimeoutError(error)) throw error;
+    console.warn("Gmail quota relay timed out once; retrying with a fresh request.");
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    try {
+      return await postQuotaRequest(endpoint, secret, RELAY_RETRY_TIMEOUT_MS);
+    } catch (retryError) {
+      if (!isTimeoutError(retryError)) throw retryError;
+      const timeoutError = new Error("Google Apps Script phản hồi quá chậm. Hệ thống đã thử lại nhưng vẫn hết thời gian chờ.");
+      timeoutError.code = "MAIL_QUOTA_RELAY_TIMEOUT";
+      timeoutError.status = 504;
+      throw timeoutError;
+    }
+  }
+}
+
 async function fetchMailQuota() {
   const endpoint = clean(process.env.GMAIL_APPS_SCRIPT_URL, 1000);
   const secret = clean(process.env.GMAIL_APPS_SCRIPT_SECRET, 500);
@@ -72,15 +116,7 @@ async function fetchMailQuota() {
     throw error;
   }
 
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "text/plain;charset=utf-8",
-      "User-Agent": "Duchi-Locket-Mail-Quota/1.0",
-    },
-    body: JSON.stringify({ secret, action: "quota" }),
-    signal: AbortSignal.timeout(10_000),
-  });
+  const response = await fetchQuotaResponse(endpoint, secret);
 
   const raw = await response.text();
   let data = null;
@@ -91,11 +127,13 @@ async function fetchMailQuota() {
   }
 
   if (!response.ok || data?.ok !== true) {
-    const isOldRelay = data?.code === "INVALID_EMAIL" || data?.code === "SEND_FAILED";
+    const message = clean(data?.message, 500);
+    const isOldRelay = data?.code === "INVALID_EMAIL"
+      || (data?.code === "SEND_FAILED" && /invalid email|recipient|to\b/i.test(message));
     const error = new Error(
       isOldRelay
         ? "Google Apps Script gửi mail chưa hỗ trợ đọc quota. Cần cập nhật Code.gs lên bản mới."
-        : (data?.message || "Không đọc được quota Gmail từ Google Apps Script."),
+        : (message || "Không đọc được quota Gmail từ Google Apps Script."),
     );
     error.code = isOldRelay ? "MAIL_QUOTA_RELAY_UPDATE_REQUIRED" : (data?.code || "MAIL_QUOTA_FAILED");
     error.status = response.status >= 400 ? response.status : 502;
@@ -136,6 +174,16 @@ router.get("/mail-quota", async (_req, res) => {
     return res.status(200).json({ success: true, ...data, cached: false });
   } catch (error) {
     console.error("Failed to read Gmail quota:", error?.code || error?.message || "unknown");
+    const now = Date.now();
+    if (quotaCache && now - quotaCache.cachedAt < STALE_CACHE_TTL_MS) {
+      return res.status(200).json({
+        success: true,
+        ...quotaCache.data,
+        cached: true,
+        stale: true,
+        warning: error?.message || "Không thể cập nhật quota mới nhất.",
+      });
+    }
     return res.status(Number(error?.status) || 502).json({
       success: false,
       code: error?.code || "MAIL_QUOTA_FAILED",
