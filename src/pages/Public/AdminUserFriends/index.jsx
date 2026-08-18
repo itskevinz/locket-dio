@@ -86,6 +86,7 @@ export default function AdminUserFriends() {
   const [friendsLoading, setFriendsLoading] = useState(false);
   const [friendsError, setFriendsError] = useState(null);
   const [nextPageToken, setNextPageToken] = useState(null);
+  const [friendsCollapsed, setFriendsCollapsed] = useState(false);
 
   const canView = ALLOWED_ROLES.has(role) && hasShortAdminSession();
 
@@ -323,7 +324,10 @@ export default function AdminUserFriends() {
                     <button
                       type="button"
                       key={user.uid}
-                      onClick={() => loadFriendPage(user)}
+                      onClick={() => {
+                        setFriendsCollapsed(false);
+                        loadFriendPage(user);
+                      }}
                       className={`w-full text-left p-3 rounded-2xl border transition-all flex items-center gap-3 ${
                         active
                           ? "bg-indigo-50 border-indigo-400 shadow-sm"
@@ -358,7 +362,15 @@ export default function AdminUserFriends() {
             </div>
           </section>
 
-          <section className="bg-white border border-slate-200 rounded-[2rem] shadow-md min-h-[520px] overflow-hidden flex flex-col max-h-[calc(100dvh-7rem)] lg:max-h-[calc(100vh-7rem)]">
+          <section
+            className={`bg-white border border-slate-200 rounded-[2rem] shadow-md overflow-hidden flex flex-col ${
+              selectedUser && friendsCollapsed ? "" : "min-h-[520px]"
+            } ${
+              selectedUser && !friendsCollapsed
+                ? "max-h-[calc(100dvh-7rem)] lg:max-h-[calc(100vh-7rem)]"
+                : ""
+            }`}
+          >
             {!selectedUser ? (
               <div className="min-h-[520px] flex flex-col items-center justify-center text-center px-6">
                 <div className="w-20 h-20 rounded-[1.8rem] bg-indigo-50 border border-indigo-200 text-indigo-500 flex items-center justify-center mb-4">
@@ -397,10 +409,18 @@ export default function AdminUserFriends() {
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="badge h-8 px-3 rounded-xl bg-indigo-100 text-indigo-700 border-indigo-200 font-black">
                         Đã tải {friends.length} bạn
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => setFriendsCollapsed((current) => !current)}
+                        aria-expanded={!friendsCollapsed}
+                        className="btn btn-sm rounded-xl bg-indigo-50 hover:bg-indigo-100 border-indigo-200 text-indigo-700 font-black"
+                      >
+                        {friendsCollapsed ? "Mở danh sách" : "Thu gọn"}
+                      </button>
                       <button
                         type="button"
                         onClick={() => loadFriendPage(selectedUser)}
@@ -414,91 +434,93 @@ export default function AdminUserFriends() {
                   </div>
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6">
-                  {friendsError ? (
-                    <div className="rounded-3xl p-6 bg-amber-50 border border-amber-200 text-amber-950">
-                      <div className="flex items-start gap-3">
-                        <ShieldCheck size={24} className="text-amber-600 shrink-0 mt-0.5" />
-                        <div>
-                          <h3 className="font-black text-base">{friendsError.title}</h3>
-                          <p className="text-sm font-medium text-amber-900/80 mt-1 leading-relaxed">
-                            {friendsError.message}
-                          </p>
+                {!friendsCollapsed && (
+                  <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6">
+                    {friendsError ? (
+                      <div className="rounded-3xl p-6 bg-amber-50 border border-amber-200 text-amber-950">
+                        <div className="flex items-start gap-3">
+                          <ShieldCheck size={24} className="text-amber-600 shrink-0 mt-0.5" />
+                          <div>
+                            <h3 className="font-black text-base">{friendsError.title}</h3>
+                            <p className="text-sm font-medium text-amber-900/80 mt-1 leading-relaxed">
+                              {friendsError.message}
+                            </p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ) : friendsLoading && friends.length === 0 ? (
-                    <div className="py-20 text-center text-slate-500 font-bold">
-                      <span className="loading loading-spinner loading-lg text-indigo-600 block mx-auto mb-4" />
-                      Đang đọc danh sách bạn bè trực tiếp từ Locket...
-                    </div>
-                  ) : friends.length === 0 ? (
-                    <div className="py-20 text-center text-slate-400 font-bold">
-                      User này hiện không có bạn bè trong dữ liệu Locket trả về.
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                      {friends.map((friend, index) => (
-                        <article
-                          key={`${friend.uid}-${index}`}
-                          className="rounded-2xl border border-slate-200 bg-slate-50/70 hover:bg-indigo-50/50 hover:border-indigo-300 p-3.5 transition-all"
-                        >
-                          <div className="flex items-center gap-3">
-                            {friend.avatar ? (
-                              <img
-                                src={friend.avatar}
-                                alt=""
-                                className="w-12 h-12 rounded-full object-cover bg-white border border-slate-200 shrink-0"
-                                loading="lazy"
-                              />
-                            ) : (
-                              <div className="w-12 h-12 rounded-full bg-white border border-slate-200 text-indigo-600 flex items-center justify-center font-black shrink-0">
-                                {initialFor(friend)}
-                              </div>
-                            )}
-                            <div className="min-w-0 flex-1">
-                              <div className="font-black text-sm text-slate-900 truncate flex items-center gap-1.5">
-                                <span className="truncate">{userLabel(friend)}</span>
-                                {friend.celebrity && (
-                                  <span className="badge badge-xs bg-amber-50 text-amber-700 border-amber-200 font-black shrink-0">
-                                    CELEB
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-xs text-indigo-600 font-semibold truncate mt-0.5">
-                                {friend.username ? `@${friend.username}` : "Chưa có username"}
+                    ) : friendsLoading && friends.length === 0 ? (
+                      <div className="py-20 text-center text-slate-500 font-bold">
+                        <span className="loading loading-spinner loading-lg text-indigo-600 block mx-auto mb-4" />
+                        Đang đọc danh sách bạn bè trực tiếp từ Locket...
+                      </div>
+                    ) : friends.length === 0 ? (
+                      <div className="py-20 text-center text-slate-400 font-bold">
+                        User này hiện không có bạn bè trong dữ liệu Locket trả về.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                        {friends.map((friend, index) => (
+                          <article
+                            key={`${friend.uid}-${index}`}
+                            className="rounded-2xl border border-slate-200 bg-slate-50/70 hover:bg-indigo-50/50 hover:border-indigo-300 p-3.5 transition-all"
+                          >
+                            <div className="flex items-center gap-3">
+                              {friend.avatar ? (
+                                <img
+                                  src={friend.avatar}
+                                  alt=""
+                                  className="w-12 h-12 rounded-full object-cover bg-white border border-slate-200 shrink-0"
+                                  loading="lazy"
+                                />
+                              ) : (
+                                <div className="w-12 h-12 rounded-full bg-white border border-slate-200 text-indigo-600 flex items-center justify-center font-black shrink-0">
+                                  {initialFor(friend)}
+                                </div>
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <div className="font-black text-sm text-slate-900 truncate flex items-center gap-1.5">
+                                  <span className="truncate">{userLabel(friend)}</span>
+                                  {friend.celebrity && (
+                                    <span className="badge badge-xs bg-amber-50 text-amber-700 border-amber-200 font-black shrink-0">
+                                      CELEB
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-xs text-indigo-600 font-semibold truncate mt-0.5">
+                                  {friend.username ? `@${friend.username}` : "Chưa có username"}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                          <div className="mt-3 pt-2.5 border-t border-slate-200 space-y-1 text-[10px] text-slate-500 font-mono">
-                            <div className="truncate" title={friend.uid}>UID: {friend.uid}</div>
-                            <div>Thêm bạn: {formatDate(friend.addedAt)}</div>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  )}
+                            <div className="mt-3 pt-2.5 border-t border-slate-200 space-y-1 text-[10px] text-slate-500 font-mono">
+                              <div className="truncate" title={friend.uid}>UID: {friend.uid}</div>
+                              <div>Thêm bạn: {formatDate(friend.addedAt)}</div>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    )}
 
-                  {nextPageToken && !friendsError && (
-                    <div className="mt-6 flex justify-center">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          loadFriendPage(selectedUser, nextPageToken, true)
-                        }
-                        disabled={friendsLoading}
-                        className="btn rounded-2xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200 font-black px-7"
-                      >
-                        {friendsLoading ? (
-                          <span className="loading loading-spinner loading-xs" />
-                        ) : (
-                          <Users size={17} />
-                        )}
-                        Tải thêm bạn bè
-                      </button>
-                    </div>
-                  )}
-                </div>
+                    {nextPageToken && !friendsError && (
+                      <div className="mt-6 flex justify-center">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            loadFriendPage(selectedUser, nextPageToken, true)
+                          }
+                          disabled={friendsLoading}
+                          className="btn rounded-2xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200 font-black px-7"
+                        >
+                          {friendsLoading ? (
+                            <span className="loading loading-spinner loading-xs" />
+                          ) : (
+                            <Users size={17} />
+                          )}
+                          Tải thêm bạn bè
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             )}
           </section>
