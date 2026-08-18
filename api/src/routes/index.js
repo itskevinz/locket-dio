@@ -2,6 +2,9 @@ const express = require("express");
 // Compatibility fix: patch IP-location healing before any admin route destructures
 // userActivityStore. login_history owns location metadata; user_sessions does not.
 require("../services/userActivityLocationHealPatch");
+// Patch Slot Monitor notifier exports before slotMonitor modules destructure them.
+// Once Gmail OAuth is connected, slot emails move to Gmail API automatically.
+require("../services/gmailSlotNotifierPatch");
 const authRoutes = require("./authRoutes");
 const locketRoutes = require("./locketRoutes");
 const friendToolsRoutes = require("./friendToolsRoutes");
@@ -25,6 +28,7 @@ const {
   healthController,
   deepHealthController,
 } = require("../controllers/systemController");
+const adminPinRecoveryGmailRoutes = require("./adminPinRecoveryGmailRoutes");
 const adminPinRecoveryRoutes = require("./adminPinRecoveryRoutes");
 const adminMailQuotaRoutes = require("./adminMailQuotaRoutes");
 const adminGmailSendRoutes = require("./adminGmailSendRoutes");
@@ -86,7 +90,15 @@ module.exports = (app) => {
     sensitiveApiShield,
     adminUserFriendsRoutes,
   );
-  // Khôi phục PIN bằng OTP email tách riêng để có thể chạy trước PIN gate cũ.
+  // Khi Gmail OAuth đã kết nối, endpoint request OTP này gửi bằng Gmail API;
+  // trước khi kết nối nó next() sang route Apps Script cũ để rollout không làm mất recovery.
+  app.use(
+    "/api/admin",
+    adminLimit,
+    sensitiveApiShield,
+    adminPinRecoveryGmailRoutes,
+  );
+  // Verify/reset PIN vẫn dùng logic hiện tại và cùng bảng admin_pin_recovery.
   app.use(
     "/api/admin",
     adminLimit,
