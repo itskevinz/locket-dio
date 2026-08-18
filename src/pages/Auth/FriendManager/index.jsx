@@ -3,7 +3,6 @@ import { BookUser } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAppNavigation } from "@/context/AppContext";
 import FriendsContainer from "@/features/FriendsContainer";
-import NotificationCenter from "@/features/SlotMonitor/NotificationCenter";
 import SlotWatchInline from "@/features/SlotMonitor/SlotWatchInline";
 import SlotNotificationSettings from "@/features/SlotMonitor/SlotNotificationSettings";
 
@@ -34,7 +33,6 @@ const FriendManager = () => {
         >
           <SlotNotificationSettings />
         </div>
-        <NotificationCenter />
       </div>
     );
   }
