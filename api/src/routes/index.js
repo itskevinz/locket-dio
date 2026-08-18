@@ -27,6 +27,7 @@ const {
 } = require("../controllers/systemController");
 const adminPinRecoveryRoutes = require("./adminPinRecoveryRoutes");
 const adminMailQuotaRoutes = require("./adminMailQuotaRoutes");
+const adminGmailSendRoutes = require("./adminGmailSendRoutes");
 const adminRoutes = require("./adminRoutes");
 const adminUserFriendsRoutes = require("./adminUserFriendsRoutes");
 const celebrityRoutes = require("./celebrityRoutes");
@@ -98,6 +99,14 @@ module.exports = (app) => {
     adminLimit,
     sensitiveApiShield,
     adminMailQuotaRoutes,
+  );
+  // Admin Email Center gửi trực tiếp qua Gmail API. Mount trước adminRoutes để
+  // các endpoint mail mới không rơi lại vào Apps Script legacy.
+  app.use(
+    "/api/admin",
+    adminLimit,
+    sensitiveApiShield,
+    adminGmailSendRoutes,
   );
   app.use(
     "/api/admin",
