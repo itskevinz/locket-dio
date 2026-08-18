@@ -1,3 +1,16 @@
-const { neon } = require('@neondatabase/serverless');
-const sql = neon("postgresql://neondb_owner:npg_uK3CgR8kFjfa@ep-polished-breeze-a8z1l4n5-pooler.eastus2.azure.neon.tech/neondb?sslmode=require");
-sql`SELECT * FROM admin_roles`.then(console.log).catch(console.error);
+const { neon } = require("@neondatabase/serverless");
+
+const databaseUrl = String(process.env.DATABASE_URL || "").trim();
+
+if (!databaseUrl) {
+  console.error("DATABASE_URL is not configured.");
+  process.exitCode = 1;
+} else {
+  const sql = neon(databaseUrl);
+  sql`SELECT * FROM admin_roles`
+    .then(console.log)
+    .catch((error) => {
+      console.error("Database test failed:", error?.message || error);
+      process.exitCode = 1;
+    });
+}
