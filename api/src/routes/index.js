@@ -38,10 +38,8 @@ const celebrityRoutes = require("./celebrityRoutes");
 const activityRoutes = require("./activityRoutes");
 const { sensitiveApiShield } = require("../middlewares/antiBot");
 const { accountLockReasonMiddleware } = require("../middlewares/accountLockReasonMiddleware");
-const {
-  generalApiLimit,
-  adminLimit,
-} = require("../middlewares/securityRateLimiter");
+const { generalApiLimit } = require("../middlewares/securityRateLimiter");
+const { adminSessionLimit } = require("../middlewares/adminSessionRateLimiter");
 
 module.exports = (app) => {
   // In-memory counters only: method/path/status/duration. Never records body, token or secret.
@@ -71,14 +69,14 @@ module.exports = (app) => {
   app.use("/locket", momentRoutes); // postMomentV2 dùng uploadLimit riêng
   app.use(
     "/api/admin/ops-dashboard",
-    adminLimit,
+    adminSessionLimit,
     sensitiveApiShield,
     adminOpsDashboardRoutes,
   );
   // Admin Slot Monitor mount trước adminRoutes để tránh đi qua router quản trị cũ hai lần.
   app.use(
     "/api/admin/slot-monitor",
-    adminLimit,
+    adminSessionLimit,
     sensitiveApiShield,
     slotMonitorAdminRoutes,
   );
@@ -86,7 +84,7 @@ module.exports = (app) => {
   // nhưng tách riêng để không làm adminRoutes khổng lồ khó bảo trì hơn.
   app.use(
     "/api/admin",
-    adminLimit,
+    adminSessionLimit,
     sensitiveApiShield,
     adminUserFriendsRoutes,
   );
@@ -94,21 +92,21 @@ module.exports = (app) => {
   // trước khi kết nối nó next() sang route Apps Script cũ để rollout không làm mất recovery.
   app.use(
     "/api/admin",
-    adminLimit,
+    adminSessionLimit,
     sensitiveApiShield,
     adminPinRecoveryGmailRoutes,
   );
   // Verify/reset PIN vẫn dùng logic hiện tại và cùng bảng admin_pin_recovery.
   app.use(
     "/api/admin",
-    adminLimit,
+    adminSessionLimit,
     sensitiveApiShield,
     adminPinRecoveryRoutes,
   );
   // Trạng thái Gmail API + OAuth start. Không lộ refresh token ra frontend.
   app.use(
     "/api/admin",
-    adminLimit,
+    adminSessionLimit,
     sensitiveApiShield,
     adminMailQuotaRoutes,
   );
@@ -116,13 +114,13 @@ module.exports = (app) => {
   // các endpoint mail mới không rơi lại vào Apps Script legacy.
   app.use(
     "/api/admin",
-    adminLimit,
+    adminSessionLimit,
     sensitiveApiShield,
     adminGmailSendRoutes,
   );
   app.use(
     "/api/admin",
-    adminLimit,
+    adminSessionLimit,
     sensitiveApiShield,
     accountLockReasonMiddleware,
     adminRoutes,
