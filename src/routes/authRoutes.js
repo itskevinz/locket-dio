@@ -31,7 +31,7 @@ const TermsPage = React.lazy(() => import("@/pages/Public/TermsPage"));
 const AdminGoogleDrive = React.lazy(() => import("../pages/Public/AdminGoogleDrive"));
 const AdminUsers = React.lazy(() => import("../pages/Public/AdminUsersWithFriendShortcut"));
 const AdminUserFriends = React.lazy(() => import("../pages/Public/AdminUserFriends"));
-const AdminEmailCenter = React.lazy(() => import("../pages/Public/AdminEmailCenter"));
+const AdminEmailCenter = React.lazy(() => import("../pages/Public/AdminEmailCenterV2"));
 const AdminOperations = React.lazy(() => import("../pages/Public/AdminOperations"));
 
 const APP_NAME = CONFIG.app.fullName;
