@@ -147,6 +147,18 @@ function buildAdminApologyEmail({
   const logoUrl = `${appUrl}/android-chrome-192x192.png`;
   const selectedTemplate = normalizeTemplate(template);
   const config = MAIL_TEMPLATES[selectedTemplate];
+  const showUid = Boolean(safeUid && ["apology", "restored"].includes(selectedTemplate));
+  const systemTemplate = ["maintenance", "incident", "feature"].includes(selectedTemplate);
+  const statusHeading = systemTemplate ? "Trạng thái hệ thống" : "Trạng thái tài khoản";
+  const heroSubline = systemTemplate
+    ? "Cập nhật chính thức từ hệ thống Duchi Locket."
+    : "Thông báo dành riêng cho tài khoản Duchi Locket của bạn.";
+  let appHost = appUrl;
+  try {
+    appHost = new URL(appUrl).hostname;
+  } catch {
+    appHost = appUrl.replace(/^https?:\/\//i, "").replace(/\/$/, "");
+  }
 
   const subject = `${EMAIL_BRAND} | ${config.subject}`;
   const introText = config.intro({ email: targetEmail, name });
@@ -162,7 +174,7 @@ function buildAdminApologyEmail({
     note ? `Lời nhắn từ quản trị viên: ${note}` : null,
     "",
     `Trạng thái: ${config.statusLabel}`,
-    safeUid ? `UID: ${safeUid}` : "",
+    showUid ? `UID: ${safeUid}` : "",
     "",
     `Mở Duchi Locket: ${appUrl}`,
     "",
@@ -174,11 +186,11 @@ function buildAdminApologyEmail({
     .join("\n");
 
   const noteHtml = note
-    ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top:22px;background:#f8f7ff;border:1px solid #e8e3ff;border-radius:18px;">
+    ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top:20px;background:#f8f7ff;border:1px solid #e8e3ff;border-radius:16px;">
         <tr>
-          <td style="padding:18px 19px;">
+          <td style="padding:16px 18px;">
             <div style="font-size:10px;font-weight:900;letter-spacing:1px;color:#6d28d9;text-transform:uppercase;">Lời nhắn từ quản trị viên</div>
-            <div style="margin-top:9px;color:#334155;font-size:14px;line-height:1.75;white-space:pre-wrap;">${escapeHtml(note)}</div>
+            <div style="margin-top:8px;color:#334155;font-size:14px;line-height:1.72;white-space:pre-wrap;">${escapeHtml(note)}</div>
           </td>
         </tr>
       </table>`
@@ -194,34 +206,40 @@ function buildAdminApologyEmail({
   <title>${escapeHtml(subject)}</title>
   <style>
     @media only screen and (max-width:620px) {
-      .email-shell { padding:10px 5px !important; }
-      .email-card { border-radius:22px !important; }
-      .brand-row { padding:17px 19px !important; }
-      .hero { padding:28px 20px 27px !important; }
-      .hero-title { font-size:27px !important; line-height:1.18 !important; }
-      .email-body { padding:24px 20px 22px !important; }
-      .email-copy { font-size:15px !important; line-height:1.72 !important; }
-      .status-cell { padding:17px 17px !important; }
+      .email-shell { padding:8px 4px !important; }
+      .email-card { border-radius:21px !important; }
+      .brand-row { padding:15px 18px !important; }
+      .hero { padding:22px 20px 21px !important; }
+      .hero-title { font-size:26px !important; line-height:1.18 !important; margin:13px 0 7px !important; }
+      .email-body { padding:22px 20px 20px !important; }
+      .email-copy { font-size:15px !important; line-height:1.7 !important; }
+      .status-cell { padding:14px 15px !important; }
       .cta-table { width:100% !important; }
       .cta-cell { width:100% !important; text-align:center !important; }
       .cta-link { display:block !important; padding:15px 18px !important; }
-      .email-footer { padding:17px 20px !important; }
+      .email-footer { padding:16px 20px !important; }
     }
   </style>
 </head>
 <body style="margin:0;padding:0;background:#f3f2f8;font-family:Arial,Helvetica,sans-serif;color:#111827;-webkit-text-size-adjust:100%;">
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${escapeHtml(config.title)} · ${escapeHtml(config.statusLabel)} · Duchi Locket</div>
 
-  <table class="email-shell" role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#f3f2f8;padding:30px 12px;">
+  <table class="email-shell" role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#f3f2f8;padding:24px 10px;">
     <tr>
       <td align="center">
-        <table class="email-card" role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:620px;background:#ffffff;border:1px solid #e7e5ef;border-radius:28px;overflow:hidden;box-shadow:0 18px 50px rgba(49,46,129,.10);">
+        <table class="email-card" role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:600px;background:#ffffff;border:1px solid #e7e5ef;border-radius:26px;overflow:hidden;box-shadow:0 16px 44px rgba(49,46,129,.10);">
           <tr>
-            <td class="brand-row" style="padding:19px 28px;background:#ffffff;">
+            <td class="brand-row" style="padding:17px 26px;background:#ffffff;">
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                 <tr>
                   <td width="58" valign="middle" style="width:58px;">
-                    <img src="${escapeHtml(logoUrl)}" width="50" height="50" alt="Duchi Locket" style="display:block;width:50px;height:50px;border:0;border-radius:15px;box-shadow:0 7px 18px rgba(124,58,237,.16);object-fit:cover;">
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="border:1px solid #ececf3;border-radius:16px;background:#ffffff;">
+                      <tr>
+                        <td style="padding:4px;">
+                          <img src="${escapeHtml(logoUrl)}" width="46" height="46" alt="Duchi Locket" style="display:block;width:46px;height:46px;border:0;border-radius:12px;object-fit:cover;">
+                        </td>
+                      </tr>
+                    </table>
                   </td>
                   <td valign="middle" style="padding-left:13px;">
                     <div style="font-size:18px;font-weight:900;letter-spacing:.15px;color:#111827;">DUCHI LOCKET</div>
@@ -236,33 +254,33 @@ function buildAdminApologyEmail({
           </tr>
 
           <tr>
-            <td class="hero" style="padding:34px 30px 32px;background:#5b21b6;background-image:linear-gradient(135deg,#7c3aed 0%,#4f46e5 54%,#172554 100%);">
-              <span style="display:inline-block;padding:7px 11px;border-radius:999px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.20);color:#ffffff;font-size:10px;font-weight:900;letter-spacing:1px;text-transform:uppercase;">${escapeHtml(config.badge)}</span>
-              <h1 class="hero-title" style="margin:17px 0 10px;font-size:31px;line-height:1.18;letter-spacing:-.7px;color:#ffffff;font-weight:900;">${escapeHtml(config.title)}</h1>
-              <div style="max-width:480px;color:#ddd6fe;font-size:13px;line-height:1.65;">Thông báo dành riêng cho tài khoản Duchi Locket của bạn.</div>
+            <td class="hero" style="padding:27px 28px 25px;background:#6d28d9;background-image:linear-gradient(135deg,#7c3aed 0%,#5b21b6 48%,#312e81 100%);">
+              <span style="display:inline-block;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.20);color:#ffffff;font-size:10px;font-weight:900;letter-spacing:1px;text-transform:uppercase;">${escapeHtml(config.badge)}</span>
+              <h1 class="hero-title" style="margin:14px 0 8px;font-size:29px;line-height:1.18;letter-spacing:-.65px;color:#ffffff;font-weight:900;">${escapeHtml(config.title)}</h1>
+              <div style="max-width:470px;color:#e9ddff;font-size:12px;line-height:1.55;">${escapeHtml(heroSubline)}</div>
             </td>
           </tr>
 
           <tr>
-            <td class="email-body" style="padding:30px 30px 27px;background:#ffffff;">
-              <p class="email-copy" style="margin:0;color:#4b5563;font-size:15px;line-height:1.78;">
+            <td class="email-body" style="padding:26px 28px 24px;background:#ffffff;">
+              <p class="email-copy" style="margin:0;color:#4b5563;font-size:15px;line-height:1.74;">
                 Chào <strong style="color:#111827;">${escapeHtml(name)}</strong>, ${escapeHtml(introText)} ${escapeHtml(config.followup)}
               </p>
 
               ${noteHtml}
 
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top:24px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:18px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top:21px;background:#fafafa;border:1px solid #ececf1;border-radius:16px;">
                 <tr>
-                  <td class="status-cell" style="padding:18px 19px;">
+                  <td class="status-cell" style="padding:15px 17px;">
                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                       <tr>
-                        <td width="38" valign="top" style="width:38px;">
-                          <div style="width:30px;height:30px;line-height:30px;text-align:center;border-radius:10px;background:${escapeHtml(config.statusColor)}1a;color:${escapeHtml(config.statusColor)};font-size:16px;font-weight:900;">✓</div>
+                        <td width="36" valign="middle" style="width:36px;">
+                          <div style="width:28px;height:28px;line-height:28px;text-align:center;border-radius:9px;background:${escapeHtml(config.statusColor)}1a;color:${escapeHtml(config.statusColor)};font-size:15px;font-weight:900;">✓</div>
                         </td>
-                        <td valign="top" style="padding-left:10px;">
-                          <div style="font-size:10px;font-weight:900;color:#8b93a5;text-transform:uppercase;letter-spacing:.9px;">Trạng thái tài khoản</div>
-                          <div style="margin-top:6px;color:${escapeHtml(config.statusColor)};font-size:16px;line-height:1.35;font-weight:900;">${escapeHtml(config.statusLabel)}</div>
-                          ${safeUid ? `<div style="margin-top:8px;color:#a0a7b5;font-size:10px;line-height:1.5;font-family:Consolas,Monaco,monospace;word-break:break-all;">UID · ${escapeHtml(safeUid)}</div>` : ""}
+                        <td valign="middle" style="padding-left:9px;">
+                          <div style="font-size:10px;font-weight:900;color:#8b93a5;text-transform:uppercase;letter-spacing:.85px;">${escapeHtml(statusHeading)}</div>
+                          <div style="margin-top:4px;color:${escapeHtml(config.statusColor)};font-size:15px;line-height:1.3;font-weight:900;">${escapeHtml(config.statusLabel)}</div>
+                          ${showUid ? `<div style="margin-top:6px;color:#a0a7b5;font-size:10px;line-height:1.45;font-family:Consolas,Monaco,monospace;word-break:break-all;">UID · ${escapeHtml(safeUid)}</div>` : ""}
                         </td>
                       </tr>
                     </table>
@@ -270,29 +288,24 @@ function buildAdminApologyEmail({
                 </tr>
               </table>
 
-              <table class="cta-table" role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-top:25px;">
+              <table class="cta-table" role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-top:22px;">
                 <tr>
-                  <td class="cta-cell" style="border-radius:14px;background:#111827;background-image:linear-gradient(90deg,#111827 0%,#312e81 100%);box-shadow:0 9px 22px rgba(49,46,129,.18);">
+                  <td class="cta-cell" style="border-radius:14px;background:#6d28d9;background-image:linear-gradient(90deg,#7c3aed 0%,#4f46e5 100%);box-shadow:0 9px 22px rgba(79,70,229,.22);">
                     <a class="cta-link" href="${escapeHtml(appUrl)}" style="display:inline-block;padding:14px 24px;color:#ffffff;text-decoration:none;font-size:14px;line-height:1.2;font-weight:900;border-radius:14px;">Mở Duchi Locket&nbsp;&nbsp;→</a>
                   </td>
                 </tr>
               </table>
+              <div style="margin-top:8px;color:#a0a7b5;font-size:10px;line-height:1.45;">${escapeHtml(appHost)}</div>
 
-              <p style="margin:27px 0 0;color:#4b5563;font-size:14px;line-height:1.72;">${escapeHtml(config.closing)}</p>
-
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top:21px;background:#fafafa;border-radius:14px;">
-                <tr>
-                  <td style="padding:14px 15px;color:#8b93a5;font-size:11px;line-height:1.65;">${escapeHtml(config.detail)}</td>
-                </tr>
-              </table>
+              <p style="margin:23px 0 0;color:#4b5563;font-size:14px;line-height:1.68;">${escapeHtml(config.closing)}</p>
             </td>
           </tr>
 
           <tr>
-            <td class="email-footer" style="padding:19px 28px;background:#f8f8fb;border-top:1px solid #eeedf3;">
+            <td class="email-footer" style="padding:17px 26px;background:#f8f8fb;border-top:1px solid #eeedf3;">
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                 <tr>
-                  <td valign="top" style="color:#9299a8;font-size:10px;line-height:1.7;">
+                  <td valign="top" style="color:#9299a8;font-size:10px;line-height:1.65;">
                     <strong style="color:#6b7280;">Duchi Locket Security</strong><br>
                     Email tự động, bạn không cần phản hồi. Duchi Locket không bao giờ yêu cầu mật khẩu, mã OTP hoặc thông tin đăng nhập qua email.
                   </td>
@@ -302,7 +315,7 @@ function buildAdminApologyEmail({
           </tr>
         </table>
 
-        <div style="max-width:620px;margin:13px auto 0;text-align:center;color:#a6acb8;font-size:10px;line-height:1.5;">© Duchi Locket · Thông báo hệ thống</div>
+        <div style="max-width:600px;margin:11px auto 0;text-align:center;color:#a6acb8;font-size:10px;line-height:1.45;">© Duchi Locket · Thông báo hệ thống</div>
       </td>
     </tr>
   </table>
