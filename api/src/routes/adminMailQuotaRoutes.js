@@ -114,8 +114,10 @@ async function fetchMailQuota() {
   return {
     remaining: Math.floor(remaining),
     dailyLimit: Number.isFinite(dailyLimit) && dailyLimit > 0 ? Math.floor(dailyLimit) : null,
+    senderEmail: clean(data.senderEmail, 320).toLowerCase() || null,
     checkedAt: data.checkedAt || new Date().toISOString(),
     provider: "gmail-apps-script",
+    quotaScope: "sender-account",
   };
 }
 
