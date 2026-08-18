@@ -18,6 +18,7 @@ const router = express.Router();
 const OTP_TTL_MINUTES = 10;
 const RESEND_COOLDOWN_SECONDS = 60;
 const MAX_VERIFY_ATTEMPTS = 5;
+const RESET_TOKEN_TTL_MINUTES = 5;
 const JWT_SECRET = String(process.env.JWT_SECRET || "").trim();
 let schemaPromise = null;
 
@@ -45,34 +46,56 @@ async function ensureRecoverySchema() {
     throw error;
   }
   if (schemaPromise) return schemaPromise;
-  schemaPromise = sql`
-    CREATE TABLE IF NOT EXISTS admin_pin_recovery (
-      uid TEXT PRIMARY KEY,
-      email TEXT NOT NULL,
-      otp_hash TEXT NOT NULL,
-      expires_at TIMESTAMPTZ NOT NULL,
-      resend_after TIMESTAMPTZ NOT NULL,
-      attempts INTEGER NOT NULL DEFAULT 0,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `.catch((error) => {
+
+  schemaPromise = (async () => {
+    await sql`
+      CREATE TABLE IF NOT EXISTS admin_pin_recovery (
+        uid TEXT PRIMARY KEY,
+        email TEXT NOT NULL,
+        otp_hash TEXT NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        resend_after TIMESTAMPTZ NOT NULL,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        verified_token_hash TEXT,
+        verified_expires_at TIMESTAMPTZ,
+        verified_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+    await sql`ALTER TABLE admin_pin_recovery ADD COLUMN IF NOT EXISTS verified_token_hash TEXT`;
+    await sql`ALTER TABLE admin_pin_recovery ADD COLUMN IF NOT EXISTS verified_expires_at TIMESTAMPTZ`;
+    await sql`ALTER TABLE admin_pin_recovery ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ`;
+  })().catch((error) => {
     schemaPromise = null;
     throw error;
   });
+
   return schemaPromise;
 }
 
-function hashOtp(uid, otp) {
+function assertJwtSecret() {
   if (JWT_SECRET.length < 32) {
     const error = new Error("JWT_SECRET chưa được cấu hình an toàn.");
     error.code = "JWT_SECRET_INVALID";
     error.status = 500;
     throw error;
   }
+}
+
+function hashOtp(uid, otp) {
+  assertJwtSecret();
   return crypto
     .createHmac("sha256", JWT_SECRET)
-    .update(`${uid}:${otp}`)
+    .update(`otp:${uid}:${otp}`)
+    .digest("hex");
+}
+
+function hashResetToken(uid, token) {
+  assertJwtSecret();
+  return crypto
+    .createHmac("sha256", JWT_SECRET)
+    .update(`reset:${uid}:${token}`)
     .digest("hex");
 }
 
@@ -334,7 +357,7 @@ async function sendRecoveryEmail({ email, otp, idempotencyKey }) {
     method: "POST",
     headers: {
       "Content-Type": "text/plain;charset=utf-8",
-      "User-Agent": "Huy-Locket-Admin-Pin-Recovery/1.0",
+      "User-Agent": "Huy-Locket-Admin-Pin-Recovery/2.0",
     },
     body: JSON.stringify({
       secret,
@@ -362,6 +385,69 @@ async function sendRecoveryEmail({ email, otp, idempotencyKey }) {
     throw error;
   }
   return data;
+}
+
+async function loadOtpRecovery(sql, uid) {
+  const rows = await sql`
+    SELECT otp_hash, expires_at, attempts
+    FROM admin_pin_recovery
+    WHERE uid = ${uid}
+    LIMIT 1
+  `;
+  return rows[0] || null;
+}
+
+async function verifyOtp(req, sql, otp) {
+  const recovery = await loadOtpRecovery(sql, req.adminUid);
+  if (!recovery) {
+    const error = new Error("Chưa có yêu cầu khôi phục PIN. Hãy gửi OTP trước.");
+    error.code = "RECOVERY_NOT_FOUND";
+    error.status = 404;
+    throw error;
+  }
+
+  if (new Date(recovery.expires_at).getTime() <= Date.now()) {
+    await sql`DELETE FROM admin_pin_recovery WHERE uid = ${req.adminUid}`;
+    const error = new Error("OTP đã hết hạn. Hãy yêu cầu mã mới.");
+    error.code = "OTP_EXPIRED";
+    error.status = 401;
+    throw error;
+  }
+
+  const attempts = Number(recovery.attempts || 0);
+  if (attempts >= MAX_VERIFY_ATTEMPTS) {
+    await sql`DELETE FROM admin_pin_recovery WHERE uid = ${req.adminUid}`;
+    const error = new Error("Đã nhập sai OTP quá nhiều lần. Hãy yêu cầu mã mới.");
+    error.code = "OTP_ATTEMPTS_EXCEEDED";
+    error.status = 429;
+    throw error;
+  }
+
+  const candidateHash = hashOtp(req.adminUid, otp);
+  if (!safeEqualHex(candidateHash, recovery.otp_hash)) {
+    const nextAttempts = attempts + 1;
+    if (nextAttempts >= MAX_VERIFY_ATTEMPTS) {
+      await sql`DELETE FROM admin_pin_recovery WHERE uid = ${req.adminUid}`;
+    } else {
+      await sql`
+        UPDATE admin_pin_recovery
+        SET attempts = ${nextAttempts}, updated_at = NOW()
+        WHERE uid = ${req.adminUid}
+      `;
+    }
+    await audit(req, "ADMIN_PIN_RECOVERY_OTP_INVALID", `Invalid recovery OTP attempt ${nextAttempts}/${MAX_VERIFY_ATTEMPTS}`, "failure");
+    const error = new Error(
+      nextAttempts >= MAX_VERIFY_ATTEMPTS
+        ? "OTP không đúng và đã hết số lần thử. Hãy yêu cầu mã mới."
+        : `OTP không chính xác. Còn ${MAX_VERIFY_ATTEMPTS - nextAttempts} lần thử.`,
+    );
+    error.code = "INVALID_RECOVERY_OTP";
+    error.status = 401;
+    error.remainingAttempts = Math.max(0, MAX_VERIFY_ATTEMPTS - nextAttempts);
+    throw error;
+  }
+
+  return recovery;
 }
 
 router.use(requireAdminIdentity);
@@ -393,10 +479,12 @@ router.post("/pin/recovery/request", async (req, res) => {
 
     await sql`
       INSERT INTO admin_pin_recovery (
-        uid, email, otp_hash, expires_at, resend_after, attempts, created_at, updated_at
+        uid, email, otp_hash, expires_at, resend_after, attempts,
+        verified_token_hash, verified_expires_at, verified_at, created_at, updated_at
       ) VALUES (
         ${req.adminUid}, ${req.adminEmail}, ${otpHash},
-        NOW() + INTERVAL '10 minutes', NOW() + INTERVAL '60 seconds', 0, NOW(), NOW()
+        NOW() + INTERVAL '10 minutes', NOW() + INTERVAL '60 seconds', 0,
+        NULL, NULL, NULL, NOW(), NOW()
       )
       ON CONFLICT (uid) DO UPDATE SET
         email = EXCLUDED.email,
@@ -404,6 +492,9 @@ router.post("/pin/recovery/request", async (req, res) => {
         expires_at = EXCLUDED.expires_at,
         resend_after = EXCLUDED.resend_after,
         attempts = 0,
+        verified_token_hash = NULL,
+        verified_expires_at = NULL,
+        verified_at = NULL,
         updated_at = NOW()
     `;
 
@@ -443,75 +534,134 @@ router.post("/pin/recovery/verify", async (req, res) => {
     await ensureRecoverySchema();
     const sql = getSql();
     const otp = clean(req.body?.otp, 12);
-    const newPin = clean(req.body?.newPin, 12);
+    const legacyNewPin = clean(req.body?.newPin, 12);
 
     if (!/^\d{6}$/.test(otp)) {
       return res.status(400).json({ success: false, code: "INVALID_OTP_FORMAT", error: "OTP phải gồm đúng 6 chữ số." });
+    }
+
+    await verifyOtp(req, sql, otp);
+
+    // Backward compatibility for the previous frontend while Vercel rolls out
+    // both projects. The new UI never sends newPin in this step.
+    if (legacyNewPin) {
+      if (!/^\d{4,8}$/.test(legacyNewPin)) {
+        return res.status(400).json({ success: false, code: "INVALID_PIN_FORMAT", error: "PIN mới phải gồm từ 4 đến 8 chữ số." });
+      }
+      await setAdminPin(req.adminUid, legacyNewPin, req.adminRole);
+      await sql`DELETE FROM admin_pin_recovery WHERE uid = ${req.adminUid}`;
+      await sql`DELETE FROM admin_sessions WHERE uid = ${req.adminUid}`;
+      await audit(req, "ADMIN_PIN_RECOVERY_SUCCESS", "Legacy admin PIN reset through verified email OTP");
+      return res.status(200).json({
+        success: true,
+        legacyCompleted: true,
+        message: "Đã đặt PIN quản trị mới. Hãy dùng PIN mới để mở khóa trung tâm quản trị.",
+      });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const resetTokenHash = hashResetToken(req.adminUid, resetToken);
+    await sql`
+      UPDATE admin_pin_recovery
+      SET verified_token_hash = ${resetTokenHash},
+          verified_expires_at = NOW() + INTERVAL '5 minutes',
+          verified_at = NOW(),
+          attempts = 0,
+          updated_at = NOW()
+      WHERE uid = ${req.adminUid}
+    `;
+
+    await audit(req, "ADMIN_PIN_RECOVERY_OTP_VERIFIED", "Recovery OTP verified; PIN reset gate unlocked");
+    return res.status(200).json({
+      success: true,
+      verified: true,
+      resetToken,
+      resetExpiresInSeconds: RESET_TOKEN_TTL_MINUTES * 60,
+      message: "OTP chính xác. Bây giờ bạn có thể tạo PIN quản trị mới.",
+    });
+  } catch (error) {
+    console.error("Admin PIN recovery verify failed:", error?.message || "unknown");
+    await audit(req, "ADMIN_PIN_RECOVERY_VERIFY_FAILED", error?.code || error?.message || "unknown", "failure");
+    return res.status(error?.status || 500).json({
+      success: false,
+      code: error?.code || "PIN_RECOVERY_VERIFY_FAILED",
+      remainingAttempts: error?.remainingAttempts,
+      error: error?.message || "Không thể xác minh OTP khôi phục PIN.",
+    });
+  }
+});
+
+router.post("/pin/recovery/complete", async (req, res) => {
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+  try {
+    await ensureRecoverySchema();
+    const sql = getSql();
+    const resetToken = clean(req.body?.resetToken, 256);
+    const newPin = clean(req.body?.newPin, 12);
+
+    if (!/^[a-f0-9]{64}$/i.test(resetToken)) {
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_RESET_TOKEN",
+        error: "Phiên xác minh OTP không hợp lệ. Hãy xác minh OTP lại.",
+      });
     }
     if (!/^\d{4,8}$/.test(newPin)) {
       return res.status(400).json({ success: false, code: "INVALID_PIN_FORMAT", error: "PIN mới phải gồm từ 4 đến 8 chữ số." });
     }
 
     const rows = await sql`
-      SELECT otp_hash, expires_at, attempts
+      SELECT verified_token_hash, verified_expires_at
       FROM admin_pin_recovery
       WHERE uid = ${req.adminUid}
       LIMIT 1
     `;
     const recovery = rows[0];
-    if (!recovery) {
-      return res.status(404).json({ success: false, code: "RECOVERY_NOT_FOUND", error: "Chưa có yêu cầu khôi phục PIN. Hãy gửi OTP trước." });
-    }
-
-    if (new Date(recovery.expires_at).getTime() <= Date.now()) {
-      await sql`DELETE FROM admin_pin_recovery WHERE uid = ${req.adminUid}`;
-      return res.status(401).json({ success: false, code: "OTP_EXPIRED", error: "OTP đã hết hạn. Hãy yêu cầu mã mới." });
-    }
-
-    const attempts = Number(recovery.attempts || 0);
-    if (attempts >= MAX_VERIFY_ATTEMPTS) {
-      await sql`DELETE FROM admin_pin_recovery WHERE uid = ${req.adminUid}`;
-      return res.status(429).json({ success: false, code: "OTP_ATTEMPTS_EXCEEDED", error: "Đã nhập sai OTP quá nhiều lần. Hãy yêu cầu mã mới." });
-    }
-
-    const candidateHash = hashOtp(req.adminUid, otp);
-    if (!safeEqualHex(candidateHash, recovery.otp_hash)) {
-      const nextAttempts = attempts + 1;
-      if (nextAttempts >= MAX_VERIFY_ATTEMPTS) {
-        await sql`DELETE FROM admin_pin_recovery WHERE uid = ${req.adminUid}`;
-      } else {
-        await sql`
-          UPDATE admin_pin_recovery
-          SET attempts = ${nextAttempts}, updated_at = NOW()
-          WHERE uid = ${req.adminUid}
-        `;
-      }
-      await audit(req, "ADMIN_PIN_RECOVERY_OTP_INVALID", `Invalid recovery OTP attempt ${nextAttempts}/${MAX_VERIFY_ATTEMPTS}`, "failure");
+    if (!recovery?.verified_token_hash || !recovery?.verified_expires_at) {
       return res.status(401).json({
         success: false,
-        code: "INVALID_RECOVERY_OTP",
-        remainingAttempts: Math.max(0, MAX_VERIFY_ATTEMPTS - nextAttempts),
-        error: nextAttempts >= MAX_VERIFY_ATTEMPTS
-          ? "OTP không đúng và đã hết số lần thử. Hãy yêu cầu mã mới."
-          : `OTP không chính xác. Còn ${MAX_VERIFY_ATTEMPTS - nextAttempts} lần thử.`,
+        code: "OTP_VERIFICATION_REQUIRED",
+        error: "Bạn phải xác minh OTP trước khi tạo PIN mới.",
+      });
+    }
+    if (new Date(recovery.verified_expires_at).getTime() <= Date.now()) {
+      await sql`
+        UPDATE admin_pin_recovery
+        SET verified_token_hash = NULL, verified_expires_at = NULL, verified_at = NULL, updated_at = NOW()
+        WHERE uid = ${req.adminUid}
+      `;
+      return res.status(401).json({
+        success: false,
+        code: "RESET_TOKEN_EXPIRED",
+        error: "Phiên đổi PIN đã hết hạn. Hãy xác minh OTP lại.",
+      });
+    }
+
+    const candidateHash = hashResetToken(req.adminUid, resetToken);
+    if (!safeEqualHex(candidateHash, recovery.verified_token_hash)) {
+      await audit(req, "ADMIN_PIN_RECOVERY_RESET_TOKEN_INVALID", "Invalid verified reset token", "failure");
+      return res.status(401).json({
+        success: false,
+        code: "RESET_TOKEN_INVALID",
+        error: "Phiên đổi PIN không hợp lệ. Hãy xác minh OTP lại.",
       });
     }
 
     await setAdminPin(req.adminUid, newPin, req.adminRole);
     await sql`DELETE FROM admin_pin_recovery WHERE uid = ${req.adminUid}`;
     await sql`DELETE FROM admin_sessions WHERE uid = ${req.adminUid}`;
-    await audit(req, "ADMIN_PIN_RECOVERY_SUCCESS", "Admin PIN reset through verified email OTP");
+    await audit(req, "ADMIN_PIN_RECOVERY_SUCCESS", "Admin PIN reset after separate OTP verification step");
 
     return res.status(200).json({
       success: true,
       message: "Đã đặt PIN quản trị mới. Hãy dùng PIN mới để mở khóa trung tâm quản trị.",
     });
   } catch (error) {
-    console.error("Admin PIN recovery verify failed:", error?.message || "unknown");
+    console.error("Admin PIN recovery completion failed:", error?.message || "unknown");
     await audit(req, "ADMIN_PIN_RECOVERY_FAILED", error?.code || error?.message || "unknown", "failure");
     return res.status(error?.status || 500).json({
       success: false,
-      code: error?.code || "PIN_RECOVERY_VERIFY_FAILED",
+      code: error?.code || "PIN_RECOVERY_COMPLETE_FAILED",
       error: error?.message || "Không thể đặt lại PIN quản trị.",
     });
   }
