@@ -14,8 +14,6 @@ const CACHE_TTL_MS = 30_000;
 const STALE_CACHE_TTL_MS = 15 * 60_000;
 const RELAY_TIMEOUT_MS = 25_000;
 const RELAY_RETRY_TIMEOUT_MS = 15_000;
-// Stable Web App deployment used by Duchi Locket Mail. Editing/deploying a new
-// version of the same Apps Script deployment keeps this /exec URL unchanged.
 const DUCHI_MAIL_RELAY_URL = "https://script.google.com/macros/s/AKfycbzJlwGwUF8ds799stZlhW31eZX_eM5TyllVr-la_jbw9WL44BxoKQAwlIwGPvOp3Wzy/exec";
 let quotaCache = null;
 
@@ -70,28 +68,68 @@ async function requireAdminIdentity(req, res, next) {
   }
 }
 
+async function getQuotaRequest(endpoint, timeoutMs) {
+  const separator = endpoint.includes("?") ? "&" : "?";
+  return fetch(`${endpoint}${separator}action=quota`, {
+    method: "GET",
+    redirect: "follow",
+    headers: {
+      "User-Agent": "Duchi-Locket-Mail-Quota/1.3",
+      "Cache-Control": "no-cache",
+    },
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+}
+
 async function postQuotaRequest(endpoint, secret, timeoutMs) {
   return fetch(endpoint, {
     method: "POST",
     redirect: "follow",
     headers: {
       "Content-Type": "text/plain;charset=utf-8",
-      "User-Agent": "Duchi-Locket-Mail-Quota/1.2",
+      "User-Agent": "Duchi-Locket-Mail-Quota/1.3",
     },
     body: JSON.stringify({ secret, action: "quota" }),
     signal: AbortSignal.timeout(timeoutMs),
   });
 }
 
-async function fetchQuotaResponse(endpoint, secret) {
+async function parseRelayResponse(response) {
+  const raw = await response.text();
+  let data = null;
   try {
-    return await postQuotaRequest(endpoint, secret, RELAY_TIMEOUT_MS);
+    data = raw ? JSON.parse(raw) : null;
+  } catch {
+    data = null;
+  }
+  return { response, raw, data };
+}
+
+function hasValidQuota(data) {
+  const remaining = Number(data?.remaining);
+  return data?.ok === true && Number.isFinite(remaining) && remaining >= 0;
+}
+
+async function fetchQuotaResponse(endpoint, secret) {
+  // Prefer GET for quota because the current Apps Script deployment has shown
+  // inconsistent doPost versioning while doGet reliably serves the new code.
+  try {
+    const getParsed = await parseRelayResponse(await getQuotaRequest(endpoint, RELAY_TIMEOUT_MS));
+    if (hasValidQuota(getParsed.data)) return getParsed;
+  } catch (error) {
+    if (!isTimeoutError(error)) {
+      console.warn("Gmail quota GET probe failed; falling back to POST:", error?.message || "unknown");
+    }
+  }
+
+  try {
+    return await parseRelayResponse(await postQuotaRequest(endpoint, secret, RELAY_TIMEOUT_MS));
   } catch (error) {
     if (!isTimeoutError(error)) throw error;
     console.warn("Gmail quota relay timed out once; retrying with a fresh request.");
     await new Promise((resolve) => setTimeout(resolve, 250));
     try {
-      return await postQuotaRequest(endpoint, secret, RELAY_RETRY_TIMEOUT_MS);
+      return await parseRelayResponse(await postQuotaRequest(endpoint, secret, RELAY_RETRY_TIMEOUT_MS));
     } catch (retryError) {
       if (!isTimeoutError(retryError)) throw retryError;
       const timeoutError = new Error("Google Apps Script phản hồi quá chậm. Hệ thống đã thử lại nhưng vẫn hết thời gian chờ.");
@@ -103,9 +141,6 @@ async function fetchQuotaResponse(endpoint, secret) {
 }
 
 async function fetchMailQuota() {
-  // Quota must be read from the currently deployed Duchi Locket Mail Web App.
-  // The general GMAIL_APPS_SCRIPT_URL may still point to an older relay, so do
-  // not let a stale Vercel variable make quota checks hit the wrong script.
   const endpoint = clean(DUCHI_MAIL_RELAY_URL, 1000);
   const secret = clean(process.env.GMAIL_APPS_SCRIPT_SECRET, 500);
 
@@ -122,15 +157,7 @@ async function fetchMailQuota() {
     throw error;
   }
 
-  const response = await fetchQuotaResponse(endpoint, secret);
-
-  const raw = await response.text();
-  let data = null;
-  try {
-    data = raw ? JSON.parse(raw) : null;
-  } catch {
-    data = null;
-  }
+  const { response, data } = await fetchQuotaResponse(endpoint, secret);
 
   if (!response.ok || data?.ok !== true) {
     const message = clean(data?.message, 500);
@@ -138,7 +165,7 @@ async function fetchMailQuota() {
       || (data?.code === "SEND_FAILED" && /invalid email|recipient|to\b/i.test(message));
     const error = new Error(
       isOldRelay
-        ? "Google Apps Script gửi mail chưa hỗ trợ đọc quota. Cần cập nhật Code.gs lên bản mới."
+        ? "Google Apps Script đang dùng doPost cũ. Hãy cập nhật doGet(e) để trả quota khi action=quota."
         : (message || "Không đọc được quota Gmail từ Google Apps Script."),
     );
     error.code = isOldRelay ? "MAIL_QUOTA_RELAY_UPDATE_REQUIRED" : (data?.code || "MAIL_QUOTA_FAILED");
@@ -149,8 +176,8 @@ async function fetchMailQuota() {
   const remaining = Number(data.remaining);
   const dailyLimit = Number(data.dailyLimit);
   if (!Number.isFinite(remaining) || remaining < 0) {
-    const error = new Error("Google Apps Script không trả về quota hợp lệ.");
-    error.code = "MAIL_QUOTA_INVALID_RESPONSE";
+    const error = new Error("Google Apps Script chưa trả quota qua GET. Cần cập nhật doGet(e) cho action=quota.");
+    error.code = "MAIL_QUOTA_GET_UPDATE_REQUIRED";
     error.status = 502;
     throw error;
   }
