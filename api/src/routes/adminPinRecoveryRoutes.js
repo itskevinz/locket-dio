@@ -103,6 +103,13 @@ function escapeHtml(value) {
     .replace(/'/g, "&#039;");
 }
 
+function publicAppUrl() {
+  return clean(
+    process.env.PUBLIC_WEB_URL || process.env.APP_PUBLIC_URL || "https://duchi.vercel.app",
+    500,
+  ).replace(/\/+$/, "");
+}
+
 async function requireAdminIdentity(req, res, next) {
   const authorization = req.headers.authorization;
   if (!authorization?.startsWith("Bearer ")) {
@@ -171,7 +178,7 @@ async function audit(req, action, details, status = "success") {
 async function sendRecoveryEmail({ email, otp, idempotencyKey }) {
   const endpoint = clean(process.env.GMAIL_APPS_SCRIPT_URL, 1000);
   const secret = clean(process.env.GMAIL_APPS_SCRIPT_SECRET, 500);
-  const fromName = clean(process.env.GMAIL_FROM_NAME, 120) || "Huy Locket";
+  const fromName = clean(process.env.GMAIL_FROM_NAME, 120) || "Duchi Locket";
 
   if (!endpoint || !secret) {
     const error = new Error("Gmail chưa được cấu hình trên hệ thống.");
@@ -186,40 +193,142 @@ async function sendRecoveryEmail({ email, otp, idempotencyKey }) {
     throw error;
   }
 
-  const subject = "Huy Locket | Mã OTP khôi phục PIN quản trị";
+  const appUrl = publicAppUrl();
+  const logoUrl = `${appUrl}/android-chrome-192x192.png`;
+  let appHost = appUrl;
+  try {
+    appHost = new URL(appUrl).hostname;
+  } catch {
+    appHost = appUrl.replace(/^https?:\/\//i, "").replace(/\/$/, "");
+  }
+
+  const subject = "Duchi Locket | Mã OTP khôi phục PIN quản trị";
   const text = [
-    "Huy Locket Security",
+    "Duchi Locket Security",
+    "Thông báo chính thức từ hệ thống",
     "",
-    `Mã OTP khôi phục PIN quản trị của bạn là: ${otp}`,
-    `Mã có hiệu lực trong ${OTP_TTL_MINUTES} phút.`,
+    `Có yêu cầu đặt lại mã PIN quản trị cho ${email}.`,
+    `Mã OTP của bạn là: ${otp}`,
+    `Mã có hiệu lực trong ${OTP_TTL_MINUTES} phút và tối đa ${MAX_VERIFY_ATTEMPTS} lần nhập sai.`,
     "",
     "Nếu bạn không yêu cầu thao tác này, hãy bỏ qua email và kiểm tra lại phiên đăng nhập quản trị.",
     "Không chia sẻ mã OTP này với bất kỳ ai.",
+    "",
+    `Mở Duchi Locket: ${appUrl}`,
   ].join("\n");
+
   const html = `<!doctype html>
 <html lang="vi">
-<body style="margin:0;padding:0;background:#f4f4f8;font-family:Arial,Helvetica,sans-serif;color:#111827;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="padding:24px 10px;background:#f4f4f8;">
-    <tr><td align="center">
-      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;background:#ffffff;border:1px solid #e5e7eb;border-radius:24px;overflow:hidden;box-shadow:0 16px 40px rgba(15,23,42,.08);">
-        <tr><td style="padding:24px 26px;background:linear-gradient(135deg,#7c3aed,#ec4899);color:#ffffff;">
-          <div style="font-size:11px;font-weight:900;letter-spacing:1.2px;">HUY LOCKET · SECURITY</div>
-          <h1 style="margin:10px 0 0;font-size:25px;line-height:1.25;">Khôi phục PIN quản trị</h1>
-        </td></tr>
-        <tr><td style="padding:26px;">
-          <p style="margin:0;color:#4b5563;font-size:15px;line-height:1.7;">Có yêu cầu đặt lại mã PIN quản trị cho <strong style="color:#111827;">${escapeHtml(email)}</strong>.</p>
-          <div style="margin:24px 0;padding:20px;text-align:center;border:1px solid #ddd6fe;background:#faf7ff;border-radius:18px;">
-            <div style="font-size:11px;font-weight:900;color:#7c3aed;letter-spacing:1px;">MÃ OTP</div>
-            <div style="margin-top:8px;font-family:Consolas,Monaco,monospace;font-size:34px;letter-spacing:8px;font-weight:900;color:#111827;">${escapeHtml(otp)}</div>
-            <div style="margin-top:9px;color:#6b7280;font-size:12px;">Hết hạn sau ${OTP_TTL_MINUTES} phút · Tối đa ${MAX_VERIFY_ATTEMPTS} lần nhập sai</div>
-          </div>
-          <p style="margin:0;color:#6b7280;font-size:13px;line-height:1.65;">Không chia sẻ OTP. Nếu bạn không yêu cầu đặt lại PIN, hãy bỏ qua email này.</p>
-        </td></tr>
-      </table>
-    </td></tr>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
+  <title>${escapeHtml(subject)}</title>
+  <style>
+    @media only screen and (max-width:620px) {
+      .email-shell { padding:8px 4px 6px !important; }
+      .email-card { border-radius:21px !important; }
+      .brand-row { padding:15px 18px !important; }
+      .hero { padding:21px 20px 20px !important; }
+      .hero-title { font-size:24px !important; line-height:1.2 !important; margin:12px 0 7px !important; }
+      .email-body { padding:21px 20px 17px !important; }
+      .email-copy { font-size:15px !important; line-height:1.7 !important; }
+      .otp-code { font-size:31px !important; letter-spacing:7px !important; }
+      .cta-table { width:100% !important; }
+      .cta-cell { width:100% !important; text-align:center !important; }
+      .cta-link { display:block !important; padding:15px 18px !important; }
+      .domain-label { text-align:center !important; font-size:11px !important; }
+      .email-footer { padding:15px 20px !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background:#f3f2f8;font-family:Arial,Helvetica,sans-serif;color:#111827;-webkit-text-size-adjust:100%;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">Mã OTP khôi phục PIN quản trị · Duchi Locket</div>
+
+  <table class="email-shell" role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#f3f2f8;padding:22px 10px 16px;">
+    <tr>
+      <td align="center">
+        <table class="email-card" role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:600px;background:#ffffff;border:1px solid #e7e5ef;border-radius:26px;overflow:hidden;box-shadow:0 16px 44px rgba(49,46,129,.10);">
+          <tr>
+            <td class="brand-row" style="padding:17px 26px;background:#ffffff;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td width="46" valign="middle" style="width:46px;">
+                    <img src="${escapeHtml(logoUrl)}" width="38" height="38" alt="Duchi Locket" style="display:block;width:38px;height:38px;border-radius:12px;border:1px solid #eeeaf8;object-fit:cover;">
+                  </td>
+                  <td valign="middle" style="padding-left:9px;">
+                    <div style="color:#111827;font-size:15px;line-height:1.15;font-weight:900;letter-spacing:.2px;">DUCHI LOCKET</div>
+                    <div style="margin-top:4px;color:#9aa1ad;font-size:10px;line-height:1.3;">Thông báo chính thức từ hệ thống</div>
+                  </td>
+                  <td width="18" align="right" valign="middle"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#22c55e;"></span></td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="hero" style="padding:23px 26px 22px;background:#5b2cc6;background-image:linear-gradient(110deg,#6d28d9 0%,#4f2fb8 100%);">
+              <span style="display:inline-block;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.20);color:#ffffff;font-size:10px;font-weight:900;letter-spacing:1px;text-transform:uppercase;">BẢO MẬT</span>
+              <h1 class="hero-title" style="margin:13px 0 7px;font-size:27px;line-height:1.2;letter-spacing:-.55px;color:#ffffff;font-weight:900;">Khôi phục PIN quản trị</h1>
+              <div style="max-width:470px;color:#e9ddff;font-size:12px;line-height:1.55;">Mã xác minh dành riêng cho yêu cầu đặt lại PIN quản trị của bạn.</div>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="email-body" style="padding:25px 28px 19px;background:#ffffff;">
+              <p class="email-copy" style="margin:0;color:#4b5563;font-size:15px;line-height:1.74;">
+                Có yêu cầu đặt lại mã PIN quản trị cho <strong style="color:#111827;">${escapeHtml(email)}</strong>. Nhập mã bên dưới vào trang Duchi Locket để tiếp tục.
+              </p>
+
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top:21px;background:#faf8ff;border:1px solid #e8e3ff;border-radius:16px;">
+                <tr>
+                  <td align="center" style="padding:20px 16px 18px;">
+                    <div style="font-size:10px;font-weight:900;color:#7c3aed;text-transform:uppercase;letter-spacing:1px;">MÃ OTP</div>
+                    <div class="otp-code" style="margin-top:9px;color:#111827;font-family:Consolas,Monaco,monospace;font-size:35px;line-height:1.2;font-weight:900;letter-spacing:9px;">${escapeHtml(otp)}</div>
+                    <div style="margin-top:11px;color:#8b93a5;font-size:11px;line-height:1.5;">Hết hạn sau ${OTP_TTL_MINUTES} phút&nbsp;&nbsp;·&nbsp;&nbsp;Tối đa ${MAX_VERIFY_ATTEMPTS} lần nhập sai</div>
+                  </td>
+                </tr>
+              </table>
+
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top:16px;background:#fafafa;border:1px solid #ececf1;border-radius:16px;">
+                <tr>
+                  <td style="padding:15px 17px;">
+                    <div style="font-size:10px;font-weight:900;color:#8b93a5;text-transform:uppercase;letter-spacing:.85px;">TRẠNG THÁI BẢO MẬT</div>
+                    <div style="margin-top:5px;color:#6d28d9;font-size:14px;line-height:1.4;font-weight:900;">OTP đang hoạt động · Chỉ dùng một lần</div>
+                  </td>
+                </tr>
+              </table>
+
+              <table class="cta-table" role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-top:21px;">
+                <tr>
+                  <td class="cta-cell" style="border-radius:14px;background:#6d28d9;background-image:linear-gradient(90deg,#7c3aed 0%,#4f46e5 100%);box-shadow:0 9px 22px rgba(79,70,229,.22);">
+                    <a class="cta-link" href="${escapeHtml(appUrl)}" style="display:inline-block;padding:14px 24px;color:#ffffff;text-decoration:none;font-size:14px;line-height:1.2;font-weight:900;border-radius:14px;">Mở Duchi Locket&nbsp;&nbsp;→</a>
+                  </td>
+                </tr>
+              </table>
+              <div class="domain-label" style="margin-top:9px;color:#8b93a5;font-size:11px;line-height:1.4;font-weight:700;letter-spacing:.1px;">${escapeHtml(appHost)}</div>
+
+              <p style="margin:18px 0 0;color:#6b7280;font-size:13px;line-height:1.68;">Không chia sẻ OTP với bất kỳ ai. Nếu bạn không yêu cầu đặt lại PIN, hãy bỏ qua email này và kiểm tra lại phiên đăng nhập quản trị.</p>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="email-footer" style="padding:15px 26px;background:#f8f8fb;border-top:1px solid #eeedf3;">
+              <div style="color:#7f8796;font-size:11px;line-height:1.6;">
+                <strong style="color:#5f6673;">Duchi Locket Security</strong><br>
+                Email tự động, bạn không cần phản hồi. OTP chỉ được gửi khi bạn chủ động yêu cầu khôi phục PIN; Duchi Locket không bao giờ yêu cầu bạn gửi lại OTP qua email.
+              </div>
+            </td>
+          </tr>
+        </table>
+
+        <div style="max-width:600px;margin:8px auto 0;text-align:center;color:#9ca3af;font-size:10px;line-height:1.4;">© Duchi Locket · Thông báo hệ thống</div>
+      </td>
+    </tr>
   </table>
 </body>
-</html>`;
+</html>`.trim();
 
   const response = await fetch(endpoint, {
     method: "POST",
