@@ -177,6 +177,8 @@ router.get(
         `Viewed ${result.count} Locket friend records${pageToken ? " (next page)" : ""}`,
       );
 
+      const targetPhotoURL = target.profile_picture || target.photoURL || null;
+
       return res.status(200).json({
         success: true,
         user: {
@@ -184,7 +186,7 @@ router.get(
           email: target.email || null,
           username: target.username || null,
           displayName: target.display_name || target.displayName || null,
-          photoURL: target.profile_picture || target.photoURL || null,
+          ...(targetPhotoURL ? { photoURL: targetPhotoURL } : {}),
         },
         friends: result.friends,
         count: result.count,

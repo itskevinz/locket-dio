@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
-  BellRing,
   CheckCircle2,
   Clock3,
   GitCommitHorizontal,
@@ -17,14 +16,13 @@ import {
 } from "lucide-react";
 import { adminRequest } from "@/services/AdminAuthService";
 import { SonnerSuccess, SonnerWarning } from "@/components/uikit/SonnerToast";
-import NotificationCenter from "@/features/SlotMonitor/NotificationCenter";
+import AdminMailCenter from "./AdminMailCenter";
 
 const TABS = [
   ["deploy", "Deploy & Rollback", GitCommitHorizontal],
   ["media", "Media Health", ImageOff],
-  ["mail", "Lịch sử thư", Mail],
+  ["mail", "Mail Center", Mail],
   ["audit", "Audit Timeline", Activity],
-  ["notifications", "Thông báo", BellRing],
 ];
 
 function formatTime(value) {
@@ -166,10 +164,10 @@ export default function AdminOpsSuite() {
               <div className="flex items-center gap-2">
                 <HeartPulse size={23} className="text-primary" />
                 <h2 className="text-xl font-black">Admin Operations Suite</h2>
-                <span className="badge badge-success badge-sm">7 nâng cấp</span>
+                <span className="badge badge-success badge-sm">6 nâng cấp</span>
               </div>
               <p className="mt-1 max-w-3xl text-sm text-base-content/60">
-                Mail Center, Safety/Undo, System Health, rollback, Notification Center, Media Health và Audit Timeline trong một khu vực quản trị.
+                Mail Center, Safety/Undo, System Health, rollback, Media Health và Audit Timeline trong một khu vực quản trị.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -277,20 +275,7 @@ export default function AdminOpsSuite() {
         )}
 
         {active === "mail" && (
-          <div className="p-4 sm:p-6">
-            <div className="mb-3 flex items-center gap-2 text-sm text-base-content/60"><Mail size={15} /> Lịch sử được lấy từ Audit Log; không lưu nội dung nhạy cảm hay token Gmail.</div>
-            <div className="max-h-[560px] space-y-2 overflow-y-auto">
-              {mailHistory.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-base-300 p-10 text-center text-sm text-base-content/50">Chưa có thư quản trị nào trong lịch sử gần đây.</div>
-              ) : mailHistory.map((item) => (
-                <article key={item.id || `${item.created_at}-${item.target_uid}`} className="rounded-2xl border border-base-300 p-3">
-                  <div className="flex flex-wrap items-center gap-2 text-xs"><span className={`badge badge-xs ${item.status === "failure" ? "badge-error" : "badge-success"}`}>{item.status === "failure" ? "FAILED" : "SENT"}</span><span className="font-mono">{item.target_uid || item.targetUid || "—"}</span><span className="ml-auto text-base-content/45">{formatTime(item.created_at || item.createdAt)}</span></div>
-                  <div className="mt-1 text-sm font-semibold">{item.details || "Admin mail"}</div>
-                  <div className="mt-1 text-[11px] text-base-content/50">Admin: {item.admin_uid || item.adminUid || "—"}</div>
-                </article>
-              ))}
-            </div>
-          </div>
+          <AdminMailCenter history={mailHistory} onSent={() => load({ quiet: true })} />
         )}
 
         {active === "audit" && (
@@ -311,8 +296,6 @@ export default function AdminOpsSuite() {
             </div>
           </div>
         )}
-
-        {active === "notifications" && <div className="pt-5"><NotificationCenter /></div>}
       </div>
 
       {rollbackTarget && (
