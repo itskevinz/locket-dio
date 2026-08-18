@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
-  BellRing,
   CheckCircle2,
   Clock3,
   GitCommitHorizontal,
@@ -17,14 +16,12 @@ import {
 } from "lucide-react";
 import { adminRequest } from "@/services/AdminAuthService";
 import { SonnerSuccess, SonnerWarning } from "@/components/uikit/SonnerToast";
-import NotificationCenter from "@/features/SlotMonitor/NotificationCenter";
 
 const TABS = [
   ["deploy", "Deploy & Rollback", GitCommitHorizontal],
   ["media", "Media Health", ImageOff],
   ["mail", "Lịch sử thư", Mail],
   ["audit", "Audit Timeline", Activity],
-  ["notifications", "Thông báo", BellRing],
 ];
 
 function formatTime(value) {
@@ -166,10 +163,10 @@ export default function AdminOpsSuite() {
               <div className="flex items-center gap-2">
                 <HeartPulse size={23} className="text-primary" />
                 <h2 className="text-xl font-black">Admin Operations Suite</h2>
-                <span className="badge badge-success badge-sm">7 nâng cấp</span>
+                <span className="badge badge-success badge-sm">6 nâng cấp</span>
               </div>
               <p className="mt-1 max-w-3xl text-sm text-base-content/60">
-                Mail Center, Safety/Undo, System Health, rollback, Notification Center, Media Health và Audit Timeline trong một khu vực quản trị.
+                Mail Center, Safety/Undo, System Health, rollback, Media Health và Audit Timeline trong một khu vực quản trị.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -311,8 +308,6 @@ export default function AdminOpsSuite() {
             </div>
           </div>
         )}
-
-        {active === "notifications" && <div className="pt-5"><NotificationCenter /></div>}
       </div>
 
       {rollbackTarget && (
