@@ -59,10 +59,73 @@ const compactGateCss = `
   .admin-vault--security-gate .admin-vault-success { min-height:17rem; }
 }
 @media (max-width:520px) {
-  .admin-vault.admin-vault--security-gate { padding-top:4.7rem; padding-bottom:4.5rem; }
-  .admin-vault--security-gate .admin-vault-keypad { gap:.42rem; margin:.52rem 0 .62rem; }
-  .admin-vault--security-gate .admin-vault-key { min-height:2.45rem; }
-  .admin-vault--security-gate .admin-vault-back { margin-top:.5rem; }
+  .admin-vault.admin-vault--security-gate {
+    padding-top:4.45rem;
+    padding-bottom:3.9rem;
+  }
+  .admin-vault--security-gate .admin-vault-card { border-radius:1.35rem; }
+  .admin-vault--security-gate .admin-vault-header { padding:.82rem .95rem .52rem; }
+  .admin-vault--security-gate .admin-vault-badges { margin-bottom:.45rem; }
+  .admin-vault--security-gate .admin-vault-mark {
+    width:3.15rem;
+    height:3.15rem;
+    margin-bottom:.5rem;
+    border-radius:.92rem;
+  }
+  .admin-vault--security-gate .admin-vault-mark svg { width:1.45rem; height:1.45rem; }
+  .admin-vault--security-gate .admin-vault-eyebrow { font-size:.52rem; }
+  .admin-vault--security-gate .admin-vault-header h1 {
+    margin:.18rem 0 .24rem;
+    font-size:1.48rem;
+    line-height:1.04;
+  }
+  .admin-vault--security-gate .admin-vault-header > p {
+    font-size:.66rem;
+    line-height:1.32;
+  }
+  .admin-vault--security-gate .admin-vault-identity {
+    margin-top:.5rem;
+    padding:.46rem .56rem;
+    gap:.55rem;
+  }
+  .admin-vault--security-gate .admin-vault-identity > span { width:1.72rem; height:1.72rem; }
+  .admin-vault--security-gate .admin-vault-panel { padding:.34rem .95rem .5rem; }
+  .admin-vault--security-gate .admin-vault-section-label { margin-bottom:.45rem; }
+  .admin-vault--security-gate .admin-vault-label { margin-bottom:.28rem; font-size:.62rem; }
+  .admin-vault--security-gate .admin-vault-input {
+    height:3rem;
+    border-radius:.82rem;
+    font-size:1rem;
+  }
+  .admin-vault--security-gate .admin-vault-keypad {
+    gap:.34rem;
+    margin:.42rem 0 .48rem;
+  }
+  .admin-vault--security-gate .admin-vault-key {
+    min-height:2.18rem;
+    border-radius:.68rem;
+    font-size:.85rem;
+  }
+  .admin-vault--security-gate .admin-vault-submit {
+    height:2.72rem;
+    border-radius:.82rem;
+  }
+  .admin-vault--security-gate .admin-vault-submit__content { font-size:.72rem; }
+  .admin-vault--security-gate .admin-vault-back { margin-top:.38rem; font-size:.62rem; }
+  .admin-vault--security-gate .admin-vault-footer { padding:.52rem .95rem .62rem; }
+}
+@media (max-width:520px) and (max-height:820px) {
+  .admin-vault--security-gate .admin-vault-header { padding:.68rem .9rem .42rem; }
+  .admin-vault--security-gate .admin-vault-mark { width:2.8rem; height:2.8rem; margin-bottom:.38rem; }
+  .admin-vault--security-gate .admin-vault-header h1 { font-size:1.34rem; }
+  .admin-vault--security-gate .admin-vault-header > p { font-size:.61rem; }
+  .admin-vault--security-gate .admin-vault-identity { margin-top:.4rem; padding:.38rem .5rem; }
+  .admin-vault--security-gate .admin-vault-panel { padding:.26rem .9rem .42rem; }
+  .admin-vault--security-gate .admin-vault-input { height:2.72rem; }
+  .admin-vault--security-gate .admin-vault-keypad { gap:.28rem; margin:.34rem 0 .38rem; }
+  .admin-vault--security-gate .admin-vault-key { min-height:1.95rem; }
+  .admin-vault--security-gate .admin-vault-submit { height:2.5rem; }
+  .admin-vault--security-gate .admin-vault-back { margin-top:.3rem; }
 }
 `;
 
