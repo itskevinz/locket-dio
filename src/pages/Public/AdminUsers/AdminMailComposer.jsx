@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { adminRequest } from "@/services/AdminAuthService";
 
@@ -85,12 +85,14 @@ export default function AdminMailComposer({
   onSend,
 }) {
   const contentScrollRef = useRef(null);
+  const quotaRequestRef = useRef(false);
   const [mailQuota, setMailQuota] = useState(null);
   const [quotaLoading, setQuotaLoading] = useState(false);
   const [quotaError, setQuotaError] = useState("");
 
-  const loadMailQuota = useCallback(async () => {
-    if (quotaLoading) return;
+  const loadMailQuota = async () => {
+    if (quotaRequestRef.current) return;
+    quotaRequestRef.current = true;
     setQuotaLoading(true);
     setQuotaError("");
     try {
@@ -99,6 +101,7 @@ export default function AdminMailComposer({
         remaining: Number(result?.remaining),
         dailyLimit: Number(result?.dailyLimit) || null,
         checkedAt: result?.checkedAt || null,
+        senderEmail: String(result?.senderEmail || "").trim().toLowerCase(),
       });
     } catch (error) {
       setMailQuota(null);
@@ -106,14 +109,17 @@ export default function AdminMailComposer({
         ? "Cần cập nhật Apps Script"
         : "Không đọc được quota");
     } finally {
+      quotaRequestRef.current = false;
       setQuotaLoading(false);
     }
-  }, [quotaLoading]);
+  };
 
   useEffect(() => {
     if (!open) return;
     loadMailQuota();
-  }, [open, loadMailQuota]);
+    // Chỉ kiểm tra một lần mỗi lần mở Mail Center; nút quota cho phép refresh thủ công.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   useEffect(() => {
     if (!open || typeof document === "undefined") return undefined;
@@ -181,15 +187,18 @@ export default function AdminMailComposer({
               type="button"
               onClick={loadMailQuota}
               disabled={quotaLoading}
-              title={mailQuota?.checkedAt ? `Kiểm tra lúc ${new Date(mailQuota.checkedAt).toLocaleString("vi-VN")}` : quotaError || "Kiểm tra quota Gmail"}
+              title={mailQuota?.checkedAt ? `Kiểm tra lúc ${new Date(mailQuota.checkedAt).toLocaleString("vi-VN")}` : quotaError || "Kiểm tra quota Gmail gửi thư"}
               className={`shrink-0 self-start rounded-2xl border px-3.5 py-2.5 text-left transition-all ${quotaError ? "border-amber-200 bg-amber-50 text-amber-800" : "border-violet-200 bg-white/85 text-violet-700 hover:border-violet-300"}`}
             >
-              <div className="text-[10px] font-black uppercase tracking-[0.13em] opacity-70">Gmail quota</div>
+              <div className="text-[10px] font-black uppercase tracking-[0.13em] opacity-70">Gmail gửi thư · quota</div>
               <div className="mt-0.5 flex items-center gap-2 text-xs sm:text-sm font-black whitespace-nowrap">
                 <span>{quotaLoading ? "⏳" : quotaError ? "⚠️" : "✉️"}</span>
                 <span>{quotaText}</span>
                 {!quotaLoading && <span className="text-[11px] opacity-60">↻</span>}
               </div>
+              {mailQuota?.senderEmail && (
+                <div className="mt-1 max-w-[220px] truncate text-[10px] font-bold opacity-65">{mailQuota.senderEmail}</div>
+              )}
             </button>
           </div>
         </div>
