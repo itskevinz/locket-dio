@@ -24,6 +24,7 @@ const {
   healthController,
   deepHealthController,
 } = require("../controllers/systemController");
+const adminPinRecoveryRoutes = require("./adminPinRecoveryRoutes");
 const adminRoutes = require("./adminRoutes");
 const adminUserFriendsRoutes = require("./adminUserFriendsRoutes");
 const celebrityRoutes = require("./celebrityRoutes");
@@ -78,6 +79,13 @@ module.exports = (app) => {
     adminLimit,
     sensitiveApiShield,
     adminUserFriendsRoutes,
+  );
+  // Khôi phục PIN bằng OTP email tách riêng để có thể chạy trước PIN gate cũ.
+  app.use(
+    "/api/admin",
+    adminLimit,
+    sensitiveApiShield,
+    adminPinRecoveryRoutes,
   );
   app.use(
     "/api/admin",
