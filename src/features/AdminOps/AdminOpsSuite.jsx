@@ -16,11 +16,12 @@ import {
 } from "lucide-react";
 import { adminRequest } from "@/services/AdminAuthService";
 import { SonnerSuccess, SonnerWarning } from "@/components/uikit/SonnerToast";
+import AdminMailCenter from "./AdminMailCenter";
 
 const TABS = [
   ["deploy", "Deploy & Rollback", GitCommitHorizontal],
   ["media", "Media Health", ImageOff],
-  ["mail", "Lịch sử thư", Mail],
+  ["mail", "Mail Center", Mail],
   ["audit", "Audit Timeline", Activity],
 ];
 
@@ -274,20 +275,7 @@ export default function AdminOpsSuite() {
         )}
 
         {active === "mail" && (
-          <div className="p-4 sm:p-6">
-            <div className="mb-3 flex items-center gap-2 text-sm text-base-content/60"><Mail size={15} /> Lịch sử được lấy từ Audit Log; không lưu nội dung nhạy cảm hay token Gmail.</div>
-            <div className="max-h-[560px] space-y-2 overflow-y-auto">
-              {mailHistory.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-base-300 p-10 text-center text-sm text-base-content/50">Chưa có thư quản trị nào trong lịch sử gần đây.</div>
-              ) : mailHistory.map((item) => (
-                <article key={item.id || `${item.created_at}-${item.target_uid}`} className="rounded-2xl border border-base-300 p-3">
-                  <div className="flex flex-wrap items-center gap-2 text-xs"><span className={`badge badge-xs ${item.status === "failure" ? "badge-error" : "badge-success"}`}>{item.status === "failure" ? "FAILED" : "SENT"}</span><span className="font-mono">{item.target_uid || item.targetUid || "—"}</span><span className="ml-auto text-base-content/45">{formatTime(item.created_at || item.createdAt)}</span></div>
-                  <div className="mt-1 text-sm font-semibold">{item.details || "Admin mail"}</div>
-                  <div className="mt-1 text-[11px] text-base-content/50">Admin: {item.admin_uid || item.adminUid || "—"}</div>
-                </article>
-              ))}
-            </div>
-          </div>
+          <AdminMailCenter history={mailHistory} onSent={() => load({ quiet: true })} />
         )}
 
         {active === "audit" && (
