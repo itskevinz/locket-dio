@@ -14,6 +14,9 @@ const CACHE_TTL_MS = 30_000;
 const STALE_CACHE_TTL_MS = 15 * 60_000;
 const RELAY_TIMEOUT_MS = 25_000;
 const RELAY_RETRY_TIMEOUT_MS = 15_000;
+// Stable Web App deployment used by Duchi Locket Mail. Editing/deploying a new
+// version of the same Apps Script deployment keeps this /exec URL unchanged.
+const DUCHI_MAIL_RELAY_URL = "https://script.google.com/macros/s/AKfycbzJlwGwUF8ds799stZlhW31eZX_eM5TyllVr-la_jbw9WL44BxoKQAwlIwGPvOp3Wzy/exec";
 let quotaCache = null;
 
 function clean(value, max = 1000) {
@@ -73,7 +76,7 @@ async function postQuotaRequest(endpoint, secret, timeoutMs) {
     redirect: "follow",
     headers: {
       "Content-Type": "text/plain;charset=utf-8",
-      "User-Agent": "Duchi-Locket-Mail-Quota/1.1",
+      "User-Agent": "Duchi-Locket-Mail-Quota/1.2",
     },
     body: JSON.stringify({ secret, action: "quota" }),
     signal: AbortSignal.timeout(timeoutMs),
@@ -100,7 +103,10 @@ async function fetchQuotaResponse(endpoint, secret) {
 }
 
 async function fetchMailQuota() {
-  const endpoint = clean(process.env.GMAIL_APPS_SCRIPT_URL, 1000);
+  // Quota must be read from the currently deployed Duchi Locket Mail Web App.
+  // The general GMAIL_APPS_SCRIPT_URL may still point to an older relay, so do
+  // not let a stale Vercel variable make quota checks hit the wrong script.
+  const endpoint = clean(DUCHI_MAIL_RELAY_URL, 1000);
   const secret = clean(process.env.GMAIL_APPS_SCRIPT_SECRET, 500);
 
   if (!endpoint || !secret) {
