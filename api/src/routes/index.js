@@ -25,6 +25,7 @@ const {
   deepHealthController,
 } = require("../controllers/systemController");
 const adminPinRecoveryRoutes = require("./adminPinRecoveryRoutes");
+const adminMailQuotaRoutes = require("./adminMailQuotaRoutes");
 const adminRoutes = require("./adminRoutes");
 const adminUserFriendsRoutes = require("./adminUserFriendsRoutes");
 const celebrityRoutes = require("./celebrityRoutes");
@@ -86,6 +87,13 @@ module.exports = (app) => {
     adminLimit,
     sensitiveApiShield,
     adminPinRecoveryRoutes,
+  );
+  // Quota Gmail đọc trực tiếp từ Google Apps Script, không lộ secret ra frontend.
+  app.use(
+    "/api/admin",
+    adminLimit,
+    sensitiveApiShield,
+    adminMailQuotaRoutes,
   );
   app.use(
     "/api/admin",
