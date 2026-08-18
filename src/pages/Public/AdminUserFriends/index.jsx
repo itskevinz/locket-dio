@@ -358,7 +358,7 @@ export default function AdminUserFriends() {
             </div>
           </section>
 
-          <section className="bg-white border border-slate-200 rounded-[2rem] shadow-md min-h-[520px] overflow-hidden">
+          <section className="bg-white border border-slate-200 rounded-[2rem] shadow-md min-h-[520px] overflow-hidden flex flex-col max-h-[calc(100dvh-7rem)] lg:max-h-[calc(100vh-7rem)]">
             {!selectedUser ? (
               <div className="min-h-[520px] flex flex-col items-center justify-center text-center px-6">
                 <div className="w-20 h-20 rounded-[1.8rem] bg-indigo-50 border border-indigo-200 text-indigo-500 flex items-center justify-center mb-4">
@@ -371,7 +371,7 @@ export default function AdminUserFriends() {
               </div>
             ) : (
               <>
-                <div className="p-5 sm:p-6 border-b border-slate-200 bg-gradient-to-r from-indigo-50/80 to-blue-50/60">
+                <div className="shrink-0 p-5 sm:p-6 border-b border-slate-200 bg-gradient-to-r from-indigo-50/80 to-blue-50/60">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-3 min-w-0">
                       {selectedUser.photoURL ? (
@@ -414,7 +414,7 @@ export default function AdminUserFriends() {
                   </div>
                 </div>
 
-                <div className="p-4 sm:p-6">
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6">
                   {friendsError ? (
                     <div className="rounded-3xl p-6 bg-amber-50 border border-amber-200 text-amber-950">
                       <div className="flex items-start gap-3">
