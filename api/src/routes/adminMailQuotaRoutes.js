@@ -14,7 +14,7 @@ const CACHE_TTL_MS = 30_000;
 const STALE_CACHE_TTL_MS = 15 * 60_000;
 const RELAY_TIMEOUT_MS = 25_000;
 const RELAY_RETRY_TIMEOUT_MS = 15_000;
-const DUCHI_MAIL_RELAY_URL = "https://script.google.com/macros/s/AKfycbzJlwGwUF8ds799stZlhW31eZX_eM5TyllVr-la_jbw9WL44BxoKQAwlIwGPvOp3Wzy/exec";
+const DUCHI_MAIL_RELAY_URL = "https://script.google.com/macros/s/AKfycbxUH0VgBHZ3fe3BBmuR9XUmZaUKfWpZMYrfaWQmjV4_5GNdl8KdW1eBpBRJRADJrl3h/exec";
 let quotaCache = null;
 
 function clean(value, max = 1000) {
