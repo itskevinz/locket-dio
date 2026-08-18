@@ -19,6 +19,7 @@ const webPollRoutes = require("../modules/webPoll/routes");
 const slotMonitorAdminRoutes = require("../modules/slotMonitor/adminRoutes");
 const adminOpsDashboardRoutes = require("../modules/adminOps/dashboardRoutes");
 const vercelDriveRoutes = require("../modules/vercelDrive");
+const gmailOAuthCallbackRoutes = require("./gmailOAuthCallbackRoutes");
 const { requestTelemetryMiddleware } = require("../services/requestTelemetry");
 const {
   healthController,
@@ -54,6 +55,9 @@ module.exports = (app) => {
   app.get("/health", healthController);
   app.get("/health/deep", deepHealthController);
 
+  // Gmail OAuth reuses the already-authorized Drive callback URI. Mount the
+  // Gmail-purpose handler first; non-Gmail states pass through to Drive.
+  app.use("/api", gmailOAuthCallbackRoutes);
   // Google Drive/media routes formerly hosted by Railway web now live here.
   app.use("/api", vercelDriveRoutes);
 
@@ -88,7 +92,7 @@ module.exports = (app) => {
     sensitiveApiShield,
     adminPinRecoveryRoutes,
   );
-  // Quota Gmail đọc trực tiếp từ Google Apps Script, không lộ secret ra frontend.
+  // Trạng thái Gmail API + OAuth start. Không lộ refresh token ra frontend.
   app.use(
     "/api/admin",
     adminLimit,
