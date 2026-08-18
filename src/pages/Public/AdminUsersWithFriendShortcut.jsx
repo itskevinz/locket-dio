@@ -11,32 +11,43 @@ export default function AdminUsersWithFriendShortcut() {
 
   useEffect(() => {
     let cancelled = false;
+    let rafId = 0;
 
-    const findAdminNavRow = () => {
+    const syncAdminNavRow = () => {
+      if (cancelled) return;
+
       const buttons = Array.from(document.querySelectorAll("button"));
       const usersTab = buttons.find((button) =>
         String(button.textContent || "").includes("Người dùng & Phân quyền"),
       );
+      const nextRow = usersTab?.parentElement || null;
 
-      if (!cancelled && usersTab?.parentElement) {
-        setAdminNavRow(usersTab.parentElement);
-        return true;
-      }
-      return false;
+      setAdminNavRow((current) => {
+        if (current === nextRow) return current;
+        return nextRow;
+      });
     };
 
-    if (findAdminNavRow()) return undefined;
+    // AdminUsers có thể render lại cả hàng tab khi dữ liệu/role thay đổi.
+    // Luôn theo dõi DOM thay vì dừng observer sau lần tìm đầu tiên; nếu node cũ
+    // bị React thay thế thì portal sẽ tự gắn sang hàng tab mới ngay lập tức.
+    const scheduleSync = () => {
+      if (cancelled || rafId) return;
+      rafId = window.requestAnimationFrame(() => {
+        rafId = 0;
+        syncAdminNavRow();
+      });
+    };
 
-    const observer = new MutationObserver(() => {
-      if (findAdminNavRow()) observer.disconnect();
-    });
+    syncAdminNavRow();
+
+    const observer = new MutationObserver(scheduleSync);
     observer.observe(document.body, { childList: true, subtree: true });
 
-    const timer = window.setTimeout(() => observer.disconnect(), 10000);
     return () => {
       cancelled = true;
       observer.disconnect();
-      window.clearTimeout(timer);
+      if (rafId) window.cancelAnimationFrame(rafId);
     };
   }, []);
 
@@ -44,7 +55,7 @@ export default function AdminUsersWithFriendShortcut() {
     <>
       <AdminUsers />
 
-      {adminNavRow &&
+      {adminNavRow?.isConnected &&
         createPortal(
           <>
             <button
