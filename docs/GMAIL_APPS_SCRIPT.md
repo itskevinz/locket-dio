@@ -22,6 +22,10 @@ function hashKey(value) {
   return Utilities.base64EncodeWebSafe(bytes).replace(/=+$/g, "").slice(0, 100);
 }
 
+function getSenderEmail() {
+  return String(Session.getEffectiveUser().getEmail() || "").trim().toLowerCase();
+}
+
 function getConfiguredDailyLimit() {
   const properties = PropertiesService.getScriptProperties();
   const configured = Number(properties.getProperty("HUY_LOCKET_MAIL_DAILY_LIMIT"));
@@ -29,7 +33,7 @@ function getConfiguredDailyLimit() {
 
   // Gmail cá nhân thường dùng quota 100 người nhận/ngày.
   // Google Workspace thường cao hơn. Có thể đặt Script Property phía trên để ghi đè.
-  const sender = String(Session.getEffectiveUser().getEmail() || "").toLowerCase();
+  const sender = getSenderEmail();
   return sender.endsWith("@gmail.com") ? 100 : 1500;
 }
 
@@ -37,6 +41,7 @@ function getQuotaPayload() {
   return {
     ok: true,
     action: "quota",
+    senderEmail: getSenderEmail(),
     remaining: MailApp.getRemainingDailyQuota(),
     dailyLimit: getConfiguredDailyLimit(),
     checkedAt: new Date().toISOString(),
@@ -106,7 +111,7 @@ Tùy chọn, có thể thêm:
 - Property: `HUY_LOCKET_MAIL_DAILY_LIMIT`
 - Value: `100` cho Gmail cá nhân hoặc giới hạn thực tế của tài khoản nếu khác.
 
-Nếu không đặt `HUY_LOCKET_MAIL_DAILY_LIMIT`, script tự dùng `100` cho địa chỉ `@gmail.com` và `1500` cho tài khoản domain khác. Số **còn lại** vẫn lấy trực tiếp từ `MailApp.getRemainingDailyQuota()`.
+Nếu không đặt `HUY_LOCKET_MAIL_DAILY_LIMIT`, script tự dùng `100` cho địa chỉ `@gmail.com` và `1500` cho tài khoản domain khác. Số **còn lại** vẫn lấy trực tiếp từ `MailApp.getRemainingDailyQuota()` của chính tài khoản đang chạy Web App, tức tài khoản Gmail dùng để gửi thư.
 
 ## Deploy Web App
 
@@ -133,7 +138,8 @@ Không đưa secret vào frontend, Vercel source bundle hoặc GitHub.
 
 Frontend gọi `GET /api/admin/mail-quota`. Backend giữ secret ở server và hỏi Apps Script bằng `action: "quota"`. Apps Script trả về:
 
-- `remaining`: số người nhận còn lại trong quota hiện tại từ `MailApp.getRemainingDailyQuota()`.
+- `senderEmail`: chính Gmail đang thực sự gửi thư từ Apps Script.
+- `remaining`: số người nhận còn lại trong quota hiện tại từ `MailApp.getRemainingDailyQuota()` của Gmail gửi thư.
 - `dailyLimit`: giới hạn dùng để hiển thị dạng `còn lại / tổng`.
 - `checkedAt`: thời điểm kiểm tra.
 
