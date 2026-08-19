@@ -24,6 +24,10 @@ const { securityHeaders } = require("./src/middlewares/securityHeaders.js");
 const { requireJsonContentType, sanitizeBodyStrings, validateUploadBuffer, ALLOWED_IMAGE_MIMES, ALLOWED_VIDEO_MIMES } = require("./src/middlewares/payloadValidation.js");
 const { startSlotMonitorWorker } = require("./src/modules/slotMonitor");
 const { deepHealthController } = require("./src/controllers/systemController.js");
+const {
+  mediaUpload,
+  mediaTempGet,
+} = require("./src/modules/storage/storage.controller");
 
 const allowedMediaMimes = new Set([...ALLOWED_IMAGE_MIMES, ...ALLOWED_VIDEO_MIMES]);
 
@@ -146,21 +150,29 @@ app.use(
   storageAuthRoutes,
 );
 
+// Media objects use cryptographically-random 128-bit (32 hex) temporary IDs.
+// Vercel/Render server-to-server reads originate from cloud-provider IPs, so this
+// exact GET bridge must run before the browser-focused cloud-IP WAF. Keep the
+// bypass narrow: GET only + strict 32-hex id + global DDoS shield still applies.
+app.get(
+  "/api/media-temp/:id",
+  securityHeaders,
+  (req, res, next) => {
+    if (!/^[a-f0-9]{32}$/i.test(String(req.params.id || ""))) return next();
+    return mediaTempGet(req, res, next);
+  },
+);
+
 app.use(antiBotMiddleware);
 app.use(securityHeaders);
 app.use(cookieParser());
 
-const {
-  mediaUpload,
-  mediaTempGet,
-} = require("./src/modules/storage/storage.controller");
 app.put(
   "/api/media-upload/:id",
   express.raw({ type: "*/*", limit: "25mb" }),
   validateUploadBuffer({ maxBytes: 25 * 1024 * 1024, allowedMimes: allowedMediaMimes }),
   mediaUpload,
 );
-app.get("/api/media-temp/:id", mediaTempGet);
 
 const { verifyIdToken } = require("./src/middlewares/Auth");
 const {
