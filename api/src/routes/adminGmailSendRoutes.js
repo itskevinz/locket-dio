@@ -17,12 +17,38 @@ const {
   getMailTemplates,
   normalizeTemplate,
 } = require("../services/adminApologyMailer");
-const { sendGmailMessage } = require("../services/gmailApiMailer");
+const {
+  sendGmailMessage,
+  disconnectGmailOAuth,
+} = require("../services/gmailApiMailer");
 
 const router = express.Router();
 
 function clean(value, max = 1000) {
   return String(value || "").trim().slice(0, max);
+}
+
+function isMissingGmailSendScope(error) {
+  const message = String(error?.message || "").toLowerCase();
+  return Number(error?.status) === 403
+    && (message.includes("insufficient authentication scopes")
+      || message.includes("insufficient authentication scope")
+      || message.includes("insufficient permission"));
+}
+
+async function normalizeGmailSendError(error) {
+  if (!isMissingGmailSendScope(error)) return error;
+
+  // A refresh token without gmail.send is useless for this mailer. Remove it so
+  // the UI immediately offers a clean OAuth reconnect instead of staying in a
+  // misleading "connected" state.
+  await disconnectGmailOAuth().catch(() => {});
+  const scopedError = new Error(
+    "Google chưa cấp quyền gửi thư gmail.send. Token cũ đã được ngắt; hãy bấm Kết nối Gmail và cho phép quyền gửi thư lại một lần.",
+  );
+  scopedError.code = "GMAIL_SCOPE_MISSING";
+  scopedError.status = 409;
+  return scopedError;
 }
 
 async function requireAdmin(req, res, next) {
@@ -170,7 +196,8 @@ router.post("/apology-email", requireActiveAdminSession, async (req, res) => {
       deduped: Boolean(result.deduped),
       template,
     });
-  } catch (error) {
+  } catch (caughtError) {
+    const error = await normalizeGmailSendError(caughtError);
     await audit(req, "SEND_ADMIN_MAIL", null, `Gmail API send failed to ${email}: ${error?.code || "unknown"}`, "failure");
     return res.status(Number(error?.status) || 502).json({
       success: false,
@@ -210,7 +237,8 @@ router.post("/system/test-email", requireActiveAdminSession, async (req, res) =>
       provider: result.provider,
       messageId: result.messageId || null,
     });
-  } catch (error) {
+  } catch (caughtError) {
+    const error = await normalizeGmailSendError(caughtError);
     await audit(req, "TEST_ADMIN_EMAIL", req.adminUid, `Gmail API self-test failed: ${error?.code || "unknown"}`, "failure");
     return res.status(Number(error?.status) || 502).json({
       success: false,
