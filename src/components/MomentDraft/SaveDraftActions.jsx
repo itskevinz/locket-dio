@@ -16,6 +16,9 @@ export default function SaveDraftActions() {
   const serverReachable = useConnectivityStore((s) => s.serverReachable);
   const saveCurrentAsDraft = useMomentDraftStore((s) => s.saveCurrentAsDraft);
   const openLibrary = useMomentDraftStore((s) => s.openLibrary);
+  const mediaAutosaveState = useMomentDraftStore(
+    (s) => s.mediaAutosaveState || "idle",
+  );
   const camera = useAppCamera();
   const setCameraActive = camera?.setCameraActive;
   const [busy, setBusy] = useState(false);
@@ -23,6 +26,8 @@ export default function SaveDraftActions() {
   if (!hasMedia) return null;
 
   const canPost = !isOffline && serverReachable;
+  const autosaveSaving = mediaAutosaveState === "saving";
+  const saveBusy = busy || autosaveSaving;
 
   /**
    * After IndexedDB save + clear preview: re-enable live camera.
@@ -65,9 +70,25 @@ export default function SaveDraftActions() {
     return result;
   };
 
-  const onSave = async (clearAfter) => {
-    if (busy) return;
+  const beginManualSave = () => {
+    if (
+      busy ||
+      useMomentDraftStore.getState().mediaAutosaveState === "saving"
+    ) {
+      return false;
+    }
+    useMomentDraftStore.setState({ manualDraftSaveInProgress: true });
     setBusy(true);
+    return true;
+  };
+
+  const finishManualSave = () => {
+    useMomentDraftStore.setState({ manualDraftSaveInProgress: false });
+    setBusy(false);
+  };
+
+  const onSave = async (clearAfter) => {
+    if (!beginManualSave()) return;
     try {
       if (import.meta.env?.DEV) {
         console.info("[cam] SaveDraft before draft save", { clearAfter });
@@ -86,13 +107,12 @@ export default function SaveDraftActions() {
         resumeLiveCamera();
       }
     } finally {
-      setBusy(false);
+      finishManualSave();
     }
   };
 
   const onSaveOpenLibrary = async () => {
-    if (busy) return;
-    setBusy(true);
+    if (!beginManualSave()) return;
     try {
       const result = await saveCurrentAsDraft({ clearAfter: true });
       await ensureCloudMedia(result);
@@ -102,7 +122,7 @@ export default function SaveDraftActions() {
         openLibrary();
       }
     } finally {
-      setBusy(false);
+      finishManualSave();
     }
   };
 
@@ -131,19 +151,21 @@ export default function SaveDraftActions() {
         </button>
         <button
           type="button"
-          disabled={busy}
-          className="btn btn-xs btn-ghost bg-base-200 rounded-full"
+          disabled={saveBusy}
+          className="btn btn-xs btn-ghost bg-base-200 rounded-full disabled:opacity-50"
+          title={autosaveSaving ? "Đang hoàn tất lưu ảnh, vui lòng chờ một chút" : "Lưu bản nháp"}
           onClick={onSaveOpenLibrary}
         >
-          Lưu bản nháp
+          {autosaveSaving ? "Đang lưu…" : "Lưu bản nháp"}
         </button>
         <button
           type="button"
-          disabled={busy}
-          className="btn btn-xs btn-ghost bg-base-200 rounded-full"
+          disabled={saveBusy}
+          className="btn btn-xs btn-ghost bg-base-200 rounded-full disabled:opacity-50"
+          title={autosaveSaving ? "Đang hoàn tất lưu ảnh, vui lòng chờ một chút" : "Lưu và chụp tiếp"}
           onClick={() => onSave(true)}
         >
-          Lưu và chụp tiếp
+          {autosaveSaving ? "Đang lưu…" : "Lưu và chụp tiếp"}
         </button>
       </div>
     </div>
