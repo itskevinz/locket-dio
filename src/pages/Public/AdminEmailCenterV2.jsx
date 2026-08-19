@@ -3,12 +3,14 @@ import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowLeft,
+  Bolt,
   CheckCircle2,
-  Clock3,
   Link2,
   LockKeyhole,
   Mail,
+  MessageSquareText,
   RefreshCw,
+  RotateCcw,
   Search,
   Send,
   Server,
@@ -32,6 +34,17 @@ const FALLBACK_TEMPLATES = [
   { id: "incident", label: "Thông báo sự cố", badge: "SỰ CỐ", title: "Chúng tôi đang xử lý một sự cố hệ thống" },
   { id: "welcome", label: "Chào mừng người dùng", badge: "CHÀO MỪNG", title: "Chào mừng bạn đến với Duchi Locket" },
   { id: "feature", label: "Thông báo tính năng mới", badge: "TÍNH NĂNG MỚI", title: "Duchi Locket vừa được nâng cấp" },
+];
+
+const QUICK_ACTIONS = [
+  { id: "apology", label: "Xin lỗi", emoji: "🙏", template: "apology", message: "" },
+  { id: "restored", label: "Đã mở khóa", emoji: "✅", template: "restored", message: "Tài khoản của bạn đã được khôi phục. Bạn có thể đăng nhập và sử dụng lại ngay." },
+  { id: "incident", label: "Sự cố", emoji: "🚨", template: "incident", message: "Hệ thống đang xử lý sự cố. Chúng tôi sẽ cập nhật ngay khi dịch vụ ổn định trở lại." },
+  { id: "maintenance", label: "Bảo trì", emoji: "🔧", template: "maintenance", message: "Duchi Locket sẽ bảo trì trong thời gian ngắn. Dữ liệu tài khoản của bạn vẫn được giữ an toàn." },
+  { id: "warning", label: "Cảnh báo", emoji: "⚠️", template: "warning", message: "Vui lòng kiểm tra lại hoạt động tài khoản và phản hồi email này nếu bạn cần hỗ trợ." },
+  { id: "feature", label: "Cập nhật mới", emoji: "✨", template: "feature", message: "Duchi Locket vừa có cập nhật mới. Hãy tải lại trang để nhận phiên bản mới nhất." },
+  { id: "done", label: "Đã xử lý", emoji: "⚡", template: "restored", message: "Yêu cầu của bạn đã được xử lý thành công. Nếu vẫn còn lỗi, hãy phản hồi email này để được hỗ trợ tiếp." },
+  { id: "custom", label: "Tùy chỉnh", emoji: "✍️", template: "feature", message: "" },
 ];
 
 function formatDateTime(value) {
@@ -74,11 +87,14 @@ export default function AdminEmailCenterV2() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [mobileTab, setMobileTab] = useState("compose");
 
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState("");
   const [historySearch, setHistorySearch] = useState("");
+  const [historyStatus, setHistoryStatus] = useState("all");
+  const [historyVisible, setHistoryVisible] = useState(10);
 
   const handleAuthFailure = useCallback((error) => {
     if (error?.status === 401 || error?.code === "ADMIN_SESSION_EXPIRED" || error?.code === "FRESH_AUTH_REQUIRED") {
@@ -205,6 +221,10 @@ export default function AdminEmailCenterV2() {
     return () => window.clearTimeout(timer);
   }, [authorized, customMessage, handleAuthFailure, targetEmail, template]);
 
+  useEffect(() => {
+    setHistoryVisible(10);
+  }, [historySearch, historyStatus]);
+
   const selectedTemplate = useMemo(
     () => templates.find((item) => item.id === template) || FALLBACK_TEMPLATES[0],
     [template, templates],
@@ -219,13 +239,31 @@ export default function AdminEmailCenterV2() {
 
   const filteredHistory = useMemo(() => {
     const query = historySearch.trim().toLowerCase();
-    if (!query) return history;
-    return history.filter((item) => [item.action, item.details, item.status, item.admin_uid, item.target_uid]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase()
-      .includes(query));
-  }, [history, historySearch]);
+    return history.filter((item) => {
+      const currentStatus = String(item.status || "success").toLowerCase();
+      if (historyStatus !== "all" && currentStatus !== historyStatus) return false;
+      if (!query) return true;
+      return [item.action, item.details, item.status, item.admin_uid, item.target_uid]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
+    });
+  }, [history, historySearch, historyStatus]);
+
+  const visibleHistory = useMemo(
+    () => filteredHistory.slice(0, historyVisible),
+    [filteredHistory, historyVisible],
+  );
+
+  const recentRecipients = useMemo(() => {
+    const values = [adminEmail];
+    for (const item of history) {
+      const email = extractEmail(item.details);
+      if (email !== "—" && email !== "preview@example.com") values.push(email);
+    }
+    return [...new Set(values.filter(Boolean))].slice(0, 5);
+  }, [adminEmail, history]);
 
   const connectGmail = async () => {
     setConnecting(true);
@@ -251,6 +289,34 @@ export default function AdminEmailCenterV2() {
     } finally {
       setDisconnecting(false);
     }
+  };
+
+  const focusComposer = () => {
+    setMobileTab("compose");
+    window.setTimeout(() => {
+      document.getElementById("email-compose")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      document.getElementById("admin-mail-recipient")?.focus();
+    }, 30);
+  };
+
+  const applyQuickAction = (action) => {
+    setTemplate(action.template);
+    setCustomMessage(action.message || "");
+    focusComposer();
+  };
+
+  const prepareFromHistory = (item) => {
+    const email = extractEmail(item?.details);
+    if (!email || email === "—") {
+      SonnerWarning("Không tìm thấy email", "Lịch sử cũ không chứa địa chỉ người nhận để soạn lại.");
+      return;
+    }
+    const details = String(item?.details || "").toLowerCase();
+    const matchedTemplate = templates.find((candidate) => details.includes(String(candidate.id).toLowerCase()));
+    setTargetEmail(email);
+    if (matchedTemplate?.id) setTemplate(matchedTemplate.id);
+    setCustomMessage("");
+    focusComposer();
   };
 
   const sendMail = async () => {
@@ -319,7 +385,7 @@ export default function AdminEmailCenterV2() {
               <div>
                 <div className="text-[11px] font-black uppercase tracking-[0.18em] text-violet-600">Duchi Locket · Gmail API</div>
                 <h1 className="mt-1 text-2xl sm:text-3xl font-black tracking-tight text-slate-950">Trung tâm Quản lý Email</h1>
-                <p className="mt-1 text-sm text-slate-500">OAuth 2.0, gửi thư trực tiếp qua Gmail API, ngưỡng an toàn và lịch sử trong một nơi.</p>
+                <p className="mt-1 text-sm text-slate-500">Gửi nhanh, OAuth 2.0, xem trước và lịch sử gửi thư trong một nơi.</p>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -342,7 +408,7 @@ export default function AdminEmailCenterV2() {
           <section className="rounded-3xl border border-violet-200 bg-violet-50 p-5 sm:p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
               <div className="font-black text-violet-950">Cần kết nối Gmail một lần</div>
-              <p className="mt-1 text-sm leading-relaxed text-violet-800">Duchi Locket sẽ xin đúng quyền gửi thư Gmail. Refresh token được mã hóa ở backend; frontend không nhận token.</p>
+              <p className="mt-1 text-sm leading-relaxed text-violet-800">Duchi Locket chỉ xin quyền gửi thư Gmail. Refresh token được mã hóa ở backend; frontend không nhận token.</p>
             </div>
             <button type="button" onClick={connectGmail} disabled={connecting} className="btn rounded-2xl border-0 bg-violet-600 text-white hover:bg-violet-700 font-black shrink-0">
               <ShieldCheck size={17} /> {connecting ? "Đang chuyển tới Google…" : "Kết nối Gmail API"}
@@ -364,10 +430,18 @@ export default function AdminEmailCenterV2() {
             <div className="mt-2 text-xs text-slate-500">Đã gửi hôm nay • còn {Number.isFinite(Number(status?.remaining)) ? status.remaining : "—"} theo ngưỡng nội bộ.</div>
           </div>
 
-          <div className="rounded-3xl border border-emerald-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-3"><div className="text-xs font-black uppercase tracking-wider text-emerald-700">Kết nối</div><ShieldCheck size={18} className="text-emerald-600" /></div>
-            <div className="mt-3 flex items-center gap-2 text-base font-black text-slate-900">{status?.connected ? <CheckCircle2 size={18} className="text-emerald-600" /> : <AlertTriangle size={18} className="text-amber-500" />}{status?.connected ? "Gmail API hoạt động" : "Chưa kết nối Gmail"}</div>
+          <div className={`rounded-3xl border bg-white p-5 shadow-sm ${status?.connected ? "border-emerald-200" : "border-amber-200"}`}>
+            <div className="flex items-center justify-between gap-3"><div className={`text-xs font-black uppercase tracking-wider ${status?.connected ? "text-emerald-700" : "text-amber-700"}`}>Kết nối</div><ShieldCheck size={18} className={status?.connected ? "text-emerald-600" : "text-amber-500"} /></div>
+            <div className="mt-3 flex items-center gap-2 text-base font-black text-slate-900">{status?.connected ? <CheckCircle2 size={18} className="text-emerald-600" /> : <AlertTriangle size={18} className="text-amber-500" />}{status?.connected ? "Gmail OAuth đã lưu" : "Chưa kết nối Gmail"}</div>
             <div className="mt-1 text-xs text-slate-500">Provider: {status?.provider || "gmail-api"}</div>
+            <div className="mt-3 flex gap-2">
+              {status?.connected ? (
+                <button type="button" onClick={disconnectGmail} disabled={disconnecting} className="btn btn-xs rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"><Unplug size={12} /> {disconnecting ? "Đang ngắt…" : "Ngắt"}</button>
+              ) : (
+                <button type="button" onClick={connectGmail} disabled={connecting} className="btn btn-xs rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700"><Link2 size={12} /> Kết nối</button>
+              )}
+              <button type="button" onClick={loadStatus} className="btn btn-xs rounded-lg border border-slate-200 bg-slate-50 text-slate-600"><RefreshCw size={12} /> Kiểm tra</button>
+            </div>
           </div>
 
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -377,19 +451,49 @@ export default function AdminEmailCenterV2() {
           </div>
         </section>
 
+        <section className="rounded-[2rem] border border-violet-200 bg-white p-5 sm:p-6 shadow-sm">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-violet-700"><Bolt size={15} /> Gửi nhanh</div>
+              <p className="mt-1 text-sm text-slate-500">Chọn tình huống, hệ thống tự chọn mẫu và lời nhắn. Chỉ cần nhập người nhận rồi gửi.</p>
+            </div>
+            <div className="text-xs text-slate-400">{status?.connected ? "Gmail sẵn sàng" : "Cần kết nối Gmail trước"}</div>
+          </div>
+          <div className="mt-4 flex gap-2.5 overflow-x-auto pb-1 snap-x">
+            {QUICK_ACTIONS.map((action) => (
+              <button key={action.id} type="button" onClick={() => applyQuickAction(action)} className="snap-start shrink-0 rounded-2xl border border-slate-200 bg-slate-50 hover:border-violet-300 hover:bg-violet-50 px-3.5 py-3 text-left transition-all min-w-[128px]">
+                <div className="text-xl">{action.emoji}</div>
+                <div className="mt-1 text-sm font-black text-slate-800">{action.label}</div>
+              </button>
+            ))}
+          </div>
+        </section>
+
         {statusError && (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex items-start gap-2"><AlertTriangle size={18} className="mt-0.5 shrink-0" /><div><strong>Không đọc được Gmail API:</strong> {statusError}</div></div>
         )}
 
-        <section className="grid grid-cols-1 xl:grid-cols-[1.02fr_.98fr] gap-5">
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
+        <div className="xl:hidden rounded-2xl border border-slate-200 bg-white p-1.5 grid grid-cols-2 gap-1 shadow-sm sticky top-20 z-20">
+          <button type="button" onClick={() => setMobileTab("compose")} className={`h-10 rounded-xl text-sm font-black ${mobileTab === "compose" ? "bg-violet-600 text-white" : "text-slate-600"}`}><MessageSquareText size={15} className="inline mr-1.5" />Soạn thư</button>
+          <button type="button" onClick={() => setMobileTab("preview")} className={`h-10 rounded-xl text-sm font-black ${mobileTab === "preview" ? "bg-violet-600 text-white" : "text-slate-600"}`}><Mail size={15} className="inline mr-1.5" />Xem trước</button>
+        </div>
+
+        <section className="grid grid-cols-1 xl:grid-cols-[1.02fr_.98fr] gap-5 items-start">
+          <div id="email-compose" className={`${mobileTab === "compose" ? "block" : "hidden"} xl:block rounded-[2rem] border border-slate-200 bg-white p-5 sm:p-6 shadow-sm xl:sticky xl:top-24`}>
             <div className="flex items-start justify-between gap-4 mb-5">
               <div><div className="text-xs font-black uppercase tracking-wider text-violet-700">Soạn thư</div><h2 className="mt-1 text-xl font-black text-slate-950">Gửi email tới người dùng</h2></div>
               <button type="button" onClick={sendTestMail} disabled={testing || !status?.connected} className="btn btn-sm rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 font-bold"><TestTube2 size={15} /> {testing ? "Đang test…" : "Gửi mail test"}</button>
             </div>
 
             <label className="text-xs font-black uppercase tracking-wide text-slate-600">Email người nhận</label>
-            <input type="email" value={targetEmail} onChange={(event) => setTargetEmail(event.target.value)} placeholder="Nhập email người dùng Huy Locket..." className="input input-bordered mt-2 w-full h-12 rounded-2xl bg-slate-50 border-slate-200 focus:border-violet-500" />
+            <input id="admin-mail-recipient" type="email" value={targetEmail} onChange={(event) => setTargetEmail(event.target.value)} placeholder="Nhập email người dùng Huy Locket..." className="input input-bordered mt-2 w-full h-12 rounded-2xl bg-slate-50 border-slate-200 focus:border-violet-500" />
+            {recentRecipients.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {recentRecipients.map((email, index) => (
+                  <button key={email} type="button" onClick={() => setTargetEmail(email)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-600 hover:border-violet-300 hover:text-violet-700">{index === 0 && email === adminEmail ? "Email của tôi" : email}</button>
+                ))}
+              </div>
+            )}
 
             <div className="mt-5 text-xs font-black uppercase tracking-wide text-slate-600">Mẫu thư</div>
             <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -408,32 +512,52 @@ export default function AdminEmailCenterV2() {
             <textarea value={customMessage} onChange={(event) => setCustomMessage(event.target.value.slice(0, 2500))} rows={4} placeholder="Nội dung bổ sung từ quản trị viên..." className="textarea textarea-bordered mt-2 w-full rounded-2xl bg-slate-50 border-slate-200 focus:border-violet-500 text-sm" />
             <div className="mt-1 text-right text-[11px] text-slate-400">{customMessage.length}/2500</div>
 
-            <button type="button" onClick={sendMail} disabled={sending || !targetEmail.trim() || !status?.connected} className="btn mt-4 w-full h-12 rounded-2xl border-0 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-black shadow-lg shadow-violet-500/20 disabled:bg-slate-200 disabled:text-slate-400"><Send size={17} /> {sending ? "Đang gửi…" : `Gửi qua Gmail API: ${selectedTemplate?.label || "Email"}`}</button>
+            <button type="button" onClick={sendMail} disabled={sending || !targetEmail.trim() || !status?.connected} className="btn mt-4 w-full h-12 rounded-2xl border-0 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-black shadow-lg shadow-violet-500/20 disabled:bg-slate-200 disabled:text-slate-400 sticky bottom-3 z-10 xl:static"><Send size={17} /> {sending ? "Đang gửi…" : `Gửi ngay: ${selectedTemplate?.label || "Email"}`}</button>
             {!status?.connected && <p className="mt-3 text-xs text-amber-700">Cần kết nối Gmail API trước khi gửi thư.</p>}
           </div>
 
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-5 sm:p-6 shadow-sm min-h-[580px] flex flex-col">
+          <div className={`${mobileTab === "preview" ? "flex" : "hidden"} xl:flex rounded-[2rem] border border-slate-200 bg-white p-5 sm:p-6 shadow-sm min-h-[580px] flex-col xl:sticky xl:top-24`}>
             <div className="flex items-center justify-between gap-3 mb-4"><div><div className="text-xs font-black uppercase tracking-wider text-slate-500">Xem trước</div><h2 className="mt-1 text-xl font-black text-slate-950">Email thực tế</h2></div>{previewLoading && <span className="loading loading-spinner loading-sm text-violet-600" />}</div>
             {preview?.html ? <iframe title="Xem trước email Duchi Locket" sandbox="" srcDoc={preview.html} className="w-full flex-1 min-h-[500px] rounded-2xl border border-slate-200 bg-slate-50" /> : <div className="flex-1 min-h-[500px] rounded-2xl border border-dashed border-slate-300 bg-slate-50 flex items-center justify-center p-6 text-center text-sm text-slate-500">Chọn mẫu thư để tải bản xem trước từ hệ thống.</div>}
           </div>
         </section>
 
         <section className="rounded-[2rem] border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
             <div><div className="text-xs font-black uppercase tracking-wider text-slate-500">Lịch sử</div><h2 className="mt-1 text-xl font-black text-slate-950">Hoạt động gửi email</h2></div>
-            <div className="relative w-full sm:w-80"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input value={historySearch} onChange={(event) => setHistorySearch(event.target.value)} placeholder="Tìm email, action, trạng thái..." className="input input-bordered w-full h-10 rounded-xl pl-9 bg-slate-50 border-slate-200 text-sm" /></div>
+            <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
+              <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+                {[{ id: "all", label: "Tất cả" }, { id: "success", label: "Thành công" }, { id: "failure", label: "Thất bại" }].map((item) => (
+                  <button key={item.id} type="button" onClick={() => setHistoryStatus(item.id)} className={`h-8 rounded-lg px-3 text-xs font-black ${historyStatus === item.id ? "bg-white text-violet-700 shadow-sm" : "text-slate-500"}`}>{item.label}</button>
+                ))}
+              </div>
+              <div className="relative w-full sm:w-80"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input value={historySearch} onChange={(event) => setHistorySearch(event.target.value)} placeholder="Tìm email, action, trạng thái..." className="input input-bordered w-full h-10 rounded-xl pl-9 bg-slate-50 border-slate-200 text-sm" /></div>
+            </div>
           </div>
           {historyError && <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{historyError}</div>}
           <div className="mt-4 overflow-x-auto">
-            <table className="table table-sm min-w-[760px]">
-              <thead><tr className="text-xs uppercase text-slate-500"><th>Thời gian</th><th>Hoạt động</th><th>Email</th><th>Trạng thái</th><th>Admin</th></tr></thead>
+            <table className="table table-sm min-w-[820px]">
+              <thead><tr className="text-xs uppercase text-slate-500"><th>Thời gian</th><th>Hoạt động</th><th>Email</th><th>Trạng thái</th><th>Admin</th><th className="text-right">Thao tác</th></tr></thead>
               <tbody>
-                {historyLoading ? <tr><td colSpan={5} className="py-8 text-center text-slate-400">Đang tải lịch sử…</td></tr> : filteredHistory.length ? filteredHistory.map((item, index) => (
-                  <tr key={item.id || `${item.created_at}-${index}`}><td className="whitespace-nowrap text-xs text-slate-500">{formatDateTime(item.created_at || item.createdAt || item.timestamp)}</td><td className="font-bold text-slate-800">{historyActionLabel(item.action)}</td><td className="text-xs">{extractEmail(item.details)}</td><td><span className={`badge badge-sm ${String(item.status).toLowerCase() === "failure" ? "badge-error" : "badge-success"}`}>{item.status || "success"}</span></td><td className="text-xs text-slate-500">{item.admin_uid || item.adminUid || role}</td></tr>
-                )) : <tr><td colSpan={5} className="py-8 text-center text-slate-400">Chưa có hoạt động gửi thư phù hợp.</td></tr>}
+                {historyLoading ? <tr><td colSpan={6} className="py-8 text-center text-slate-400">Đang tải lịch sử…</td></tr> : visibleHistory.length ? visibleHistory.map((item, index) => {
+                  const failed = String(item.status).toLowerCase() === "failure";
+                  return (
+                    <tr key={item.id || `${item.created_at}-${index}`}>
+                      <td className="whitespace-nowrap text-xs text-slate-500">{formatDateTime(item.created_at || item.createdAt || item.timestamp)}</td>
+                      <td className="font-bold text-slate-800">{historyActionLabel(item.action)}</td>
+                      <td className="text-xs">{extractEmail(item.details)}</td>
+                      <td><span className={`badge badge-sm ${failed ? "badge-error" : "badge-success"}`}>{item.status || "success"}</span></td>
+                      <td className="text-xs text-slate-500 max-w-[170px] truncate" title={item.admin_uid || item.adminUid || role}>{item.admin_uid || item.adminUid || role}</td>
+                      <td className="text-right"><button type="button" onClick={() => prepareFromHistory(item)} className={`btn btn-xs rounded-lg ${failed ? "border border-red-200 bg-red-50 text-red-700" : "border border-slate-200 bg-slate-50 text-slate-600"}`}><RotateCcw size={12} /> {failed ? "Soạn lại" : "Dùng lại"}</button></td>
+                    </tr>
+                  );
+                }) : <tr><td colSpan={6} className="py-8 text-center text-slate-400">Chưa có hoạt động gửi thư phù hợp.</td></tr>}
               </tbody>
             </table>
           </div>
+          {filteredHistory.length > visibleHistory.length && (
+            <div className="mt-4 flex justify-center"><button type="button" onClick={() => setHistoryVisible((value) => value + 10)} className="btn btn-sm rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-bold">Xem thêm {Math.min(10, filteredHistory.length - visibleHistory.length)} mục</button></div>
+          )}
         </section>
 
         {status?.connected && (
