@@ -29,6 +29,10 @@ function safeUid(uid) {
   return String(uid || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 128);
 }
 
+function isSyntheticCloudForkId(id) {
+  return /__cloud_\d+$/i.test(String(id || ""));
+}
+
 function userFile(ownerUid) {
   return path.join(META_ROOT, `${safeUid(ownerUid)}.json`);
 }
@@ -83,7 +87,7 @@ async function listDrafts(ownerUid) {
   const rows = (draftDatabase.isAvailable()
     ? await draftDatabase.listDrafts(ownerUid)
     : readAll(ownerUid))
-    .filter((row) => row && !row.deletedAt)
+    .filter((row) => row && !row.deletedAt && !isSyntheticCloudForkId(row.id))
     .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   return rows.map(publicView);
 }
