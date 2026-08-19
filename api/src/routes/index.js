@@ -23,6 +23,7 @@ const slotMonitorAdminRoutes = require("../modules/slotMonitor/adminRoutes");
 const adminOpsDashboardRoutes = require("../modules/adminOps/dashboardRoutes");
 const vercelDriveRoutes = require("../modules/vercelDrive");
 const gmailOAuthCallbackRoutes = require("./gmailOAuthCallbackRoutes");
+const storageAuthRoutes = require("./storageAuthRoutes");
 const { requestTelemetryMiddleware } = require("../services/requestTelemetry");
 const {
   healthController,
@@ -63,6 +64,11 @@ module.exports = (app) => {
   app.use("/api", gmailOAuthCallbackRoutes);
   // Google Drive/media routes formerly hosted by Railway web now live here.
   app.use("/api", vercelDriveRoutes);
+
+  // Internal/publicly reachable verification bridge used by the Supabase
+  // draft-storage Edge Function. It validates real Locket Firebase tokens (or
+  // our existing short-lived draft HMAC proof) and returns only the owner uid.
+  app.use("/api/storage-auth", storageAuthRoutes);
 
   // Routes có limiter riêng phải mount trước generalApiLimit.
   app.use("/locket", authRoutes);
