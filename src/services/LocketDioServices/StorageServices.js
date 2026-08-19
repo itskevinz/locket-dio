@@ -45,8 +45,8 @@ function resolvePublicUrl(data) {
 
 /**
  * Upload media:
- * - Image ≤ 4.5MB: gửi base64 inline (postMoment đọc trực tiếp, không phụ thuộc temp PUT)
- * - Video / file lớn: PUT temp + verify GET
+ * - Ưu tiên presigned + PUT cho cả ảnh và video để media đi qua R2.
+ * - Ảnh nhỏ chỉ dùng base64 inline như fallback khi PUT/verify thực sự lỗi.
  */
 export const uploadFileAndGetInfoR2 = async (
   file,
@@ -69,35 +69,10 @@ export const uploadFileAndGetInfoR2 = async (
     console.warn("[gdrive] auto backup error:", e);
   }
 
+  // Chỉ dùng inline làm đường lui nếu R2 upload/verify lỗi.
   const INLINE_MAX = 4.5 * 1024 * 1024; // JSON 20MB limit, base64 ~1.33x
-  const preferInline = safeType === "image" && file.size <= INLINE_MAX;
 
-  // ── Image: base64 inline (ổn định nhất trên Render free) ──
-  if (preferInline) {
-    const mediaBase64 = await fileToBase64(file);
-    if (!mediaBase64 || mediaBase64.length < 100) {
-      throw new Error("Không đọc được ảnh từ máy — hãy chụp lại");
-    }
-    return {
-      path: `inline_${timestamp}`,
-      key: `inline_${timestamp}`,
-      name: fileName,
-      size: file.size,
-      type: safeType,
-      contentType,
-      mediaBase64,
-      mediaEncoding: "base64",
-      // Dummy URLs — server sẽ dùng mediaBase64
-      url: "inline://local",
-      publicUrl: "inline://local",
-      publicURL: "inline://local",
-      downloadURL: "inline://local",
-      mediaSignature: null,
-      inline: true,
-    };
-  }
-
-  // ── Video / large: presign + PUT + verify ──
+  // ── Presign + PUT qua API → private R2 ──
   const body = {
     filename: fileName,
     contentType,
@@ -127,7 +102,7 @@ export const uploadFileAndGetInfoR2 = async (
 
   if (!uploadRes.ok) {
     const t = await uploadRes.text().catch(() => "");
-    // Fallback: nếu PUT fail và là ảnh → inline
+    // Safety fallback: ảnh nhỏ vẫn đăng được nếu R2 tạm thời lỗi.
     if (safeType === "image" && file.size <= INLINE_MAX) {
       const mediaBase64 = await fileToBase64(file);
       return {
