@@ -1,13 +1,16 @@
 /**
- * Durable private draft media on Railway API disk (not temp 30m).
- * Paths: drafts/{ownerUid}/{draftId}/{role}
- * No public URLs without short-lived HMAC signature.
+ * Durable private draft media.
+ *
+ * New Vercel uploads prefer private Supabase Storage. Existing Neon Base64
+ * objects remain readable, so rollout is backward compatible and old drafts
+ * are not migrated/deleted until the new path is proven stable.
  */
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const draftDatabase = require("./draftDatabase");
+const supabaseDraftStorage = require("./supabaseDraftStorage");
 
 if (
   process.env.NODE_ENV === "production" &&
@@ -61,7 +64,7 @@ function metaSidecar(ownerUid, draftId, role) {
   return `${objectPath(ownerUid, draftId, role)}.json`;
 }
 
-async function writeObject(ownerUid, draftId, role, buffer, contentType) {
+async function writeObject(ownerUid, draftId, role, buffer, contentType, options = {}) {
   if (!ALLOWED_ROLES.has(role)) throw new Error("invalid_role");
   if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
     return { ok: false, error: "empty" };
@@ -75,6 +78,28 @@ async function writeObject(ownerUid, draftId, role, buffer, contentType) {
   ) {
     return { ok: false, error: "bad_mime" };
   }
+
+  // Phase 1 migration: prefer Supabase for new media, but never make draft
+  // syncing depend on it. If the Storage/Edge bridge is temporarily down we
+  // fall back to the existing Neon path and keep the user's draft safe.
+  if (process.env.VERCEL && options.idToken) {
+    try {
+      return await supabaseDraftStorage.upload({
+        ownerUid: safeUid(ownerUid),
+        draftId: safeId(draftId),
+        role,
+        buffer,
+        contentType: mime,
+        idToken: options.idToken,
+      });
+    } catch (error) {
+      console.warn(
+        "[draft-storage] Supabase upload unavailable; using Neon fallback:",
+        error?.code || error?.message || "unknown",
+      );
+    }
+  }
+
   if (draftDatabase.isAvailable()) {
     await draftDatabase.putMedia({
       ownerUid: safeUid(ownerUid),
@@ -88,8 +113,10 @@ async function writeObject(ownerUid, draftId, role, buffer, contentType) {
       key: `drafts/${safeUid(ownerUid)}/${safeId(draftId)}/${role}`,
       size: buffer.length,
       contentType: mime,
+      provider: "neon",
     };
   }
+
   const dir = objectDir(ownerUid, draftId);
   ensureDir(dir);
   const file = objectPath(ownerUid, draftId, role);
@@ -107,13 +134,37 @@ async function writeObject(ownerUid, draftId, role, buffer, contentType) {
     key: `drafts/${safeUid(ownerUid)}/${safeId(draftId)}/${role}`,
     size: buffer.length,
     contentType: mime,
+    provider: "filesystem",
   };
 }
 
-async function readObject(ownerUid, draftId, role) {
+async function readObject(ownerUid, draftId, role, options = {}) {
+  if (supabaseDraftStorage.isSupabaseKey(options.objectKey)) {
+    try {
+      const redirectUrl = await supabaseDraftStorage.createDownloadUrl({
+        ownerUid: safeUid(ownerUid),
+        draftId: safeId(draftId),
+        role,
+        idToken: options.idToken,
+        signedProof: options.signedProof,
+      });
+      return redirectUrl
+        ? { redirectUrl, provider: "supabase" }
+        : null;
+    } catch (error) {
+      console.warn(
+        "[draft-storage] Supabase download ticket failed:",
+        error?.code || error?.message || "unknown",
+      );
+      return null;
+    }
+  }
+
+  // Legacy drafts continue reading their Base64 media from Neon unchanged.
   if (draftDatabase.isAvailable()) {
     return draftDatabase.getMedia(safeUid(ownerUid), safeId(draftId), role);
   }
+
   const file = objectPath(ownerUid, draftId, role);
   if (!fs.existsSync(file)) return null;
   let meta = {};
@@ -130,11 +181,34 @@ async function readObject(ownerUid, draftId, role) {
   };
 }
 
-async function deleteDraftFiles(ownerUid, draftId) {
+async function deleteDraftFiles(ownerUid, draftId, options = {}) {
+  const objectKeys = Array.isArray(options.objectKeys) ? options.objectKeys : [];
+  const hasSupabaseMedia = objectKeys.some((key) => supabaseDraftStorage.isSupabaseKey(key));
+
+  if (hasSupabaseMedia && options.idToken) {
+    try {
+      await supabaseDraftStorage.deleteDraft({
+        ownerUid: safeUid(ownerUid),
+        draftId: safeId(draftId),
+        idToken: options.idToken,
+      });
+    } catch (error) {
+      // Metadata is soft-deleted first. A failed object cleanup can be retried
+      // later and must not restore or corrupt the draft.
+      console.warn(
+        "[draft-storage] Supabase delete deferred:",
+        error?.code || error?.message || "unknown",
+      );
+    }
+  }
+
+  // Also clear any legacy/fallback Neon rows for this draft. This is safe for
+  // Supabase-native drafts and cleans up partial fallback uploads if they exist.
   if (draftDatabase.isAvailable()) {
     await draftDatabase.deleteMedia(safeUid(ownerUid), safeId(draftId));
     return;
   }
+
   const dir = objectDir(ownerUid, draftId);
   if (!fs.existsSync(dir)) return;
   for (const name of fs.readdirSync(dir)) {
