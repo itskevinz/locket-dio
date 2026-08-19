@@ -13,6 +13,7 @@ dotenv.config({ path: isProd ? ".env.production" : ".env.development" });
 dotenv.config();
 
 const { startSlotMonitorWorker } = require("./src/modules/slotMonitor");
+const { rotateSlotMonitorEncryptionKey } = require("./src/modules/slotMonitor/keyRotation");
 const {
   checkNotificationRelay,
   getRelayUrl,
@@ -21,6 +22,7 @@ const {
 const PORT = Number(process.env.PORT) || 10000;
 const startedAt = new Date().toISOString();
 let workerStarted = false;
+let keyRotation = { status: "pending" };
 
 function sendJson(res, statusCode, payload) {
   res.writeHead(statusCode, {
@@ -38,6 +40,7 @@ const server = http.createServer((req, res) => {
       status: workerStarted ? "healthy" : "unavailable",
       service: "huy-locket-slot-worker",
       worker: workerStarted ? "running" : "disabled",
+      keyRotation,
       startedAt,
       uptimeSeconds: Math.floor(process.uptime()),
     });
@@ -49,7 +52,26 @@ const server = http.createServer((req, res) => {
   });
 });
 
-server.listen(PORT, "0.0.0.0", () => {
+server.listen(PORT, "0.0.0.0", async () => {
+  try {
+    const result = await rotateSlotMonitorEncryptionKey();
+    keyRotation = {
+      status: result.skipped ? "skipped" : "complete",
+      reason: result.reason || null,
+      migrated: Number(result.migrated || 0),
+      alreadyMigrated: Number(result.alreadyMigrated || 0),
+      total: Number(result.total || 0),
+    };
+    console.log("[slot-worker] encryption key rotation", keyRotation);
+  } catch (error) {
+    keyRotation = {
+      status: "failed",
+      code: error?.code || null,
+      message: error?.message || "unknown",
+    };
+    console.error("[slot-worker] encryption key rotation failed", keyRotation);
+  }
+
   workerStarted = startSlotMonitorWorker();
   console.log(`[slot-worker] health server listening on 0.0.0.0:${PORT}`);
 
