@@ -51,7 +51,7 @@ function presentSlotWorkerProbe(probe) {
   if (!probe?.ok) {
     return {
       status: "ERROR",
-      detail: `Không kết nối được Render worker /health: ${probe?.error || "Không kết nối được"}`,
+      detail: `Không kết nối được Render API + Canh Slot /health/slot-worker: ${probe?.error || "Không kết nối được"}`,
     };
   }
 
@@ -61,14 +61,19 @@ function presentSlotWorkerProbe(probe) {
   if (!running) {
     return {
       status: "ERROR",
-      detail: `Render worker phản hồi nhưng trạng thái không hợp lệ: status=${status || "không rõ"}, worker=${worker || "không rõ"}.`,
+      detail: `Render API phản hồi nhưng worker chưa chạy: status=${status || "không rõ"}, worker=${worker || "không rõ"}.`,
     };
   }
 
-  const uptimeSeconds = Math.max(0, Math.floor(Number(probe?.data?.uptimeSeconds) || 0));
+  const uptimeSeconds = Math.max(
+    0,
+    Math.floor(
+      Number(probe?.data?.uptimeSeconds ?? probe?.data?.uptime_seconds) || 0,
+    ),
+  );
   return {
     status: "OK",
-    detail: `Render worker đang chạy • phản hồi ${probe.latencyMs}ms • uptime ${uptimeSeconds.toLocaleString("vi-VN")} giây.`,
+    detail: `Render media API + Canh Slot đang chạy • phản hồi ${probe.latencyMs}ms • uptime ${uptimeSeconds.toLocaleString("vi-VN")} giây.`,
   };
 }
 
@@ -112,7 +117,7 @@ async function probeSlotWorker(baseUrl) {
 
   const started = Date.now();
   try {
-    const response = await fetch(`${baseUrl}/health?_=${Date.now()}`, {
+    const response = await fetch(`${baseUrl}/health/slot-worker?_=${Date.now()}`, {
       method: "GET",
       headers: { "Cache-Control": "no-cache", Accept: "application/json" },
       signal: AbortSignal.timeout(7000),
@@ -172,7 +177,7 @@ async function getSystemStatus() {
   );
   const slotWorkerUrl = cleanUrl(
     process.env.SLOT_WORKER_PUBLIC_URL || process.env.RENDER_SLOT_WORKER_URL,
-    "https://huy-locket-slot-worker.onrender.com",
+    "https://huy-locket-media-api.onrender.com",
   );
 
   const [vercelProbe, slotWorkerProbe] = await Promise.all([
@@ -200,12 +205,15 @@ async function getSystemStatus() {
     ),
     item(
       "render-slot-worker",
-      "Render Canh Slot worker",
+      "Render API + Canh Slot",
       slotWorkerStatus.status,
       slotWorkerStatus.detail,
       {
         latencyMs: slotWorkerProbe.latencyMs,
-        uptimeSeconds: Number(slotWorkerProbe?.data?.uptimeSeconds) || 0,
+        uptimeSeconds: Number(
+          slotWorkerProbe?.data?.uptimeSeconds ??
+            slotWorkerProbe?.data?.uptime_seconds,
+        ) || 0,
         url: slotWorkerUrl,
       },
     ),
