@@ -1,5 +1,6 @@
 import { CONFIG } from "@/config";
 import React from "react";
+// Production build marker: Gmail API Email Center V2 rollout.
 // import CameraCapture from "../pages/UILocket";
 const FriendManager = React.lazy(() => import("@/pages/Auth/FriendManager"));
 const DiaryPage = React.lazy(() => import("@/pages/Auth/DiaryPage"));
