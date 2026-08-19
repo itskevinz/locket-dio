@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import { fetchGlobalBroadcast } from "@/services/UserActivityService";
 import { useAuthStore } from "@/stores";
 
+const BROADCAST_POLL_INTERVAL_MS = 60_000;
+
 export default function GlobalBroadcastBanner() {
   const { user } = useAuthStore();
   const [broadcast, setBroadcast] = useState(null);
@@ -54,14 +56,23 @@ export default function GlobalBroadcastBanner() {
 
   useEffect(() => {
     checkBroadcast();
-    const interval = setInterval(() => checkBroadcast(false), 4000);
+    const interval = setInterval(() => checkBroadcast(false), BROADCAST_POLL_INTERVAL_MS);
 
     const handleUpdate = () => checkBroadcast(true);
+    const handleVisibilityChange = () => {
+      if (!document.hidden) checkBroadcast(false);
+    };
+    const handleFocus = () => checkBroadcast(false);
+
     window.addEventListener("locket_broadcast_updated", handleUpdate);
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       clearInterval(interval);
       window.removeEventListener("locket_broadcast_updated", handleUpdate);
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [checkBroadcast]);
 
