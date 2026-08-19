@@ -1,7 +1,7 @@
 # HANDOFF — Huy Locket cho Anti / Antigravity
 
-> Cập nhật: **2026-08-19**  
-> Mục đích: Anti đọc file này để tiếp tục dự án **Huy Locket** đúng trạng thái hiện tại, không quay lại kiến trúc cũ và không phá các chức năng đang ổn.
+> Cập nhật: **2026-08-19 21:10 ICT**  
+> Mục đích: Anti/Antigravity đọc file này để tiếp tục dự án **Huy Locket** đúng trạng thái hiện tại, không quay lại kiến trúc cũ, không phá các chức năng đang ổn và không tạo thêm service thừa.
 
 ---
 
@@ -11,108 +11,149 @@
 
 - Repo hiện tại: **`buiduchuy2010qn-prog/duchi-locketgold`**
 - Branch production: **`main`**
-- Baseline code ngay trước khi tạo handoff này: **`15a6b5de1c2201a44ebe549b354c8481d658b9c3`**
-  - Commit: `fix(drafts): prevent duplicate manual save during autosave`
-- Frontend production hiện dùng **Vercel project `huy-locket`**.
-- Backend/API production hiện dùng **Vercel project `huy-locket-api`**.
-- Domain frontend chính: **`https://duchi.vercel.app`**
-- Domain backend mà frontend rewrite tới: **`https://huy-locket-api-huy-locket.vercel.app`**
+- HEAD ngay trước lần cập nhật handoff này:
+  - **`6cf60c56afa43c8f2d8c4555d7345cb14695fde6`**
+  - `chore: retrigger Vercel deploy`
+- Frontend/web chính: **Vercel project `huy-locket`**.
+- Backend/API chính cho web: **Vercel project `huy-locket-api`**.
+- Domain web chính: **`https://duchi.vercel.app`**.
+- Render **không phải web chính**.
+- Render hiện dùng làm **backend helper + media API + long-lived Slot Monitor worker**.
+- Render service cần giữ: **`huy-locket-media-api`**.
+- Cloudflare R2 dùng cho **temp media khi đăng bài**.
+- Supabase Storage vẫn dùng cho **draft media** theo kiến trúc draft trước đó.
+- Neon vẫn là database quan trọng, không được xóa bừa.
+
+### Nguyên tắc kiến trúc bắt buộc
+
+```text
+Vercel = web chính + API chính cho browser
+Render = helper API / media / long-lived worker
+Cloudflare R2 = temp media object storage cho post
+Supabase Storage = draft media
+Neon = metadata/database/persistence
+```
+
+**Không được đổi thành Render chạy web production chính.**  
+**Không được tạo lại service Render web/static chỉ để thay Vercel.**
 
 ### Cảnh báo tài liệu cũ
 
-`AGENTS.md`, `HANDOFF-GROK.md`, `render.yaml`, `railway.toml` vẫn chứa nhiều thông tin lịch sử về **Railway/Render**.
+`AGENTS.md`, `HANDOFF-GROK.md`, `render.yaml`, `railway.toml` vẫn có nhiều thông tin lịch sử về Railway/Render.
 
-**Không được coi phần “Railway là production chính” trong `AGENTS.md` là đúng ở thời điểm 2026-08-19.**  
-Phần branding, music/ISRC, Free-for-all và các quy tắc giữ tính năng trong `AGENTS.md` vẫn hữu ích.
+- Không coi “Railway là production chính” là trạng thái hiện tại.
+- Một Railway deployment/status có thể vẫn xuất hiện do integration cũ, nhưng **không được tự chuyển kiến trúc mới trở lại Railway**.
+- Branding/music/free-for-all và các baseline tính năng trong `AGENTS.md` vẫn hữu ích.
 
 Khi tài liệu xung đột:
 
 1. Code hiện tại trên `main` là nguồn chính.
-2. `vercel.json` + `api/vercel.json` là nguồn chính cho deployment hiện tại.
-3. File `HANDOFF-ANTI.md` này ưu tiên hơn các handoff cũ về trạng thái hạ tầng.
+2. `vercel.json`, `api/vercel.json`, code Render thực tế và env production là nguồn chính cho deployment.
+3. File `HANDOFF-ANTI.md` này ưu tiên hơn handoff cũ về trạng thái hạ tầng.
 
 ---
 
 ## 1. Dự án là gì?
 
-**Huy Locket** là web client mở rộng cho Locket, có các chức năng như:
+**Huy Locket** là web client mở rộng cho Locket, có các nhóm chức năng:
 
 - đăng ảnh/video lên Locket;
 - camera và preview media;
 - music caption / music overlay;
 - bạn bè và celebrity/slot monitoring;
-- bản nháp, đồng bộ nháp nhiều thiết bị;
-- admin tools;
-- gửi mail/notification;
+- bản nháp + đồng bộ nháp đa thiết bị;
+- Admin/Ops Suite;
+- Gmail API / notification / PIN recovery;
 - Google Drive backup;
 - theme/animation/PWA;
-- lịch sử/activity và các tiện ích bổ sung.
+- activity/history;
+- quản lý user và công cụ nội bộ.
 
 ### Branding bắt buộc
 
 - UI hiển thị: **Huy Locket**.
-- Không tự đổi branding UI thành `Locket Dio` / `Dio` / brand cũ.
-- Một số internal API path/header/class vẫn có chữ `Dio` vì tương thích backend cũ — **không rename hàng loạt**.
-- App được định hướng **100% free**, không tự bật lại paywall/feature lock.
+- Không tự đổi branding UI thành `Locket Dio`, `Dio` hay brand cũ.
+- Một số internal API/header/path/class vẫn có chữ `Dio` vì backward compatibility — **không mass rename**.
+- App định hướng **free**, không tự bật lại paywall/feature lock.
 
 ---
 
 ## 2. Kiến trúc production hiện tại
+
+### 2.1 Web chính
 
 ```text
 Browser / PWA
     |
     v
 Vercel project: huy-locket
-React + Vite static frontend
+React + Vite frontend
 https://duchi.vercel.app
-    |
-    | /dio-api/*
-    | /api/admin/*
-    | /api/activity/*
-    | /api/drive-*
-    v
-Vercel project: huy-locket-api
-Node.js + Express serverless backend
-https://huy-locket-api-huy-locket.vercel.app
-    |
-    +--> Locket / Firebase APIs
-    +--> Neon Postgres
-    +--> Supabase Storage + Edge Function
-    +--> Google Drive OAuth/backup
-    +--> Gmail/OAuth notification paths
-    +--> Redis (optional/configured features)
-    +--> other external Dio/Locket services where still required
 ```
 
-### Frontend routing/rewrite
+Web chính **phải tiếp tục ở Vercel**.
 
-Root `vercel.json`:
+### 2.2 API chính
 
-- framework: `vite`
-- Node: project dùng **24.x**
-- build: `npm run build:deploy`
-- output: `vercel-static`
-- `/dio-api/*` -> backend Vercel `huy-locket-api`
-- `/api/admin/*` -> backend Vercel
-- `/api/activity/*` -> backend Vercel
-- `/api/drive-*` -> backend Vercel
-- `/dio-data`, `/dio-storage`, `/dio-media`, `/dio-export`, `/dio-cdn`, `/dio-payment` vẫn có các upstream riêng.
-- SPA fallback -> `/index.html`.
+```text
+Vercel project: huy-locket-api
+Node.js + Express serverless
+    |
+    +--> Locket / Firebase
+    +--> Neon Postgres
+    +--> Supabase draft storage
+    +--> Gmail API / OAuth
+    +--> Google Drive
+    +--> Cloudflare R2
+```
 
-### Backend Vercel
+Vercel API vẫn xử lý các route browser/admin/post chính.
 
-`api/vercel.json`:
+### 2.3 Render helper + worker
 
-- backend chạy dạng Vercel Functions / Express;
-- catch-all route đi vào `api/vercel-web.js`;
-- có function riêng cho:
-  - `socket-io.js`
-  - `telegram-update.js`
-  - `slot-notification-relay.js`
-- max duration hiện cấu hình 60s cho các function chính.
+Service cần giữ:
 
-**Không giả định Vercel Function là long-lived server.** Nếu đụng realtime/Socket.IO phải kiểm tra kỹ cách fallback/polling hiện tại trước khi sửa.
+```text
+huy-locket-media-api
+https://huy-locket-media-api.onrender.com
+service id: srv-da2q86uk1f9s73drk4hg
+region: Singapore
+runtime: Node
+repo: buiduchuy2010qn-prog/duchi-locketgold
+branch: main
+```
+
+Service này hiện gộp:
+
+```text
+huy-locket-media-api
+├── Media API / temp media bridge
+├── R2 helper
+├── backend helper endpoints khi cần
+└── Slot Monitor 24/7
+    ├── adaptive polling
+    ├── celeb slot checks
+    ├── auto-request worker
+    └── relationship watcher
+```
+
+### 2.4 Service Render cũ không còn cần
+
+Service cũ:
+
+```text
+huy-locket-slot-worker
+service id: srv-d9v61rp5efls73altkr0
+```
+
+Slot worker đã được **gộp vào `huy-locket-media-api`**.
+
+- Không tạo lại service này.
+- Nếu nó vẫn còn trong dashboard: nên suspend/delete để không tốn instance-hour/lượt.
+- Trước khi xóa đã có cơ chế chuyển key/session an toàn.
+- Đã chuyển **4/4 session Slot Monitor** sang key mới trong quá trình merge.
+
+Nếu từng có `huy-locket-render-web`/Render static web thì đó là service thử nghiệm, **không phải web production chính** và không cần giữ.
 
 ---
 
@@ -123,19 +164,19 @@ Root `vercel.json`:
 | Nhóm | Công nghệ |
 |---|---|
 | Runtime/tooling | **Node.js 24.x**, npm |
-| UI framework | **React 18** |
+| UI | **React 18** |
 | Build | **Vite 6**, `@vitejs/plugin-react-swc` |
 | CSS/UI | **Tailwind CSS 4**, **DaisyUI 5** |
 | Router | **React Router DOM 7** |
 | State | **Zustand 5** |
 | HTTP | **Axios** |
 | Local DB | **Dexie / IndexedDB** |
-| Animation | **Framer Motion**, Swiper, marquee/confetti |
-| PWA | **vite-plugin-pwa**, service worker/manifest |
-| i18n | **i18next**, react-i18next |
+| Animation | Framer Motion, Swiper, marquee/confetti |
+| PWA | `vite-plugin-pwa`, service worker/manifest |
+| i18n | i18next, react-i18next |
 | Media | react-easy-crop, heic-to, ColorThief |
-| Icons/UI helpers | lucide-react, react-icons, sonner, clsx, driver.js |
-| Performance | `@tanstack/react-virtual` + lazy/cache logic trong app |
+| Icons/helpers | lucide-react, react-icons, sonner, clsx, driver.js |
+| Performance | `@tanstack/react-virtual` + lazy/cache logic |
 
 ### Backend/API
 
@@ -143,130 +184,510 @@ Root `vercel.json`:
 |---|---|
 | Runtime | **Node.js 24.x** |
 | Server | **Express 4** |
-| Hosting | **Vercel Functions** |
-| Database | **Neon Postgres** (`@neondatabase/serverless`, `postgres`) |
-| Object/media storage mới | **Supabase Storage** |
-| Supabase access | `@supabase/supabase-js` + **Supabase Edge Function** cho draft storage ticket/auth |
-| Firebase | `firebase-admin`, Firestore/Identity Toolkit/Locket Firebase flows |
-| Realtime | Socket.IO + Redis adapter (nhưng phải tôn trọng giới hạn serverless) |
-| Cache/queue support | Redis client |
-| Media server | Sharp, FFmpeg, FFprobe, Multer, HEIC convert |
-| Auth/security | JWT, cookies, rate limit, OTP/TOTP, QR |
+| Hosting chính | **Vercel Functions** |
+| Long-lived helper | **Render Web Service** |
+| Database | **Neon Postgres** |
+| Draft object storage | **Supabase Storage** |
+| Temp post media | **Cloudflare R2** |
+| Firebase | Firebase Admin / Identity Toolkit / Locket Firebase flows |
+| Realtime | Socket.IO + Redis adapter khi có env |
+| Media server | Sharp, FFmpeg, FFprobe, Multer, HEIC conversion |
+| Auth/security | JWT, signed cookies, HMAC signatures, rate limit, OTP/TOTP |
 | Push | web-push / VAPID |
+| Mail | **Gmail API + OAuth 2.0** |
 | Parsing/network | Axios, Cheerio, proxy agent |
 
 ### Hạ tầng / dịch vụ ngoài
 
-- **GitHub**: source control, branch `main`.
-- **Vercel**: frontend + backend production.
-- **Neon**: Postgres dữ liệu bền và metadata ở nhiều module.
-- **Supabase**: đang được đưa vào để giảm tải Neon cho media/binary, đặc biệt draft media.
-- **Firebase/Locket APIs**: auth, user/moment/post flows.
-- **Google Drive**: OAuth + backup.
-- **Gmail/OAuth**: mail notification ở một số admin/slot flow.
-- **Redis**: optional cho các phần realtime/cache nếu env có cấu hình.
+- GitHub — source control, `main`.
+- Vercel — frontend + API production chính.
+- Render — media/helper API + Slot Monitor 24/7.
+- Cloudflare R2 — temp media của post.
+- Neon — Postgres dữ liệu bền.
+- Supabase — draft media/object storage + auth bridge liên quan draft.
+- Firebase/Locket APIs — auth/user/moment/friend flows.
+- Gmail API — Admin Email Center/PIN/slot mail paths.
+- Google Drive — OAuth + backup.
+- Redis — optional cho realtime/cache.
 
 ---
 
-## 4. Neon và Supabase — RẤT QUAN TRỌNG
+## 4. Cloudflare R2 — TEMP MEDIA KHI ĐĂNG BÀI
 
-Mục tiêu hiện tại là **giảm tải/egress/query không cần thiết trên Neon**, nhưng **không được xóa Neon bừa**.
+### Bucket hiện tại
+
+```text
+Bucket: huy-locket-media
+Storage class: Standard
+Location: Automatic / Asia Pacific
+```
+
+Không commit credential R2 vào repo.
+
+### Env liên quan
+
+```text
+R2_ACCOUNT_ID
+R2_ACCESS_KEY_ID
+R2_SECRET_ACCESS_KEY
+R2_BUCKET=huy-locket-media
+R2_REGION=auto
+```
+
+### Luồng đã test thành công thực tế
+
+Một lần post đã được xác nhận bằng log backend:
+
+```text
+PUT /api/media-upload/... -> 200
+Stored ... in R2
+Signature verified successfully
+Loaded ... directly from R2
+POST /locket/postMomentV2 -> 200
+Media posted successfully
+Deleted from own R2
+```
+
+Luồng production đã xác nhận:
+
+```text
+Browser
+  -> Vercel API
+  -> Cloudflare R2
+  -> Vercel đọc trực tiếp R2
+  -> postMoment/Locket
+  -> xóa temp object khỏi R2
+```
+
+### Các commit R2 quan trọng
+
+```text
+81712e7 feat(storage): add private Cloudflare R2 backend
+b51b6e6 feat(storage): delete uploads from own R2
+df6ca67 feat(storage): move temp media to Cloudflare R2
+52969d0 docs(storage): add Cloudflare R2 environment variables
+6db6251 fix(storage): route images through R2 first
+261a25b fix(storage): read temp media directly from R2
+fc93dfa chore(api): retrigger R2 direct-read deployment
+9400d75 fix(storage): allow dedicated Render media API
+7541b58 fix(storage): allow signed temp media bridge before cloud WAF
+```
+
+### Lỗi cũ đã tìm ra
+
+Trước `261a25b`, backend upload R2 thành công nhưng sau đó tự fetch media qua web domain, request cloud/server-to-server bị WAF trả 403, frontend báo kiểu:
+
+```text
+Media không còn — mở Bản nháp để chọn lại file rồi đăng.
+```
+
+Fix đúng là **backend đọc thẳng object từ R2**, không vòng qua web/WAF.
+
+### Dedicated Render media API
+
+Code trên `main` đã có hỗ trợ storage base riêng cho Render:
+
+```text
+https://huy-locket-media-api.onrender.com
+```
+
+Mục tiêu kiến trúc khi dùng split đầy đủ:
+
+```text
+Vercel Web
+   -> Render media API
+   -> Cloudflare R2
+   -> Vercel postMoment
+   -> Locket
+```
+
+Nhưng phải phân biệt:
+
+- **Luồng Vercel API + R2 đã test thành công thực tế.**
+- Code dedicated Render media API đã có trên `main`.
+- Frontend Vercel có thể chưa deploy commit mới nhất do build-rate-limit.
+- Không được nói rằng production web đang dùng Render media path nếu chưa kiểm tra deployment/version thực tế.
+
+---
+
+## 5. SIGNATURE SECRET GIỮA VERCEL VÀ RENDER
+
+Media temp bridge dùng HMAC signature.
+
+`api/src/utils/tokenUtils/signatureUtils.js` resolve secret theo thứ tự tương đương:
+
+```text
+LOCKETDIO_SIGNATURE_SECRET
+COOKIE_SECRET fallback
+```
+
+Vì hiện có explicit `LOCKETDIO_SIGNATURE_SECRET`, khi Render tạo/verify chữ ký liên dịch vụ thì:
+
+```text
+Vercel LOCKETDIO_SIGNATURE_SECRET
+=
+Render LOCKETDIO_SIGNATURE_SECRET
+```
+
+**Hai bên phải trùng 100%.**
+
+Đã thực hiện rotation/sync secret mới giữa hai service trong session này.
+
+- Không ghi giá trị secret thật vào file này.
+- Không log secret.
+- Không commit secret.
+- Nếu rotate lần nữa: cập nhật cùng giá trị ở cả Vercel và Render và redeploy các service cần thiết.
+
+---
+
+## 6. Render Slot Monitor đã gộp vào Media API
+
+### Cách worker được bật
+
+`api/app.js` chỉ start long-lived worker khi **không chạy trên Vercel**:
+
+```text
+if (!isVercel) {
+  ...
+  startSlotMonitorWorker();
+}
+```
+
+Vì vậy `huy-locket-media-api` trên Render vừa làm API vừa chạy worker 24/7.
+
+`api/src/modules/slotMonitor/index.js` hỗ trợ:
+
+```text
+SLOT_MONITOR_WORKER_ENABLED
+```
+
+để tạm disable role trong quá trình migration/gộp worker.
+
+### Merge/migration đã làm
+
+Các commit:
+
+```text
+509dd03 feat(slot): add safe encryption key rotation for worker merge
+902fa3c feat(slot): allow worker role to be disabled during merge
+be95106 feat(slot): rotate sessions before consolidating worker
+```
+
+Đã dùng cơ chế rotation để không làm mất session nền.
+
+Kết quả đã xác nhận trong quá trình merge:
+
+```text
+4/4 Slot Monitor sessions migrated
+old worker logic disabled
+new worker enabled in huy-locket-media-api
+```
+
+### Env worker quan trọng trên Render
+
+Không ghi value bí mật vào repo. Các key cần chú ý:
+
+```text
+DATABASE_URL
+SLOT_MONITOR_ENCRYPTION_KEY
+SLOT_MONITOR_WORKER_ENABLED
+FIREBASE_API_KEY
+VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY nếu dùng env
+```
+
+R2 env cũng nằm trên `huy-locket-media-api`.
+
+### Firebase API key
+
+Trong lúc gộp, worker từng log:
+
+```text
+FIREBASE_NOT_CONFIGURED
+```
+
+Sau đó đã bổ sung `FIREBASE_API_KEY` cho Render.
+
+Không hardcode key lại vào source chỉ để “cho chạy nhanh”.
+
+### Worker log healthy đã thấy
+
+```text
+[slot-monitor] adaptive 24/7 worker enabled
+[slot-relationship] pending-request watcher started
+[slot-monitor] auto-request turbo polling active
+```
+
+Polling policy hiện có dạng:
+
+```text
+normal ~30s
+fast ~10s
+fast window ~3 phút
+auto-request ~1s
+relationship watcher ~10s
+```
+
+Không tự tăng tần suất hơn nữa nếu chưa kiểm tra rate-limit/upstream behavior.
+
+---
+
+## 7. System Status sau khi gộp worker
+
+Dashboard Admin/Ops trước đây check URL service cũ:
+
+```text
+https://huy-locket-slot-worker.onrender.com/health
+```
+
+Sau khi service cũ bị xóa/suspend, UI báo:
+
+```text
+Render Canh Slot worker -> ERROR / HTTP 503
+```
+
+Đó là **false alarm của status checker cũ**, không có nghĩa worker mới chết.
+
+### Fix đã commit
+
+```text
+9eebc7d fix(status): expose merged Render slot worker health
+8908401 fix(status): point slot worker probe at merged Render API
+```
+
+Render merged worker health endpoint:
+
+```text
+https://huy-locket-media-api.onrender.com/health/slot-worker
+```
+
+`systemStatus.js` sau `8908401` phải probe merged Render API thay vì service cũ.
+
+Nếu Admin UI vẫn hiện ô:
+
+```text
+Render Canh Slot worker
+HTTP 503
+```
+
+thì trước tiên kiểm tra **Vercel API deployment commit**, không tạo lại worker cũ.
+
+---
+
+## 8. Gmail API / Admin Email Center
+
+### Trạng thái Gmail
+
+Admin Email Center đã được chuyển sang **Gmail API + OAuth 2.0**.
+
+Các commit nền tảng quan trọng:
+
+```text
+4cdf79d feat(admin): add Gmail API Email Center UI
+31ee90d feat(admin): switch Email Center route to Gmail API UI
+89c5aec feat(mail): migrate Slot Monitor email to Gmail API with safe fallback
+f799945 feat(mail): send Admin PIN recovery OTP through Gmail API
+6887e5b feat(mail): finish Gmail API rollout for PIN recovery and Slot Monitor
+d27d6bf fix(mail): request fresh Gmail send scope on OAuth reconnect
+5ea4181 fix(mail): recover from Gmail OAuth tokens missing send scope
+b950301 fix(mail): reject OAuth tokens without gmail.send scope
+fe68a26 feat(admin-mail): add quick send and compact email center
+```
+
+### Bug vừa tìm ra: Test gửi được nhưng gửi user thất bại
+
+Triệu chứng:
+
+- Nút **Test mail** gửi được.
+- Gửi thư từ trang quản lý user báo `EMAIL_SEND_FAILED`/502.
+
+Nguyên nhân:
+
+- Test route dùng Gmail API mới.
+- Legacy route user/apology vẫn gọi Google Apps Script relay cũ.
+
+Fix:
+
+```text
+cfe603f fix(admin-mail): route legacy user emails through Gmail API
+```
+
+Sau fix, legacy admin user mail cũng phải đi qua Gmail API thay vì Apps Script relay.
+
+**Cần retest end-to-end trên UI production sau khi deployment chứa `cfe603f` đã READY.**
+
+### Security Gmail
+
+- OAuth refresh token không được trả về frontend.
+- Không commit Gmail token/client secret.
+- Scope cần có `gmail.send`.
+- Nếu reconnect OAuth, phải kiểm tra token thực sự có send scope.
+
+---
+
+## 9. Drafts + Supabase + Neon
+
+Phần này vẫn đúng và không được phá bởi việc thêm R2.
 
 ### Draft metadata
 
 `api/src/modules/drafts/draftDatabase.js`
 
 - vẫn dùng Neon;
-- bảng chính:
-  - `huy_locket_drafts`
-  - `huy_locket_draft_media` (legacy/fallback media)
-- metadata draft vẫn cần đọc/ghi bền.
+- các bảng legacy/metadata vẫn cần persistence;
+- draft cũ phải tiếp tục đọc được.
 
-### Draft media mới
+### Draft media
 
-`api/src/modules/drafts/draftFileStore.js` + `supabaseDraftStorage.js`
-
-Chiến lược hiện tại:
-
-1. **Upload draft media mới trên Vercel ưu tiên Supabase Storage**.
-2. Quyền upload/download/delete được cấp qua **Supabase Edge Function** bằng ticket ngắn hạn.
-3. Nếu lỗi hạ tầng Supabase phù hợp để fallback thì có thể fallback về Neon.
-4. Nếu lỗi auth `401/403` thì **không được âm thầm bypass sang Neon**.
-5. Draft cũ lưu Base64 trên Neon vẫn phải đọc được.
-6. Không bulk migrate/xóa dữ liệu legacy cho đến khi đường Supabase đã ổn định hoàn toàn.
-
-### Lý do chuyển media khỏi Neon
-
-Không nên lưu blob/Base64 lớn trong Postgres nếu không cần vì:
-
-- tăng database storage;
-- tăng network egress;
-- tăng lượng dữ liệu đọc/ghi;
-- dễ tạo spike khi list/sync drafts.
-
-**Hướng đúng:** Postgres giữ metadata/record nhỏ; object storage giữ ảnh/video lớn.
-
-### Các tối ưu Neon vừa làm gần đây
-
-Gần đây project đã có các thay đổi theo hướng:
-
-- giảm activity heartbeat frequency;
-- tối ưu broadcast polling;
-- tránh schema init trong broadcast read;
-- signed draft proof không cần thêm Neon read;
-- draft media mới chuyển qua Supabase Storage;
-- giữ Neon fallback tương thích draft cũ.
-
-Nếu tiếp tục tối ưu Neon, ưu tiên:
-
-- cache hợp lý;
-- giảm polling vô ích;
-- tránh `CREATE TABLE IF NOT EXISTS` hoặc schema init ở hot read path;
-- tránh lấy row/blob lớn nếu chỉ cần metadata;
-- batch query khi hợp lý;
-- không thêm heartbeat/query mỗi vài giây cho mọi client.
-
----
-
-## 5. Trạng thái công việc gần nhất — 2026-08-19
-
-### Nhóm Drafts
-
-Các commit gần nhất tập trung vào draft stability:
-
-- chuyển draft media mới sang Supabase Storage;
-- thêm authenticated storage bridge;
-- thêm fallback an toàn;
-- sửa WAF cho verified Supabase media bridge;
-- giữ edit khi retry media;
-- ẩn synthetic conflict ghost trong cloud library;
-- thêm `Delete all` và làm thao tác này responsive;
-- expose media autosave state;
-- **latest baseline:** chặn manual save bị chạy trùng lúc autosave.
-
-Baseline code trước file handoff:
+Draft media mới ưu tiên **Supabase Storage**, khác với R2 temp post media.
 
 ```text
-15a6b5de1c2201a44ebe549b354c8481d658b9c3
-fix(drafts): prevent duplicate manual save during autosave
+Supabase Storage = draft media
+Cloudflare R2 = temp media khi post
 ```
 
-### Deployment snapshot lúc tạo file này
+Không được trộn 2 mục đích này rồi xóa một provider bừa.
 
-- Frontend `huy-locket`: deployment của baseline commit đã lên **READY**.
-- Backend `huy-locket-api`: deployment baseline đang được Vercel build ở thời điểm kiểm tra.
+### Các thay đổi draft đáng giữ
 
-**Anti phải tự check lại deployment mới nhất trước khi kết luận production hỏng/ổn**, vì trạng thái này thay đổi sau từng push.
+```text
+4e100d4 feat(storage): add verified draft storage auth bridge
+82ab152 feat(storage): mount draft storage auth bridge
+65e2c6d feat(drafts): add Supabase Storage client bridge
+949ee53 feat(drafts): store new draft media in Supabase with Neon fallback
+b1b315e feat(drafts): route new media through Supabase Storage
+301e715 fix(drafts): never bypass failed storage authentication
+c5dcaf3 perf(storage): verify signed draft proof without extra Neon read
+7db953e fix(drafts): add direct Supabase media sync fallback
+7f5f60f fix(drafts): retry saved media through Supabase
+1bb4224 fix(drafts): preserve edits during direct media retry
+f033b23 fix(storage): allow verified Supabase media bridge through WAF
+7cd5d95 fix(drafts): hide synthetic conflict ghosts from cloud library
+54bf570 feat(drafts): add delete all button
+de0881f fix(drafts): make delete all responsive
+2582a66 fix(drafts): expose media autosave state
+15a6b5d fix(drafts): prevent duplicate manual save during autosave
+```
+
+### Quy tắc draft
+
+- Local IndexedDB/Dexie vẫn quan trọng.
+- Cloud draft phải sync đa thiết bị.
+- Không xóa legacy Neon media trước migration đầy đủ.
+- Không fallback auth failure `401/403` sang đường kém an toàn.
+- Tránh race autosave/manual save.
+- Test desktop + mobile.
 
 ---
 
-## 6. Các phần KHÔNG ĐƯỢC phá
+## 10. Neon optimization đã làm
+
+Các commit liên quan:
+
+```text
+a026201 optimize broadcast polling
+6b9edc0 reduce activity heartbeat frequency
+576153d avoid schema init on broadcast reads
+c5dcaf3 verify signed draft proof without extra Neon read
+```
+
+Tiếp tục tối ưu theo hướng:
+
+- cache hợp lý;
+- giảm polling/query thừa;
+- tránh schema init ở hot path;
+- không đọc blob lớn khi chỉ cần metadata;
+- batch query khi phù hợp;
+- không thêm heartbeat mỗi vài giây cho tất cả client.
+
+Không xóa Neon hoàn toàn chỉ vì đã có Supabase/R2.
+
+---
+
+## 11. Update/reload trong lúc media đang hoạt động
+
+Commit:
+
+```text
+0e13fd3 fix(update): do not reload while media is active
+```
+
+Lý do:
+
+- trước đó update/reload có thể làm mất selected media trong lúc upload/post;
+- dễ dẫn tới lỗi media missing.
+
+Không được làm auto-update/reload agressive trở lại khi đang upload/post/save media.
+
+---
+
+## 12. Vercel build-rate-limit — trạng thái quan trọng
+
+Trong session 2026-08-19, nhiều commit bị Vercel chặn vì:
+
+```text
+build-rate-limit
+```
+
+Điều này tạo tình trạng:
+
+- GitHub `main` đã có code mới;
+- Render auto-deploy đã có code mới;
+- nhưng Vercel frontend hoặc API có thể vẫn ở commit cũ.
+
+### Snapshot gần nhất trước lần cập nhật file này
+
+HEAD:
+
+```text
+6cf60c56afa43c8f2d8c4555d7345cb14695fde6
+chore: retrigger Vercel deploy
+```
+
+GitHub deployment status lúc kiểm tra:
+
+```text
+Vercel – huy-locket-api: PENDING
+Vercel – huy-locket: FAILURE -> build-rate-limit
+```
+
+Ngay trước đó API production đã lên được:
+
+```text
+9eebc7d fix(status): expose merged Render slot worker health
+```
+
+Frontend production trong System Status gần nhất vẫn thấy commit:
+
+```text
+6db6251
+```
+
+Do đó:
+
+- Không kết luận code trên `main` đã chạy production chỉ vì GitHub đã push.
+- Không spam empty commit liên tục khi Vercel đang rate-limit.
+- Sau push phải kiểm tra cả **Vercel API** và **Vercel Web** riêng.
+
+### Empty commit retrigger
+
+Antigravity đã được yêu cầu tạo:
+
+```bash
+git commit --allow-empty -m "chore: retrigger Vercel deploy"
+git push origin main
+```
+
+Kết quả là commit `6cf60c5` ở trên.
+
+---
+
+## 13. Các phần KHÔNG ĐƯỢC phá
 
 ### Music / ISRC
 
-`AGENTS.md` có baseline known-good cho music (`474aa184`).
+`AGENTS.md` có known-good baseline music (`474aa184`).
 
-Không rewrite music flow chỉ vì muốn “clean code”. Khi sửa music phải bảo toàn:
+Bảo toàn:
 
 - ISRC hợp lệ;
 - title + artist;
@@ -277,40 +698,43 @@ Không rewrite music flow chỉ vì muốn “clean code”. Khi sửa music ph�
 ### Camera / Post
 
 - Không tạo lại camera stream vô ích.
-- Không làm preview bị zoom/crop sai sau chụp.
+- Không làm preview zoom/crop sai.
 - Không làm mobile UI lệch/không scroll.
-- Post thành công phải phản ánh trạng thái thật; không toast success giả khi request thật thất bại.
+- Không báo post success nếu upstream chưa thật sự success.
+- Giữ R2 direct-read flow đang hoạt động.
 
 ### Drafts
 
-- Local IndexedDB/Dexie vẫn quan trọng cho offline/local UX.
-- Cloud draft phải đồng bộ đa thiết bị.
-- Không xóa legacy Neon draft media khi chưa migration xác thực.
-- Tránh race autosave/manual save.
+- IndexedDB/Dexie local UX.
+- Cloud sync đa thiết bị.
+- Supabase draft media.
+- Neon legacy compatibility.
+- Không làm duplicate save.
+
+### Themes/UI
+
+- Giữ pink/snow/ocean và animation đã có.
+- Mobile mượt là ưu tiên.
+- Không xóa hiệu ứng hàng loạt chỉ để tối ưu chưa đo.
+
+### Admin/security
+
+- Backend phải verify quyền thật.
+- Không chỉ ẩn UI frontend.
+- Không commit secret.
+- Không log token/refresh token/signature secret.
+- Admin limiter đã được tách per-session; không quay lại limiter global gây admin tự block nhau.
 
 ### Google Drive
 
 - Giữ OAuth + backup.
-- Config/token bền phải nằm ở storage/database phù hợp; không dựa vào filesystem ephemeral của Vercel.
-
-### Themes/UI
-
-- Giữ các theme, bao gồm pink/snow và các hiệu ứng đã có.
-- Mượt trên mobile là ưu tiên.
-- Khi tối ưu performance không được xóa hiệu ứng hàng loạt nếu chưa chứng minh đó là bottleneck.
-
-### Admin / security
-
-- Admin route phải kiểm tra quyền thật ở backend.
-- Không dựa chỉ vào việc ẩn UI frontend.
-- Không commit secret/key riêng tư vào repo.
-- Public/publishable key chỉ dùng đúng scope; secret/service role phải ở env/server/Edge Function.
+- Không dựa vào filesystem ephemeral cho token/config persistence.
 
 ---
 
-## 7. Các file điểm chạm quan trọng
+## 14. File điểm chạm quan trọng
 
-### Frontend
+### Frontend chung
 
 ```text
 src/App.jsx
@@ -321,8 +745,19 @@ src/libs/instanceAuth.js
 src/stores/
 src/services/
 src/pages/
-src/components/MomentDraft/
-src/utils/momentDraft/
+src/features/
+```
+
+### Media / R2
+
+```text
+src/services/LocketDioServices/StorageServices.js
+api/src/modules/storage/
+api/src/modules/storage/routes.js
+api/src/modules/storage/storage.controller.js
+api/src/modules/storage/r2Storage.js (hoặc module R2 tương ứng trên main)
+api/src/utils/tokenUtils/signatureUtils.js
+api/app.js
 ```
 
 ### Drafts
@@ -337,6 +772,31 @@ api/src/modules/drafts/supabaseDraftStorage.js
 api/src/routes/storageAuthRoutes.js
 ```
 
+### Slot Monitor
+
+```text
+api/src/modules/slotMonitor/index.js
+api/src/modules/slotMonitor/service.js
+api/src/modules/slotMonitor/store.js
+api/src/modules/slotMonitor/crypto.js
+api/src/modules/slotMonitor/systemStatus.js
+api/src/modules/slotMonitor/relationshipWorker.js
+api/slot-worker.js          # legacy standalone service entrypoint; không còn cần service riêng
+api/app.js                  # merged worker start trên Render
+```
+
+### Gmail/Admin
+
+```text
+api/src/routes/adminGmailSendRoutes.js
+api/src/routes/adminMailQuotaRoutes.js
+api/src/routes/adminPinRecoveryGmailRoutes.js
+api/src/services/gmailSlotNotifierPatch.js
+api/src/routes/adminRoutes.js
+src/pages/Public/AdminUsers/
+src/features/SlotMonitor/
+```
+
 ### Backend/config
 
 ```text
@@ -345,62 +805,74 @@ api/vercel.json
 api/src/config/app.config.js
 api/src/config/supabase.js
 api/src/routes/index.js
-api/src/routes/adminRoutes.js
-api/src/routes/activityRoutes.js
-```
-
-### Slot/Celebrity
-
-```text
-api/src/modules/slotMonitor/
-api/src/services/celebrityCatalogStore.js
-api/src/services/gmailSlotNotifierPatch.js
-```
-
-### Drive
-
-```text
-api/src/modules/vercelDrive.js
-server.mjs          # legacy/proxy/history; đọc trước khi xóa gì
-```
-
-### Deployment
-
-```text
-package.json
 vercel.json
-api/package.json
-api/vercel.json
-.env.example
-.env.production
+render.yaml
 ```
 
 ---
 
-## 8. Deploy hiện tại
+## 15. Deploy hiện tại
 
-### Frontend
+### Vercel frontend
 
-Project Vercel: `huy-locket`
+Project:
+
+```text
+huy-locket
+project id: prj_IYydzPJ3EAbY0n2khx7K8y7bfaLA
+```
+
+Domain chính:
+
+```text
+https://duchi.vercel.app
+```
+
+Build:
 
 ```bash
 npm ci
 npm run build:deploy
 ```
 
-Root `vercel.json` output ra `vercel-static`.
+### Vercel API
 
-### Backend
+Project:
 
-Project Vercel: `huy-locket-api`
+```text
+huy-locket-api
+project id: prj_Zc1HHCs6pPZuGlxrApNCRGKGJUUU
+```
 
-Backend source nằm trong `api/` và dùng `api/vercel.json`.
+Backend nằm trong `api/`.
+
+### Render merged service
+
+```text
+huy-locket-media-api
+srv-da2q86uk1f9s73drk4hg
+https://huy-locket-media-api.onrender.com
+Singapore
+```
+
+Build/start:
+
+```text
+build: cd api && npm install --omit=dev
+start: cd api && npm start
+```
+
+Auto-deploy từ `main`.
 
 ### Git flow
 
-Production theo `main`.
+Production branch:
 
-Trước khi push:
+```text
+main
+```
+
+Trước khi push khi có thể:
 
 ```bash
 npm run lint:quality
@@ -408,99 +880,91 @@ npm run test:unit
 npm run build:deploy
 ```
 
-Nếu thay đổi backend liên quan security/drafts/slot:
+Backend-sensitive change:
 
 ```bash
 cd api
 npm test
 ```
 
-Sau đó mới commit/push `main` nếu test/build phù hợp.
-
-**Không push một refactor lớn không liên quan tới bug hiện tại.** Tách thay đổi theo mục tiêu để rollback dễ.
+Không push refactor lớn không liên quan bug hiện tại.
 
 ---
 
-## 9. Cách Anti nên làm việc với dự án này
+## 16. Cách Anti/Antigravity nên làm việc
 
-1. `git pull` / đọc HEAD `main` trước.
-2. Đọc `HANDOFF-ANTI.md`.
-3. Đọc `AGENTS.md` để biết các feature baseline cần giữ, nhưng bỏ qua thông tin production Railway cũ.
-4. Xác định đúng bug + đúng file trước khi sửa.
-5. Ưu tiên fix nhỏ, ít ảnh hưởng, backward-compatible.
-6. Không rename hàng loạt internal Dio symbols.
-7. Không đổi storage/database provider hàng loạt chỉ để “đồng nhất”.
-8. Nếu sửa Neon/Supabase phải kiểm tra cả dữ liệu cũ và dữ liệu mới.
-9. Nếu sửa draft phải test cả:
-   - save tự động;
-   - save thủ công;
-   - save & chụp tiếp;
-   - mở lại draft;
-   - thiết bị khác;
-   - xóa 1;
-   - xóa tất cả;
-   - media Supabase;
-   - legacy Neon fallback.
-10. Nếu sửa UI phải test desktop + mobile width.
-11. Build/test xong mới push.
-12. Sau push kiểm tra cả hai Vercel projects, vì cùng một commit có thể trigger cả frontend và backend.
+1. Pull/read HEAD `main` trước.
+2. Đọc `HANDOFF-ANTI.md` này trước các handoff cũ.
+3. Dùng `AGENTS.md` cho feature baseline, nhưng bỏ thông tin hosting Railway cũ.
+4. Xác định bug + đúng route + đúng service đang chạy production.
+5. Với deployment: kiểm tra riêng Vercel Web, Vercel API, Render.
+6. Không giả định code `main` = code production nếu Vercel đang rate-limit.
+7. Không tạo thêm Render web/service nếu chức năng đã gộp được vào `huy-locket-media-api`.
+8. Không tạo lại `huy-locket-slot-worker`.
+9. Không đổi R2/Supabase/Neon vai trò lẫn nhau nếu chưa hiểu data flow.
+10. Không rename hàng loạt Dio internals.
+11. Fix nhỏ, backward-compatible, có log/verification.
+12. Sau push kiểm tra deployment và runtime log thật.
 
 ---
 
-## 10. Nguyên tắc tối ưu hiện tại
-
-Ưu tiên theo thứ tự:
-
-1. **Ổn định chức năng trước**.
-2. **Giảm request/query thừa**.
-3. **Giảm Neon egress/DB load**.
-4. Media lớn -> Supabase/object storage.
-5. Metadata nhỏ -> Postgres khi cần persistence/query.
-6. Client cache/IndexedDB cho local/offline.
-7. Không tạo polling nhanh nếu event thay đổi chậm.
-8. Tránh duplicate requests khi component rerender.
-9. Mobile UX phải mượt nhưng không đổi behavior nghiệp vụ.
-10. Luôn giữ backward compatibility cho dữ liệu người dùng cũ.
-
----
-
-## 11. Những điều Anti không nên tự làm
-
-- Không chuyển project trở lại Railway chỉ vì thấy file cấu hình Railway cũ.
-- Không xóa `Neon` hoàn toàn.
-- Không xóa `Supabase` vì nghĩ nó “optional” — draft storage hiện đã dùng thực tế.
-- Không mass-delete old draft rows/media.
-- Không đổi toàn bộ backend sang framework khác.
-- Không đổi React/Vite stack nếu không có yêu cầu cụ thể.
-- Không nâng major dependency hàng loạt trong lúc đang fix bug production.
-- Không thay đổi auth/admin security cho “đơn giản hơn”.
-- Không hardcode secret vào source.
-- Không báo success nếu upstream thật sự chưa xác nhận success.
-
----
-
-## 12. Checklist khi nhận session mới
+## 17. Checklist khi nhận session mới
 
 ```text
-[ ] Repo đúng: buiduchuy2010qn-prog/duchi-locketgold
+[ ] Repo: buiduchuy2010qn-prog/duchi-locketgold
 [ ] Branch: main
 [ ] Pull HEAD mới nhất
 [ ] Đọc HANDOFF-ANTI.md
-[ ] Đọc AGENTS.md (lọc bỏ hosting Railway cũ)
 [ ] Check Vercel huy-locket
 [ ] Check Vercel huy-locket-api
-[ ] Xác định bug hiện tại
-[ ] Kiểm tra network/API thật trước khi sửa UI
-[ ] Không phá music/camera/drafts/themes/admin
-[ ] Nếu đụng draft: kiểm tra Supabase + Neon legacy
-[ ] Run lint/test/build phù hợp
-[ ] Commit nhỏ, message rõ
+[ ] Check Render huy-locket-media-api
+[ ] Không tạo lại huy-locket-slot-worker
+[ ] Web chính vẫn là duchi.vercel.app
+[ ] Check Vercel build-rate-limit trước khi spam commit
+[ ] Nếu media post lỗi: kiểm tra R2 upload/direct-read/signature/delete
+[ ] Nếu Slot lỗi: kiểm tra merged worker + DATABASE_URL + encryption key + Firebase key
+[ ] Nếu System Status 503 worker: xem API đã có 8908401 chưa
+[ ] Nếu mail Test được nhưng user send lỗi: kiểm tra cfe603f/Gmail API legacy bridge
+[ ] Nếu draft lỗi: phân biệt Supabase draft media và R2 temp post media
+[ ] Không commit secret/token
+[ ] Test desktop + mobile khi sửa UI
+[ ] Build/test phù hợp
 [ ] Push main
-[ ] Verify production sau deploy
+[ ] Verify production thật sau deploy
 ```
 
 ---
 
-## 13. Tóm tắt một câu cho Anti
+## 18. Tóm tắt cực ngắn cho Anti
 
-> **Huy Locket hiện là React/Vite PWA trên Vercel + Node/Express API trên Vercel; Neon giữ database/metadata và legacy fallback, Supabase đang gánh draft media mới để giảm tải Neon; hãy tiếp tục tối ưu theo hướng ít query hơn nhưng tuyệt đối giữ backward compatibility và các chức năng đang ổn.**
+```text
+WEB CHÍNH:
+Vercel -> duchi.vercel.app
+
+API CHÍNH:
+Vercel -> huy-locket-api
+
+RENDER GIỮ LẠI:
+huy-locket-media-api
+= media/helper API + Slot Monitor 24/7
+
+RENDER KHÔNG CẦN:
+huy-locket-slot-worker cũ
+Render web/static thử nghiệm
+
+POST MEDIA:
+Cloudflare R2 temp -> post Locket -> delete R2
+
+DRAFT MEDIA:
+Supabase Storage
+
+DATABASE:
+Neon
+
+MAIL:
+Gmail API/OAuth
+
+QUAN TRỌNG:
+LOCKETDIO_SIGNATURE_SECRET của Vercel và Render phải trùng.
+Vercel đang có thể bị build-rate-limit, nên luôn check deployment commit thật.
+```
