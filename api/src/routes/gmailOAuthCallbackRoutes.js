@@ -8,6 +8,7 @@ const {
 } = require("../services/gmailApiMailer");
 
 const router = express.Router();
+const GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
 const PUBLIC_URL = String(
   process.env.PUBLIC_URL
     || process.env.PUBLIC_WEB_URL
@@ -64,9 +65,6 @@ function renderResult(res, { ok, title, message }) {
 </body>`);
 }
 
-// Reuse the already-authorized Google Drive callback URI so the user does not
-// need to add another redirect URI in Google Cloud. Only Gmail-purpose states
-// are consumed here; all Drive OAuth callbacks continue to the existing router.
 router.get("/drive-oauth-callback", async (req, res, next) => {
   const ctx = verifyState(req.query.state);
   if (!ctx || ctx.purpose !== "gmail") return next();
@@ -108,6 +106,18 @@ router.get("/drive-oauth-callback", async (req, res, next) => {
         ok: false,
         title: "Google chưa cấp refresh token",
         message: "Hãy thử kết nối lại và cho phép Duchi Locket gửi email bằng Gmail.",
+      });
+    }
+
+    const grantedScopes = String(token.scope || "")
+      .split(/\s+/)
+      .map((scope) => scope.trim())
+      .filter(Boolean);
+    if (grantedScopes.length && !grantedScopes.includes(GMAIL_SEND_SCOPE)) {
+      return renderResult(res, {
+        ok: false,
+        title: "Thiếu quyền gửi Gmail",
+        message: "Google chưa cấp quyền gmail.send. Hãy kết nối lại và chấp nhận quyền gửi email.",
       });
     }
 
