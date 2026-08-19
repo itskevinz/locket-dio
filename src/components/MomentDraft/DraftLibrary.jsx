@@ -329,28 +329,54 @@ export default function DraftLibrary() {
       return;
     }
 
-    const snapshot = [...drafts];
+    const snapshot = drafts.filter((draft) => draft?.id);
     let deletedCount = 0;
     let failedCount = 0;
+    let cursor = 0;
+    const workerCount = Math.min(6, snapshot.length);
+    const isSyntheticCloudDraft = (id) =>
+      /(?:__cloud_\d+)+$/i.test(String(id || ""));
+
     setBusyId("delete-all");
     try {
-      for (const draft of snapshot) {
-        const id = draft?.id;
-        if (!id) continue;
-        try {
+      const worker = async () => {
+        while (true) {
+          const index = cursor;
+          cursor += 1;
+          if (index >= snapshot.length) return;
+
+          const id = snapshot[index]?.id;
+          if (!id) continue;
+
           try {
-            await instanceMain.delete(`/api/drafts/${encodeURIComponent(id)}`);
+            // Synthetic conflict copies only live in the local cache / hidden
+            // cloud history. Avoid wasting a network round-trip for them.
+            if (!isSyntheticCloudDraft(id)) {
+              try {
+                await instanceMain.delete(
+                  `/api/drafts/${encodeURIComponent(id)}`,
+                  { timeout: 10_000 },
+                );
+              } catch (error) {
+                if (error?.response?.status !== 404) throw error;
+              }
+            }
+
+            const localDeleted = await deleteDraft(id);
+            if (localDeleted === false) throw new Error("LOCAL_DELETE_FAILED");
+            deletedCount += 1;
           } catch (error) {
-            if (error?.response?.status !== 404) throw error;
+            failedCount += 1;
+            console.warn(
+              "[draft-library] delete all item failed",
+              id,
+              error?.message || error,
+            );
           }
-          const localDeleted = await deleteDraft(id);
-          if (localDeleted === false) throw new Error("LOCAL_DELETE_FAILED");
-          deletedCount += 1;
-        } catch (error) {
-          failedCount += 1;
-          console.warn("[draft-library] delete all item failed", id, error?.message || error);
         }
-      }
+      };
+
+      await Promise.all(Array.from({ length: workerCount }, () => worker()));
 
       setSelectedIds(new Set());
       setMultiSelectMode(false);
