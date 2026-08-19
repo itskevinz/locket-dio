@@ -36,6 +36,11 @@ export function useMomentDraftLifecycle() {
   const [mediaSaveState, setMediaSaveState] = useState("idle");
   const [metaSavePending, setMetaSavePending] = useState(false);
 
+  const publishMediaSaveState = (next) => {
+    setMediaSaveState(next);
+    useMomentDraftStore.setState({ mediaAutosaveState: next });
+  };
+
   useEffect(() => {
     if (!isAuth) return;
     void requestDraftPersist();
@@ -55,6 +60,8 @@ export function useMomentDraftLifecycle() {
         showRestoreModal: false,
         dismissedRestore: false,
         libraryOpen: false,
+        mediaAutosaveState: "idle",
+        manualDraftSaveInProgress: false,
       });
       useMomentDraftStore.getState().clearThumbnail();
     }
@@ -107,25 +114,32 @@ export function useMomentDraftLifecycle() {
       ) {
         queueMetaSave();
       }
-      // New media file → bind to active draft or create NEW uuid (never overwrite others)
+      // New media file → bind to active draft or create NEW uuid (never overwrite others).
+      // A manual save can itself materialize preview data into selectedFile; skip the
+      // parallel autosave in that case so one user action can never create two UUIDs.
       if (state.selectedFile && state.selectedFile !== prev.selectedFile) {
         const version = ++mediaSaveVersion.current;
-        setMediaSaveState("saving");
+        if (useMomentDraftStore.getState().manualDraftSaveInProgress) {
+          publishMediaSaveState("idle");
+          return;
+        }
+
+        publishMediaSaveState("saving");
         void useMomentDraftStore
           .getState()
           .saveMediaFromFile(state.selectedFile)
           .then((result) => {
             if (disposed || mediaSaveVersion.current !== version) return;
-            setMediaSaveState(result?.error ? "failed" : "saved");
+            publishMediaSaveState(result?.error ? "failed" : "saved");
           })
           .catch(() => {
             if (!disposed && mediaSaveVersion.current === version) {
-              setMediaSaveState("failed");
+              publishMediaSaveState("failed");
             }
           });
       } else if (!state.selectedFile && prev.selectedFile) {
         mediaSaveVersion.current += 1;
-        setMediaSaveState("idle");
+        publishMediaSaveState("idle");
         setMetaSavePending(false);
       }
     });

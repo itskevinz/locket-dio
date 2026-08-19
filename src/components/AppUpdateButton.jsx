@@ -186,19 +186,19 @@ export default function AppUpdateButton({ className = "" }) {
         showFeedback("error");
         SonnerError("Kiểm tra thất bại", "Không thể kiểm tra cập nhật.");
       } else if (status === "latest") {
-        // The server says this build is current, but an installed PWA can still
-        // be showing stale cached HTML/assets. A manual Update press doubles as
-        // a real refresh so the user is never trapped on that stale shell.
+        // Không refresh khi đã ở bản mới nhất. Refresh vô ích có thể làm mất
+        // File/blob đang giữ trong RAM trước khi media kịp được lưu bền vững.
         showFeedback("latest");
-        SonnerInfo("Đang làm mới ứng dụng", "Đang tải lại bản mới nhất từ máy chủ.");
-        await forceFreshNavigation();
+        SonnerInfo("Đã là bản mới nhất", "Không cần tải lại trang.");
       } else if (status === "busy") {
-        // Auto-update still respects draft/upload busy state. The explicit
-        // Update button is a force action requested by the user, so do not leave
-        // it in “busy” forever on Android.
+        // updateWatcher trả về busy khi đang có draft/upload/media cần bảo toàn.
+        // Tuyệt đối không ép reload trong trạng thái này vì File/blob URL chỉ
+        // tồn tại trong phiên hiện tại và sẽ mất ngay khi document bị tải lại.
         showFeedback("busy");
-        SonnerInfo("Đang buộc cập nhật", "Ứng dụng sẽ tải lại ngay.");
-        await forceFreshNavigation();
+        SonnerInfo(
+          "Chưa thể cập nhật",
+          "Đang có ảnh/video hoặc bài đăng chưa hoàn tất. Đăng hoặc lưu xong rồi cập nhật.",
+        );
       } else if (status === "timeout") {
         showFeedback("busy");
         SonnerInfo("Đang làm mới ứng dụng", "Trình cập nhật phản hồi chậm, đang tải lại trực tiếp.");
@@ -219,10 +219,10 @@ export default function AppUpdateButton({ className = "" }) {
   };
 
   let statusText = "";
-  if (feedback === "latest") statusText = "Đang tải lại bản mới nhất…";
+  if (feedback === "latest") statusText = "Đã là bản mới nhất";
   else if (feedback === "offline") statusText = "Mất kết nối mạng";
   else if (feedback === "error") statusText = "Kiểm tra cập nhật lỗi";
-  else if (feedback === "busy") statusText = "Đang buộc tải bản mới…";
+  else if (feedback === "busy") statusText = "Đang giữ media — chưa cập nhật";
   else if (phase === APP_UPDATE_PHASE.CHECKING || clicking)
     statusText = "Đang kiểm tra…";
   else if (phase === APP_UPDATE_PHASE.UPDATE_READY) statusText = "Có bản mới";

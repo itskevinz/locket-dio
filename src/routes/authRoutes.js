@@ -1,5 +1,6 @@
 import { CONFIG } from "@/config";
 import React from "react";
+// Production build marker: Gmail API Email Center V2 rollout.
 // import CameraCapture from "../pages/UILocket";
 const FriendManager = React.lazy(() => import("@/pages/Auth/FriendManager"));
 const DiaryPage = React.lazy(() => import("@/pages/Auth/DiaryPage"));
@@ -31,6 +32,7 @@ const TermsPage = React.lazy(() => import("@/pages/Public/TermsPage"));
 const AdminGoogleDrive = React.lazy(() => import("../pages/Public/AdminGoogleDrive"));
 const AdminUsers = React.lazy(() => import("../pages/Public/AdminUsersWithFriendShortcut"));
 const AdminUserFriends = React.lazy(() => import("../pages/Public/AdminUserFriends"));
+const AdminEmailCenter = React.lazy(() => import("../pages/Public/AdminEmailCenterV2"));
 const AdminOperations = React.lazy(() => import("../pages/Public/AdminOperations"));
 
 const APP_NAME = CONFIG.app.fullName;
@@ -65,6 +67,7 @@ export const authRoutes = [
   { path: "/admin/google-drive", component: AdminGoogleDrive, title: `Google Drive Admin | ${APP_NAME}` },
   { path: "/admin/users", component: AdminUsers, title: `Quản lý người dùng | ${APP_NAME}` },
   { path: "/admin/user-friends", component: AdminUserFriends, title: `Bạn bè Locket của user | ${APP_NAME}` },
+  { path: "/admin/mail", component: AdminEmailCenter, title: `Quản lý Email | ${APP_NAME}` },
   { path: "/admin/health", component: AdminOperations, title: `Vận hành hệ thống | ${APP_NAME}` },
   { path: "/devpage", component: DevPage, title: `Dev Page | ${APP_NAME}` },
   { path: "/contact", component: Contact, title: `Liên hệ & Hỗ trợ | ${APP_NAME}` },

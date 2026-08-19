@@ -44,8 +44,8 @@ async function handleAuthRevocation(code, details = {}) {
 }
 
 const SESSION_KEY = "huy_user_activity_session_v1";
-const HEARTBEAT_INTERVAL_MS = 60_000;
-const MIN_HEARTBEAT_GAP_MS = 30_000;
+const HEARTBEAT_INTERVAL_MS = 120_000;
+const MIN_HEARTBEAT_GAP_MS = 60_000;
 const GPS_REFRESH_INTERVAL_MS = 5 * 60_000; // Cập nhật GPS mỗi 5 phút
 const RAILWAY_ACTIVITY_API = import.meta.env.VITE_ACTIVITY_API_URL
   || "https://huy-locket-api-production.up.railway.app";

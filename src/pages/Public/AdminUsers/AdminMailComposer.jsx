@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { adminRequest } from "@/services/AdminAuthService";
 
 const TEMPLATES = [
   {
@@ -84,6 +85,41 @@ export default function AdminMailComposer({
   onSend,
 }) {
   const contentScrollRef = useRef(null);
+  const quotaRequestRef = useRef(false);
+  const [mailQuota, setMailQuota] = useState(null);
+  const [quotaLoading, setQuotaLoading] = useState(false);
+  const [quotaError, setQuotaError] = useState("");
+
+  const loadMailQuota = async () => {
+    if (quotaRequestRef.current) return;
+    quotaRequestRef.current = true;
+    setQuotaLoading(true);
+    setQuotaError("");
+    try {
+      const result = await adminRequest("/mail-quota");
+      setMailQuota({
+        remaining: Number(result?.remaining),
+        dailyLimit: Number(result?.dailyLimit) || null,
+        checkedAt: result?.checkedAt || null,
+        senderEmail: String(result?.senderEmail || "").trim().toLowerCase(),
+      });
+    } catch (error) {
+      setMailQuota(null);
+      setQuotaError(error?.code === "MAIL_QUOTA_RELAY_UPDATE_REQUIRED"
+        ? "Cần cập nhật Apps Script"
+        : "Không đọc được quota");
+    } finally {
+      quotaRequestRef.current = false;
+      setQuotaLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    loadMailQuota();
+    // Chỉ kiểm tra một lần mỗi lần mở Mail Center; nút quota cho phép refresh thủ công.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   useEffect(() => {
     if (!open || typeof document === "undefined") return undefined;
@@ -126,15 +162,44 @@ export default function AdminMailComposer({
   if (!open || typeof document === "undefined") return null;
 
   const selected = TEMPLATES.find((item) => item.id === template) || TEMPLATES[0];
+  const quotaText = quotaLoading
+    ? "Đang kiểm tra quota…"
+    : mailQuota && Number.isFinite(mailQuota.remaining)
+      ? mailQuota.dailyLimit
+        ? `${mailQuota.remaining} / ${mailQuota.dailyLimit} còn lại`
+        : `${mailQuota.remaining} lượt còn lại`
+      : quotaError || "Quota chưa có dữ liệu";
 
   return createPortal(
     <div className="fixed inset-0 z-[100000] bg-slate-950/45 backdrop-blur-sm flex items-stretch sm:items-center justify-center p-0 sm:p-4 overscroll-contain">
       <div className="w-full max-w-5xl h-[100dvh] sm:h-auto sm:max-h-[92dvh] rounded-none sm:rounded-[2rem] bg-white border-0 sm:border border-slate-200 shadow-2xl overflow-hidden flex flex-col">
         <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 bg-gradient-to-r from-violet-50 via-white to-indigo-50 shrink-0">
-          <div className="text-xs font-black uppercase tracking-[0.16em] text-violet-600">✉️ Mail Center</div>
-          <div className="text-lg sm:text-xl font-black text-slate-900 mt-1 leading-tight">Chọn mẫu thư và xem trước trước khi gửi</div>
-          <div className="text-xs sm:text-sm text-slate-500 mt-1 break-all">
-            Người nhận: <strong className="text-slate-800">{email}</strong>
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-xs font-black uppercase tracking-[0.16em] text-violet-600">✉️ Mail Center</div>
+              <div className="text-lg sm:text-xl font-black text-slate-900 mt-1 leading-tight">Chọn mẫu thư và xem trước trước khi gửi</div>
+              <div className="text-xs sm:text-sm text-slate-500 mt-1 break-all">
+                Người nhận: <strong className="text-slate-800">{email}</strong>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={loadMailQuota}
+              disabled={quotaLoading}
+              title={mailQuota?.checkedAt ? `Kiểm tra lúc ${new Date(mailQuota.checkedAt).toLocaleString("vi-VN")}` : quotaError || "Kiểm tra quota Gmail gửi thư"}
+              className={`shrink-0 self-start rounded-2xl border px-3.5 py-2.5 text-left transition-all ${quotaError ? "border-amber-200 bg-amber-50 text-amber-800" : "border-violet-200 bg-white/85 text-violet-700 hover:border-violet-300"}`}
+            >
+              <div className="text-[10px] font-black uppercase tracking-[0.13em] opacity-70">Gmail gửi thư · quota</div>
+              <div className="mt-0.5 flex items-center gap-2 text-xs sm:text-sm font-black whitespace-nowrap">
+                <span>{quotaLoading ? "⏳" : quotaError ? "⚠️" : "✉️"}</span>
+                <span>{quotaText}</span>
+                {!quotaLoading && <span className="text-[11px] opacity-60">↻</span>}
+              </div>
+              {mailQuota?.senderEmail && (
+                <div className="mt-1 max-w-[220px] truncate text-[10px] font-bold opacity-65">{mailQuota.senderEmail}</div>
+              )}
+            </button>
           </div>
         </div>
 

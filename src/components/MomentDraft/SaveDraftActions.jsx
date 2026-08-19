@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useMomentDraftStore, usePostStore } from "@/stores";
 import { useConnectivityStore } from "@/stores/useConnectivityStore";
 import { useAppCamera } from "@/context/AppContext";
+import { syncDraftMediaDirect } from "@/utils/momentDraft/directDraftStorageSync";
 
 /**
  * Compact actions after capture — does not move camera chrome.
@@ -15,6 +16,9 @@ export default function SaveDraftActions() {
   const serverReachable = useConnectivityStore((s) => s.serverReachable);
   const saveCurrentAsDraft = useMomentDraftStore((s) => s.saveCurrentAsDraft);
   const openLibrary = useMomentDraftStore((s) => s.openLibrary);
+  const mediaAutosaveState = useMomentDraftStore(
+    (s) => s.mediaAutosaveState || "idle",
+  );
   const camera = useAppCamera();
   const setCameraActive = camera?.setCameraActive;
   const [busy, setBusy] = useState(false);
@@ -22,6 +26,8 @@ export default function SaveDraftActions() {
   if (!hasMedia) return null;
 
   const canPost = !isOffline && serverReachable;
+  const autosaveSaving = mediaAutosaveState === "saving";
+  const saveBusy = busy || autosaveSaving;
 
   /**
    * After IndexedDB save + clear preview: re-enable live camera.
@@ -44,14 +50,51 @@ export default function SaveDraftActions() {
     setCameraActive?.(true);
   };
 
-  const onSave = async (clearAfter) => {
-    if (busy) return;
+  const ensureCloudMedia = async (result) => {
+    if (
+      result?.error ||
+      !result?.id ||
+      isOffline ||
+      serverReachable === false
+    ) {
+      return result;
+    }
+
+    const cloudResult = await syncDraftMediaDirect(result.id);
+    if (!cloudResult?.ok) {
+      console.warn(
+        "[draft-storage] media remains queued for retry:",
+        cloudResult?.error || "unknown",
+      );
+    }
+    return result;
+  };
+
+  const beginManualSave = () => {
+    if (
+      busy ||
+      useMomentDraftStore.getState().mediaAutosaveState === "saving"
+    ) {
+      return false;
+    }
+    useMomentDraftStore.setState({ manualDraftSaveInProgress: true });
     setBusy(true);
+    return true;
+  };
+
+  const finishManualSave = () => {
+    useMomentDraftStore.setState({ manualDraftSaveInProgress: false });
+    setBusy(false);
+  };
+
+  const onSave = async (clearAfter) => {
+    if (!beginManualSave()) return;
     try {
       if (import.meta.env?.DEV) {
         console.info("[cam] SaveDraft before draft save", { clearAfter });
       }
       const result = await saveCurrentAsDraft({ clearAfter });
+      await ensureCloudMedia(result);
       if (import.meta.env?.DEV) {
         console.info("[cam] SaveDraft after IDB", {
           clearAfter,
@@ -64,22 +107,22 @@ export default function SaveDraftActions() {
         resumeLiveCamera();
       }
     } finally {
-      setBusy(false);
+      finishManualSave();
     }
   };
 
   const onSaveOpenLibrary = async () => {
-    if (busy) return;
-    setBusy(true);
+    if (!beginManualSave()) return;
     try {
       const result = await saveCurrentAsDraft({ clearAfter: true });
+      await ensureCloudMedia(result);
       if (!result?.error) {
         // Leaving studio for library — full camera stop handled by page/nav
         setCameraActive?.(false);
         openLibrary();
       }
     } finally {
-      setBusy(false);
+      finishManualSave();
     }
   };
 
@@ -108,19 +151,21 @@ export default function SaveDraftActions() {
         </button>
         <button
           type="button"
-          disabled={busy}
-          className="btn btn-xs btn-ghost bg-base-200 rounded-full"
+          disabled={saveBusy}
+          className="btn btn-xs btn-ghost bg-base-200 rounded-full disabled:opacity-50"
+          title={autosaveSaving ? "Đang hoàn tất lưu ảnh, vui lòng chờ một chút" : "Lưu bản nháp"}
           onClick={onSaveOpenLibrary}
         >
-          Lưu bản nháp
+          {autosaveSaving ? "Đang lưu…" : "Lưu bản nháp"}
         </button>
         <button
           type="button"
-          disabled={busy}
-          className="btn btn-xs btn-ghost bg-base-200 rounded-full"
+          disabled={saveBusy}
+          className="btn btn-xs btn-ghost bg-base-200 rounded-full disabled:opacity-50"
+          title={autosaveSaving ? "Đang hoàn tất lưu ảnh, vui lòng chờ một chút" : "Lưu và chụp tiếp"}
           onClick={() => onSave(true)}
         >
-          Lưu và chụp tiếp
+          {autosaveSaving ? "Đang lưu…" : "Lưu và chụp tiếp"}
         </button>
       </div>
     </div>

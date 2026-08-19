@@ -1,5 +1,6 @@
 const express = require("express");
 const rateLimit = require("express-rate-limit");
+const { neon } = require("@neondatabase/serverless");
 const { getLocketAuthVerifier } = require("../services/locketAdminVerifier");
 const { getUserInfoV2 } = require("../services/AuthSecurity/GetInfoUser");
 const {
@@ -13,12 +14,45 @@ const {
   heartbeatSession,
   normalizeIdentity,
   upsertSession,
-  getGlobalBroadcast,
 } = require("../services/userActivityStore");
 const { getAccountLock } = require("../services/accountLockStore");
 
 const router = express.Router();
 const SESSION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const broadcastDatabaseUrl = String(
+  process.env.DATABASE_URL || process.env.NEON_DATABASE_URL || "",
+).trim();
+const broadcastSql = broadcastDatabaseUrl ? neon(broadcastDatabaseUrl) : null;
+
+async function readGlobalBroadcastWithoutSchemaInit() {
+  if (!broadcastSql) {
+    return { active: false, message: "", targetUser: "ALL", list: [] };
+  }
+
+  try {
+    const rows = await broadcastSql`
+      SELECT id, message, level, active, target_user, updated_at
+      FROM global_broadcasts
+      WHERE active = TRUE
+      ORDER BY updated_at DESC
+      LIMIT 20
+    `;
+    const list = rows.map((row) => ({
+      id: row.id,
+      active: row.active,
+      message: row.message,
+      level: row.level,
+      targetUser: row.target_user || "ALL",
+      updatedAt: row.updated_at,
+    }));
+    return list[0]
+      ? { ...list[0], list }
+      : { active: false, message: "", targetUser: "ALL", list: [] };
+  } catch (error) {
+    console.warn("[activity] broadcast read skipped:", error?.code || error?.message || "unknown");
+    return { active: false, message: "", targetUser: "ALL", list: [] };
+  }
+}
 
 const activityLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -92,10 +126,10 @@ async function accessDeniedPayload(req, error) {
 
 router.get("/broadcast", activityLimiter, async (req, res) => {
   try {
-    const data = await getGlobalBroadcast();
+    const data = await readGlobalBroadcastWithoutSchemaInit();
     return res.status(200).json({ success: true, data });
   } catch (err) {
-    return res.status(200).json({ success: true, data: { active: false, message: "", targetUser: "ALL" } });
+    return res.status(200).json({ success: true, data: { active: false, message: "", targetUser: "ALL", list: [] } });
   }
 });
 

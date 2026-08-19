@@ -2,6 +2,9 @@ const express = require("express");
 // Compatibility fix: patch IP-location healing before any admin route destructures
 // userActivityStore. login_history owns location metadata; user_sessions does not.
 require("../services/userActivityLocationHealPatch");
+// Patch Slot Monitor notifier exports before slotMonitor modules destructure them.
+// Once Gmail OAuth is connected, slot emails move to Gmail API automatically.
+require("../services/gmailSlotNotifierPatch");
 const authRoutes = require("./authRoutes");
 const locketRoutes = require("./locketRoutes");
 const friendToolsRoutes = require("./friendToolsRoutes");
@@ -15,25 +18,38 @@ const { planRoutes } = require("../modules/locketdio");
 const { storageRoutes } = require("../modules/storage/routes");
 const { draftRoutes } = require("../modules/drafts");
 const { slotMonitorRoutes } = require("../modules/slotMonitor");
+const slotMonitorStore = require("../modules/slotMonitor/store");
+const { getEncryptionKey } = require("../modules/slotMonitor/crypto");
 const webPollRoutes = require("../modules/webPoll/routes");
 const slotMonitorAdminRoutes = require("../modules/slotMonitor/adminRoutes");
 const adminOpsDashboardRoutes = require("../modules/adminOps/dashboardRoutes");
 const vercelDriveRoutes = require("../modules/vercelDrive");
+const gmailOAuthCallbackRoutes = require("./gmailOAuthCallbackRoutes");
+const storageAuthRoutes = require("./storageAuthRoutes");
 const { requestTelemetryMiddleware } = require("../services/requestTelemetry");
 const {
   healthController,
   deepHealthController,
 } = require("../controllers/systemController");
+const adminPinRecoveryGmailRoutes = require("./adminPinRecoveryGmailRoutes");
+const adminPinRecoveryRoutes = require("./adminPinRecoveryRoutes");
+const adminMailQuotaRoutes = require("./adminMailQuotaRoutes");
+const adminGmailSendRoutes = require("./adminGmailSendRoutes");
 const adminRoutes = require("./adminRoutes");
 const adminUserFriendsRoutes = require("./adminUserFriendsRoutes");
 const celebrityRoutes = require("./celebrityRoutes");
 const activityRoutes = require("./activityRoutes");
 const { sensitiveApiShield } = require("../middlewares/antiBot");
 const { accountLockReasonMiddleware } = require("../middlewares/accountLockReasonMiddleware");
-const {
-  generalApiLimit,
-  adminLimit,
-} = require("../middlewares/securityRateLimiter");
+const { generalApiLimit } = require("../middlewares/securityRateLimiter");
+const { adminSessionLimit } = require("../middlewares/adminSessionRateLimiter");
+
+function slotWorkerEnabled() {
+  const value = String(process.env.SLOT_MONITOR_WORKER_ENABLED || "true")
+    .trim()
+    .toLowerCase();
+  return !["0", "false", "off", "no", "disabled"].includes(value);
+}
 
 module.exports = (app) => {
   // In-memory counters only: method/path/status/duration. Never records body, token or secret.
@@ -51,23 +67,56 @@ module.exports = (app) => {
 
   app.get("/health", healthController);
   app.get("/health/deep", deepHealthController);
+  // The standalone Render slot-worker service has been merged into the media API.
+  // This narrow endpoint lets Vercel System Status verify the merged worker role.
+  app.get("/health/slot-worker", (_req, res) => {
+    const databaseConfigured = Boolean(slotMonitorStore?.isConfigured?.());
+    const encryptionConfigured = Boolean(getEncryptionKey());
+    const enabled = slotWorkerEnabled();
+    const running = Boolean(
+      !process.env.VERCEL && enabled && databaseConfigured && encryptionConfigured,
+    );
+    const uptimeSeconds = Math.max(0, Math.floor(process.uptime()));
 
+    return res.status(running ? 200 : 503).json({
+      status: running ? "healthy" : "unhealthy",
+      worker: running ? "running" : "stopped",
+      service: "huy-locket-media-api",
+      merged: true,
+      uptimeSeconds,
+      checks: {
+        enabled,
+        databaseConfigured,
+        encryptionConfigured,
+        host: process.env.VERCEL ? "vercel" : "node",
+      },
+    });
+  });
+
+  // Gmail OAuth reuses the already-authorized Drive callback URI. Mount the
+  // Gmail-purpose handler first; non-Gmail states pass through to Drive.
+  app.use("/api", gmailOAuthCallbackRoutes);
   // Google Drive/media routes formerly hosted by Railway web now live here.
   app.use("/api", vercelDriveRoutes);
+
+  // Internal/publicly reachable verification bridge used by the Supabase
+  // draft-storage Edge Function. It validates real Locket Firebase tokens (or
+  // our existing short-lived draft HMAC proof) and returns only the owner uid.
+  app.use("/api/storage-auth", storageAuthRoutes);
 
   // Routes có limiter riêng phải mount trước generalApiLimit.
   app.use("/locket", authRoutes);
   app.use("/locket", momentRoutes); // postMomentV2 dùng uploadLimit riêng
   app.use(
     "/api/admin/ops-dashboard",
-    adminLimit,
+    adminSessionLimit,
     sensitiveApiShield,
     adminOpsDashboardRoutes,
   );
   // Admin Slot Monitor mount trước adminRoutes để tránh đi qua router quản trị cũ hai lần.
   app.use(
     "/api/admin/slot-monitor",
-    adminLimit,
+    adminSessionLimit,
     sensitiveApiShield,
     slotMonitorAdminRoutes,
   );
@@ -75,13 +124,43 @@ module.exports = (app) => {
   // nhưng tách riêng để không làm adminRoutes khổng lồ khó bảo trì hơn.
   app.use(
     "/api/admin",
-    adminLimit,
+    adminSessionLimit,
     sensitiveApiShield,
     adminUserFriendsRoutes,
   );
+  // Khi Gmail OAuth đã kết nối, endpoint request OTP này gửi bằng Gmail API;
+  // trước khi kết nối nó next() sang route Apps Script cũ để rollout không làm mất recovery.
   app.use(
     "/api/admin",
-    adminLimit,
+    adminSessionLimit,
+    sensitiveApiShield,
+    adminPinRecoveryGmailRoutes,
+  );
+  // Verify/reset PIN vẫn dùng logic hiện tại và cùng bảng admin_pin_recovery.
+  app.use(
+    "/api/admin",
+    adminSessionLimit,
+    sensitiveApiShield,
+    adminPinRecoveryRoutes,
+  );
+  // Trạng thái Gmail API + OAuth start. Không lộ refresh token ra frontend.
+  app.use(
+    "/api/admin",
+    adminSessionLimit,
+    sensitiveApiShield,
+    adminMailQuotaRoutes,
+  );
+  // Admin Email Center gửi trực tiếp qua Gmail API. Mount trước adminRoutes để
+  // các endpoint mail mới không rơi lại vào Apps Script legacy.
+  app.use(
+    "/api/admin",
+    adminSessionLimit,
+    sensitiveApiShield,
+    adminGmailSendRoutes,
+  );
+  app.use(
+    "/api/admin",
+    adminSessionLimit,
     sensitiveApiShield,
     accountLockReasonMiddleware,
     adminRoutes,

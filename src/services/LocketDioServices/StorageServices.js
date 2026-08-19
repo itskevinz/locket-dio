@@ -14,13 +14,25 @@ async function fileToBase64(file) {
   return btoa(binary);
 }
 
+const hasDedicatedStorageOrigin = () =>
+  /^https?:\/\//i.test(String(CONFIG.api.storage || "").trim());
+
 function resolveUploadUrl(data) {
+  const raw = data?.uploadUrl || "";
+
+  // Khi storage đã tách sang Render/R2 bridge, phải dùng URL tuyệt đối mà
+  // storage API trả về. Không ép quay lại /dio-api của web/Vercel, nếu không
+  // backend sẽ tự gọi qua WAF và cloud IP có thể bị chặn 403.
+  if (hasDedicatedStorageOrigin() && /^https?:\/\//i.test(raw)) {
+    return raw;
+  }
+
   if (typeof window !== "undefined" && data?.proxyUploadUrl) {
     return data.proxyUploadUrl.startsWith("http")
       ? data.proxyUploadUrl
       : `${window.location.origin}${data.proxyUploadUrl}`;
   }
-  const raw = data?.uploadUrl || "";
+
   if (typeof window !== "undefined" && raw) {
     try {
       const u = new URL(raw, window.location.origin);
@@ -35,18 +47,25 @@ function resolveUploadUrl(data) {
 }
 
 function resolvePublicUrl(data) {
+  const raw = data?.publicUrl || data?.url || data?.downloadURL || "";
+
+  // Dedicated storage host (Render) owns media-temp. Preserve that absolute URL
+  // so postMoment on Vercel downloads from Render instead of calling itself.
+  if (hasDedicatedStorageOrigin() && /^https?:\/\//i.test(raw)) {
+    return raw;
+  }
+
   const pathId = data?.path || data?.key;
   if (typeof window !== "undefined" && pathId) {
-    // Always same-origin proxy so post/download hit the API via web
     return `${window.location.origin}/dio-api/api/media-temp/${pathId}`;
   }
-  return data?.publicUrl || data?.url || data?.downloadURL || "";
+  return raw;
 }
 
 /**
  * Upload media:
- * - Image ≤ 4.5MB: gửi base64 inline (postMoment đọc trực tiếp, không phụ thuộc temp PUT)
- * - Video / file lớn: PUT temp + verify GET
+ * - Ưu tiên presigned + PUT cho cả ảnh và video để media đi qua R2.
+ * - Ảnh nhỏ chỉ dùng base64 inline như fallback khi PUT/verify thực sự lỗi.
  */
 export const uploadFileAndGetInfoR2 = async (
   file,
@@ -69,35 +88,10 @@ export const uploadFileAndGetInfoR2 = async (
     console.warn("[gdrive] auto backup error:", e);
   }
 
+  // Chỉ dùng inline làm đường lui nếu R2 upload/verify lỗi.
   const INLINE_MAX = 4.5 * 1024 * 1024; // JSON 20MB limit, base64 ~1.33x
-  const preferInline = safeType === "image" && file.size <= INLINE_MAX;
 
-  // ── Image: base64 inline (ổn định nhất trên Render free) ──
-  if (preferInline) {
-    const mediaBase64 = await fileToBase64(file);
-    if (!mediaBase64 || mediaBase64.length < 100) {
-      throw new Error("Không đọc được ảnh từ máy — hãy chụp lại");
-    }
-    return {
-      path: `inline_${timestamp}`,
-      key: `inline_${timestamp}`,
-      name: fileName,
-      size: file.size,
-      type: safeType,
-      contentType,
-      mediaBase64,
-      mediaEncoding: "base64",
-      // Dummy URLs — server sẽ dùng mediaBase64
-      url: "inline://local",
-      publicUrl: "inline://local",
-      publicURL: "inline://local",
-      downloadURL: "inline://local",
-      mediaSignature: null,
-      inline: true,
-    };
-  }
-
-  // ── Video / large: presign + PUT + verify ──
+  // ── Presign + PUT qua API → private R2 ──
   const body = {
     filename: fileName,
     contentType,
@@ -127,7 +121,7 @@ export const uploadFileAndGetInfoR2 = async (
 
   if (!uploadRes.ok) {
     const t = await uploadRes.text().catch(() => "");
-    // Fallback: nếu PUT fail và là ảnh → inline
+    // Safety fallback: ảnh nhỏ vẫn đăng được nếu R2 tạm thời lỗi.
     if (safeType === "image" && file.size <= INLINE_MAX) {
       const mediaBase64 = await fileToBase64(file);
       return {

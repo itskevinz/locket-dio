@@ -1,3 +1,5 @@
+const { sendGmailMessage } = require("./gmailApiMailer");
+
 const EMAIL_BRAND = "Duchi Locket";
 
 const MAIL_TEMPLATES = {
@@ -103,17 +105,6 @@ function publicAppUrl() {
     process.env.PUBLIC_WEB_URL || process.env.APP_PUBLIC_URL || "https://duchi.vercel.app",
     500,
   ).replace(/\/+$/, "");
-}
-
-async function parseResponse(response) {
-  const raw = await response.text();
-  let data = null;
-  try {
-    data = raw ? JSON.parse(raw) : null;
-  } catch {
-    data = raw || null;
-  }
-  return { data, raw };
 }
 
 function normalizeTemplate(template) {
@@ -345,23 +336,9 @@ async function sendAdminApologyEmail({
   template = "apology",
   customMessage = "",
 } = {}) {
-  const endpoint = clean(process.env.GMAIL_APPS_SCRIPT_URL, 1000);
-  const secret = clean(process.env.GMAIL_APPS_SCRIPT_SECRET, 500);
   const fromName = clean(process.env.GMAIL_FROM_NAME, 120) || EMAIL_BRAND;
   const target = clean(email, 320).toLowerCase();
 
-  if (!endpoint || !secret) {
-    const error = new Error("Gmail chưa được cấu hình trên Railway.");
-    error.code = "EMAIL_NOT_CONFIGURED";
-    error.status = 503;
-    throw error;
-  }
-  if (!/^https:\/\//i.test(endpoint)) {
-    const error = new Error("URL Google Apps Script không hợp lệ.");
-    error.code = "EMAIL_RELAY_URL_INVALID";
-    error.status = 500;
-    throw error;
-  }
   if (!target || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target)) {
     const error = new Error("Tài khoản không có địa chỉ email hợp lệ để gửi thư.");
     error.code = "EMAIL_ADDRESS_INVALID";
@@ -378,43 +355,28 @@ async function sendAdminApologyEmail({
   });
 
   try {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "text/plain;charset=utf-8",
-        "User-Agent": "Duchi-Locket-Admin-Mail/2.0",
-      },
-      body: JSON.stringify({
-        secret,
-        to: target,
-        subject: message.subject,
-        text: message.text,
-        html: message.html,
-        fromName,
-        idempotencyKey: clean(idempotencyKey, 240),
-      }),
-      signal: AbortSignal.timeout(15000),
+    const result = await sendGmailMessage({
+      to: target,
+      subject: message.subject,
+      text: message.text,
+      html: message.html,
+      fromName,
+      idempotencyKey: clean(idempotencyKey, 240),
     });
-    const { data } = await parseResponse(response);
-    if (!response.ok || data?.ok !== true) {
-      const error = new Error(data?.message || "Gmail relay từ chối gửi thư.");
-      error.code = data?.code || "EMAIL_RELAY_REJECTED";
-      error.status = response.status || 502;
-      throw error;
-    }
     return {
       ok: true,
-      provider: "gmail-apps-script",
-      messageId: data?.messageId || null,
-      deduped: Boolean(data?.deduped),
+      provider: result.provider || "gmail-api",
+      messageId: result.messageId || null,
+      deduped: Boolean(result.deduped),
       template: message.template,
       label: message.label,
     };
   } catch (cause) {
-    if (String(cause?.code || "").startsWith("EMAIL_")) throw cause;
-    const error = new Error("Gmail gửi thư thất bại.");
-    error.code = "EMAIL_SEND_FAILED";
-    error.status = 502;
+    const code = String(cause?.code || "");
+    if (code.startsWith("EMAIL_") || code.startsWith("GMAIL_")) throw cause;
+    const error = new Error(cause?.message || "Gmail API gửi thư thất bại.");
+    error.code = cause?.code || "EMAIL_SEND_FAILED";
+    error.status = Number(cause?.status) || 502;
     error.cause = cause;
     throw error;
   }

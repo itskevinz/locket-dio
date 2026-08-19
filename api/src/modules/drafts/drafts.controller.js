@@ -40,6 +40,14 @@ function baseUrl(req) {
   return `${proto}://${host}`;
 }
 
+function objectKeyForRole(draft, role) {
+  if (!draft) return null;
+  if (role === "thumbnail") return draft.thumbnailObjectKey || null;
+  if (role === "active") return draft.activeObjectKey || null;
+  if (role === "original") return draft.originalObjectKey || null;
+  return null;
+}
+
 function withDownloadUrls(req, draft) {
   if (!draft) return null;
   const uid = draft.ownerUid;
@@ -47,12 +55,7 @@ function withDownloadUrls(req, draft) {
   const roles = ["thumbnail", "active", "original"];
   const urls = {};
   for (const role of roles) {
-    const key =
-      role === "thumbnail"
-        ? draft.thumbnailObjectKey
-        : role === "active"
-          ? draft.activeObjectKey
-          : draft.originalObjectKey;
+    const key = objectKeyForRole(draft, role);
     if (!key) continue;
     const { exp, sig, expiresIn } = fileStore.makeSignedQuery(uid, id, role);
     const q = `exp=${exp}&sig=${sig}&ownerUid=${encodeURIComponent(uid)}`;
@@ -195,12 +198,24 @@ async function deleteDraft(req, res) {
   const uid = uidOf(req);
   if (!uid) return res.status(401).json({ success: false, message: "Unauthorized" });
   const id = req.params.id;
+  const existing = await metaStore.getDraft(uid, id);
+  if (!existing) {
+    return res.status(404).json({ success: false, code: "NOT_FOUND" });
+  }
+
   const result = await metaStore.softDelete(uid, id);
   if (!result.ok) {
     return res.status(404).json({ success: false, code: "NOT_FOUND" });
   }
   try {
-    await fileStore.deleteDraftFiles(uid, id);
+    await fileStore.deleteDraftFiles(uid, id, {
+      idToken: req.user?.idToken,
+      objectKeys: [
+        existing.originalObjectKey,
+        existing.activeObjectKey,
+        existing.thumbnailObjectKey,
+      ].filter(Boolean),
+    });
   } catch {
     /* meta already soft-deleted */
   }
@@ -238,7 +253,14 @@ async function uploadMedia(req, res) {
 
   const contentType =
     req.headers["content-type"] || "application/octet-stream";
-  const written = await fileStore.writeObject(uid, draftId, role, buffer, contentType);
+  const written = await fileStore.writeObject(
+    uid,
+    draftId,
+    role,
+    buffer,
+    contentType,
+    { idToken: req.user?.idToken },
+  );
   if (!written.ok) {
     return res.status(400).json({ success: false, code: written.error });
   }
@@ -268,6 +290,7 @@ async function uploadMedia(req, res) {
     key: written.key,
     size: written.size,
     contentType: written.contentType,
+    provider: written.provider || "legacy",
     draft: patched.ok ? withDownloadUrls(req, patched.draft) : draft,
   });
 }
@@ -309,18 +332,45 @@ async function downloadMedia(req, res) {
   const draft = await metaStore.getDraft(ownerUid, draftId);
   if (!draft) return res.status(404).send("not found");
 
+  const signedProof = hasValidSignature
+    ? {
+        ownerUid: signedOwnerUid,
+        draftId,
+        role,
+        exp: Number(exp),
+        sig: String(sig || ""),
+      }
+    : null;
+  const readOptions = (targetRole) => ({
+    objectKey: objectKeyForRole(draft, targetRole),
+    idToken: hasValidSignature ? null : req.user?.idToken,
+    signedProof,
+  });
+
   let servedRole = role;
-  let obj = await fileStore.readObject(ownerUid, draftId, role);
+  let obj = await fileStore.readObject(
+    ownerUid,
+    draftId,
+    role,
+    readOptions(role),
+  );
 
   // Older/surviving draft metadata can still reference a thumbnail object that
-  // is no longer present on disk. For image drafts the active/original image is
-  // a safe visual fallback, so do not make the UI show a broken thumbnail just
-  // because the smaller derivative is missing. Never substitute a video file
-  // into an image thumbnail response.
+  // is no longer present. For image drafts the active/original image is a safe
+  // visual fallback. For Supabase media the original signed proof still proves
+  // access to this draft; the Edge Function derives the fallback object path.
   if (!obj && role === "thumbnail" && draft.mediaType !== "video") {
     for (const fallbackRole of ["active", "original"]) {
-      const candidate = await fileStore.readObject(ownerUid, draftId, fallbackRole);
-      if (candidate?.contentType?.toLowerCase().startsWith("image/")) {
+      const candidate = await fileStore.readObject(
+        ownerUid,
+        draftId,
+        fallbackRole,
+        readOptions(fallbackRole),
+      );
+      if (
+        candidate?.redirectUrl ||
+        candidate?.contentType?.toLowerCase().startsWith("image/")
+      ) {
         obj = candidate;
         servedRole = fallbackRole;
         break;
@@ -330,12 +380,19 @@ async function downloadMedia(req, res) {
 
   if (!obj) return res.status(404).send("media missing");
 
-  res.setHeader("Content-Type", obj.contentType);
   res.setHeader("Cache-Control", "private, no-store");
   res.setHeader("X-Content-Type-Options", "nosniff");
   if (servedRole !== role) {
     res.setHeader("X-Draft-Media-Fallback", servedRole);
   }
+
+  // New Supabase objects are served by redirecting to a short-lived private
+  // Storage URL. The media bytes no longer travel through Neon or Vercel.
+  if (obj.redirectUrl) {
+    return res.redirect(302, obj.redirectUrl);
+  }
+
+  res.setHeader("Content-Type", obj.contentType);
   return res.status(200).send(obj.buffer);
 }
 
