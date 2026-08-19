@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useMomentDraftStore, usePostStore } from "@/stores";
 import { useConnectivityStore } from "@/stores/useConnectivityStore";
 import { useAppCamera } from "@/context/AppContext";
+import { syncDraftMediaDirect } from "@/utils/momentDraft/directDraftStorageSync";
 
 /**
  * Compact actions after capture — does not move camera chrome.
@@ -44,6 +45,26 @@ export default function SaveDraftActions() {
     setCameraActive?.(true);
   };
 
+  const ensureCloudMedia = async (result) => {
+    if (
+      result?.error ||
+      !result?.id ||
+      isOffline ||
+      serverReachable === false
+    ) {
+      return result;
+    }
+
+    const cloudResult = await syncDraftMediaDirect(result.id);
+    if (!cloudResult?.ok) {
+      console.warn(
+        "[draft-storage] media remains queued for retry:",
+        cloudResult?.error || "unknown",
+      );
+    }
+    return result;
+  };
+
   const onSave = async (clearAfter) => {
     if (busy) return;
     setBusy(true);
@@ -52,6 +73,7 @@ export default function SaveDraftActions() {
         console.info("[cam] SaveDraft before draft save", { clearAfter });
       }
       const result = await saveCurrentAsDraft({ clearAfter });
+      await ensureCloudMedia(result);
       if (import.meta.env?.DEV) {
         console.info("[cam] SaveDraft after IDB", {
           clearAfter,
@@ -73,6 +95,7 @@ export default function SaveDraftActions() {
     setBusy(true);
     try {
       const result = await saveCurrentAsDraft({ clearAfter: true });
+      await ensureCloudMedia(result);
       if (!result?.error) {
         // Leaving studio for library — full camera stop handled by page/nav
         setCameraActive?.(false);
