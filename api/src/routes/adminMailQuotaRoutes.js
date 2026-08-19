@@ -9,7 +9,7 @@ const {
   hasActivityDatabase,
 } = require("../services/userActivityStore");
 const {
-  GOOGLE_EMAIL_SCOPES,
+  GMAIL_SEND_SCOPE,
   createOAuthState,
   getGoogleOAuthClient,
   getGmailStatus,
@@ -23,6 +23,7 @@ const PUBLIC_URL = String(
     || process.env.APP_PUBLIC_URL
     || "https://duchi.vercel.app",
 ).replace(/\/$/, "");
+const GOOGLE_USERINFO_EMAIL_SCOPE = "https://www.googleapis.com/auth/userinfo.email";
 
 function clean(value, max = 1000) {
   return String(value || "").trim().slice(0, max);
@@ -102,14 +103,19 @@ router.get("/gmail-oauth-start", async (req, res) => {
       adminUid: req.adminUid,
       adminEmail: req.adminEmail,
     });
+
+    // Request the Gmail permission as a fresh grant instead of incrementally
+    // inheriting an older Google Drive-only grant. This avoids storing a refresh
+    // token that can authenticate Google but cannot call users.messages.send.
+    const requestedScopes = `${GMAIL_SEND_SCOPE} ${GOOGLE_USERINFO_EMAIL_SCOPE}`;
     const params = new URLSearchParams({
       client_id: client.clientId,
       redirect_uri: redirectUri,
       response_type: "code",
-      scope: GOOGLE_EMAIL_SCOPES,
+      scope: requestedScopes,
       access_type: "offline",
-      prompt: "consent",
-      include_granted_scopes: "true",
+      prompt: "consent select_account",
+      include_granted_scopes: "false",
       state,
     });
 
@@ -118,6 +124,7 @@ router.get("/gmail-oauth-start", async (req, res) => {
       url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`,
       redirectUri,
       provider: "gmail-api",
+      requestedScopes: [GMAIL_SEND_SCOPE, GOOGLE_USERINFO_EMAIL_SCOPE],
     });
   } catch (error) {
     return res.status(Number(error?.status) || 500).json({
