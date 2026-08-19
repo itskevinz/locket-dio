@@ -18,6 +18,8 @@ const { planRoutes } = require("../modules/locketdio");
 const { storageRoutes } = require("../modules/storage/routes");
 const { draftRoutes } = require("../modules/drafts");
 const { slotMonitorRoutes } = require("../modules/slotMonitor");
+const slotMonitorStore = require("../modules/slotMonitor/store");
+const { getEncryptionKey } = require("../modules/slotMonitor/crypto");
 const webPollRoutes = require("../modules/webPoll/routes");
 const slotMonitorAdminRoutes = require("../modules/slotMonitor/adminRoutes");
 const adminOpsDashboardRoutes = require("../modules/adminOps/dashboardRoutes");
@@ -42,6 +44,13 @@ const { accountLockReasonMiddleware } = require("../middlewares/accountLockReaso
 const { generalApiLimit } = require("../middlewares/securityRateLimiter");
 const { adminSessionLimit } = require("../middlewares/adminSessionRateLimiter");
 
+function slotWorkerEnabled() {
+  const value = String(process.env.SLOT_MONITOR_WORKER_ENABLED || "true")
+    .trim()
+    .toLowerCase();
+  return !["0", "false", "off", "no", "disabled"].includes(value);
+}
+
 module.exports = (app) => {
   // In-memory counters only: method/path/status/duration. Never records body, token or secret.
   app.use(requestTelemetryMiddleware);
@@ -58,6 +67,31 @@ module.exports = (app) => {
 
   app.get("/health", healthController);
   app.get("/health/deep", deepHealthController);
+  // The standalone Render slot-worker service has been merged into the media API.
+  // This narrow endpoint lets Vercel System Status verify the merged worker role.
+  app.get("/health/slot-worker", (_req, res) => {
+    const databaseConfigured = Boolean(slotMonitorStore?.isConfigured?.());
+    const encryptionConfigured = Boolean(getEncryptionKey());
+    const enabled = slotWorkerEnabled();
+    const running = Boolean(
+      !process.env.VERCEL && enabled && databaseConfigured && encryptionConfigured,
+    );
+    const uptimeSeconds = Math.max(0, Math.floor(process.uptime()));
+
+    return res.status(running ? 200 : 503).json({
+      status: running ? "healthy" : "unhealthy",
+      worker: running ? "running" : "stopped",
+      service: "huy-locket-media-api",
+      merged: true,
+      uptimeSeconds,
+      checks: {
+        enabled,
+        databaseConfigured,
+        encryptionConfigured,
+        host: process.env.VERCEL ? "vercel" : "node",
+      },
+    });
+  });
 
   // Gmail OAuth reuses the already-authorized Drive callback URI. Mount the
   // Gmail-purpose handler first; non-Gmail states pass through to Drive.
