@@ -15,6 +15,7 @@ dotenv.config();
 
 const { logInfo, logGroupWrapper } = require("./src/utils/logEventUtils.js");
 const routes = require("./src/routes");
+const storageAuthRoutes = require("./src/routes/storageAuthRoutes.js");
 const initChatSocket = require("./src/socket");
 const errorHandler = require("./src/middlewares/errorHandler.js");
 const { printServerBanner } = require("./src/utils/printServerBanner.js");
@@ -134,6 +135,17 @@ initChatSocket(io);
 
 app.use(globalDDoSShield);
 app.get("/health/deep", deepHealthController);
+
+// Supabase Edge Function calls this bridge from cloud IPs / Deno. It already has
+// its own rate limiter and verifies either a real Firebase bearer or our short-lived
+// signed draft HMAC, so let this exact internal bridge bypass the browser-only bot WAF.
+app.use(
+  "/api/storage-auth",
+  securityHeaders,
+  express.json({ limit: "64kb" }),
+  storageAuthRoutes,
+);
+
 app.use(antiBotMiddleware);
 app.use(securityHeaders);
 app.use(cookieParser());
