@@ -9,11 +9,13 @@ import { useConnectivityStore } from "@/stores/useConnectivityStore";
 import { useAppCamera } from "@/context/AppContext";
 import { OverlayRenderer } from "@/components/Overlay";
 import { SonnerInfo, SonnerError, SonnerSuccess } from "@/components/uikit/SonnerToast";
+import { instanceMain } from "@/libs";
 import {
   getDraftThumbnailBlob,
   getDraftMediaBlob,
   ensureLocalThumbnail,
   ensureLocalMedia,
+  deleteDraft,
   DRAFT_STATUS,
   SYNC_STATUS,
   formatDraftStatusLine,
@@ -316,6 +318,59 @@ export default function DraftLibrary() {
       setBusyId(null);
     }
   };
+
+  const handleDeleteAll = async () => {
+    if (!drafts.length) {
+      setConfirmId(null);
+      return;
+    }
+    if (isOffline) {
+      SonnerError("Cần mạng để xóa tất cả bản nháp trên tài khoản.");
+      return;
+    }
+
+    const snapshot = [...drafts];
+    let deletedCount = 0;
+    let failedCount = 0;
+    setBusyId("delete-all");
+    try {
+      for (const draft of snapshot) {
+        const id = draft?.id;
+        if (!id) continue;
+        try {
+          try {
+            await instanceMain.delete(`/api/drafts/${encodeURIComponent(id)}`);
+          } catch (error) {
+            if (error?.response?.status !== 404) throw error;
+          }
+          const localDeleted = await deleteDraft(id);
+          if (localDeleted === false) throw new Error("LOCAL_DELETE_FAILED");
+          deletedCount += 1;
+        } catch (error) {
+          failedCount += 1;
+          console.warn("[draft-library] delete all item failed", id, error?.message || error);
+        }
+      }
+
+      setSelectedIds(new Set());
+      setMultiSelectMode(false);
+      setConfirmId(null);
+      setMenuId(null);
+      setPreviewId(null);
+      await refreshList();
+
+      if (failedCount > 0) {
+        SonnerError(
+          `Đã xóa ${deletedCount}/${snapshot.length} bản nháp`,
+          `${failedCount} bản chưa xóa được · thử lại sau.`,
+        );
+      } else {
+        SonnerSuccess(`Đã xóa tất cả ${deletedCount} bản nháp`);
+      }
+    } finally {
+      setBusyId(null);
+    }
+  };
   
   const handleBulkSync = async () => {
     if (selectedIds.size === 0 || isOffline) return;
@@ -431,6 +486,15 @@ export default function DraftLibrary() {
           >
             {multiSelectMode ? "Hủy chọn" : "Chọn nhiều"}
           </button>
+          <button
+            type="button"
+            className="btn btn-sm rounded-full border-0 font-semibold whitespace-nowrap px-4 bg-error/10 text-error hover:bg-error/20"
+            disabled={!drafts.length || Boolean(busyId) || Boolean(postingDraftId) || isOffline}
+            title={isOffline ? "Cần mạng để xóa tất cả bản nháp trên tài khoản" : "Xóa toàn bộ bản nháp"}
+            onClick={() => setConfirmId("all")}
+          >
+            <Trash2 size={14} /> Xóa tất cả
+          </button>
         </div>
       </header>
 
@@ -453,7 +517,7 @@ export default function DraftLibrary() {
               <DraftPreviewCard
                 key={d.id}
                 draft={d}
-                busy={busyId === d.id || busyId === "bulk" || postingDraftId === d.id}
+                busy={busyId === d.id || busyId === "bulk" || busyId === "delete-all" || postingDraftId === d.id}
                 posting={postingDraftId === d.id}
                 offline={isOffline}
                 menuOpen={menuId === d.id}
@@ -530,23 +594,30 @@ export default function DraftLibrary() {
         <div className="absolute inset-0 z-[400] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-[24px] p-6 shadow-2xl border border-base-300 bg-base-100 scale-in">
             <h3 className="text-lg font-bold mb-2">
-              {confirmId === "bulk" ? `Xóa ${selectedIds.size} bản nháp?` : "Xóa bản nháp này?"}
+              {confirmId === "all"
+                ? `Xóa tất cả ${drafts.length} bản nháp?`
+                : confirmId === "bulk"
+                  ? `Xóa ${selectedIds.size} bản nháp?`
+                  : "Xóa bản nháp này?"}
             </h3>
             <p className="text-sm opacity-75 mb-6 leading-relaxed">
-              Dữ liệu chưa đăng sẽ bị xóa vĩnh viễn và không thể khôi phục.
+              {confirmId === "all"
+                ? "Tất cả bản nháp trên tài khoản và thiết bị này sẽ bị xóa vĩnh viễn. Thao tác này không thể hoàn tác."
+                : "Dữ liệu chưa đăng sẽ bị xóa vĩnh viễn và không thể khôi phục."}
             </p>
             <div className="flex flex-col gap-2 w-full">
               <button
                 type="button"
                 className="btn btn-error w-full rounded-2xl font-bold"
-                disabled={busyId}
-                onClick={() => confirmId === "bulk" ? handleBulkDelete() : onDelete(confirmId)}
+                disabled={Boolean(busyId)}
+                onClick={() => confirmId === "all" ? handleDeleteAll() : confirmId === "bulk" ? handleBulkDelete() : onDelete(confirmId)}
               >
-                Xóa vĩnh viễn
+                {busyId === "delete-all" ? "Đang xóa…" : "Xóa vĩnh viễn"}
               </button>
               <button
                 type="button"
                 className="btn btn-ghost bg-base-200 w-full rounded-2xl font-bold"
+                disabled={Boolean(busyId)}
                 onClick={() => setConfirmId(null)}
               >
                 Giữ lại
