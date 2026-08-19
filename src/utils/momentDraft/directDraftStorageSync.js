@@ -220,13 +220,17 @@ export async function syncDraftMediaDirect(draftId) {
   try {
     let remote = await ensureRemoteShell(meta);
 
-    // If another sync path already finished this exact local cloud revision,
-    // avoid uploading the same media again.
+    // Skip only when local content has no revision newer than the confirmed
+    // cloud revision. A locally edited draft must re-upload even if the remote
+    // object keys from the previous revision are still present.
     const sameCloudRevision =
       meta.cloudRevision != null &&
       Number(meta.cloudRevision) === Number(remote?.revision);
-    if (
+    const localContentAlreadyConfirmed =
       sameCloudRevision &&
+      Number(meta.revision || 1) <= Number(meta.cloudRevision || 0);
+    if (
+      localContentAlreadyConfirmed &&
       remote?.activeObjectKey &&
       remote?.originalObjectKey &&
       remote?.thumbnailObjectKey
@@ -242,7 +246,11 @@ export async function syncDraftMediaDirect(draftId) {
     }
 
     const { idToken } = getToken();
-    const mime = media.mimeType || meta.mimeType || media.blob.type || "application/octet-stream";
+    const mime =
+      media.mimeType ||
+      meta.mimeType ||
+      media.blob.type ||
+      "application/octet-stream";
 
     const active = await uploadRoleSmart({
       ownerUid,
