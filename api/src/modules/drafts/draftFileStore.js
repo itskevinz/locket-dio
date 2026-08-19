@@ -79,9 +79,9 @@ async function writeObject(ownerUid, draftId, role, buffer, contentType, options
     return { ok: false, error: "bad_mime" };
   }
 
-  // Phase 1 migration: prefer Supabase for new media, but never make draft
-  // syncing depend on it. If the Storage/Edge bridge is temporarily down we
-  // fall back to the existing Neon path and keep the user's draft safe.
+  // Phase 1 migration: prefer Supabase for new media. Infrastructure failures
+  // may fall back to Neon so drafts remain usable, but an authentication
+  // rejection must never be converted into a legacy write.
   if (process.env.VERCEL && options.idToken) {
     try {
       return await supabaseDraftStorage.upload({
@@ -93,6 +93,9 @@ async function writeObject(ownerUid, draftId, role, buffer, contentType, options
         idToken: options.idToken,
       });
     } catch (error) {
+      if (error?.status === 401 || error?.status === 403) {
+        return { ok: false, error: "storage_auth_failed" };
+      }
       console.warn(
         "[draft-storage] Supabase upload unavailable; using Neon fallback:",
         error?.code || error?.message || "unknown",
