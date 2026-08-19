@@ -2,7 +2,6 @@ const express = require("express");
 const rateLimit = require("express-rate-limit");
 const { instanceFirebaseV2 } = require("../libs");
 const draftFileStore = require("../modules/drafts/draftFileStore");
-const draftMetaStore = require("../modules/drafts/draftMetaStore");
 
 const router = express.Router();
 
@@ -36,6 +35,9 @@ router.post("/verify", limiter, async (req, res) => {
       return res.status(400).json({ success: false, code: "INVALID_STORAGE_PROOF" });
     }
 
+    // The short-lived HMAC is created only after the API has already loaded an
+    // owner draft. Verifying it here is sufficient and deliberately avoids a
+    // second Neon metadata read for every Supabase media redirect.
     const valid = draftFileStore.verifyAccess({
       ownerUid,
       draftId,
@@ -45,11 +47,6 @@ router.post("/verify", limiter, async (req, res) => {
     });
     if (!valid) {
       return res.status(403).json({ success: false, code: "INVALID_STORAGE_PROOF" });
-    }
-
-    const draft = await draftMetaStore.getDraft(ownerUid, draftId).catch(() => null);
-    if (!draft) {
-      return res.status(404).json({ success: false, code: "DRAFT_NOT_FOUND" });
     }
 
     return res.json({ success: true, uid: ownerUid });
