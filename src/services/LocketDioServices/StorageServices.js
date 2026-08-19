@@ -14,13 +14,25 @@ async function fileToBase64(file) {
   return btoa(binary);
 }
 
+const hasDedicatedStorageOrigin = () =>
+  /^https?:\/\//i.test(String(CONFIG.api.storage || "").trim());
+
 function resolveUploadUrl(data) {
+  const raw = data?.uploadUrl || "";
+
+  // Khi storage đã tách sang Render/R2 bridge, phải dùng URL tuyệt đối mà
+  // storage API trả về. Không ép quay lại /dio-api của web/Vercel, nếu không
+  // backend sẽ tự gọi qua WAF và cloud IP có thể bị chặn 403.
+  if (hasDedicatedStorageOrigin() && /^https?:\/\//i.test(raw)) {
+    return raw;
+  }
+
   if (typeof window !== "undefined" && data?.proxyUploadUrl) {
     return data.proxyUploadUrl.startsWith("http")
       ? data.proxyUploadUrl
       : `${window.location.origin}${data.proxyUploadUrl}`;
   }
-  const raw = data?.uploadUrl || "";
+
   if (typeof window !== "undefined" && raw) {
     try {
       const u = new URL(raw, window.location.origin);
@@ -35,12 +47,19 @@ function resolveUploadUrl(data) {
 }
 
 function resolvePublicUrl(data) {
+  const raw = data?.publicUrl || data?.url || data?.downloadURL || "";
+
+  // Dedicated storage host (Render) owns media-temp. Preserve that absolute URL
+  // so postMoment on Vercel downloads from Render instead of calling itself.
+  if (hasDedicatedStorageOrigin() && /^https?:\/\//i.test(raw)) {
+    return raw;
+  }
+
   const pathId = data?.path || data?.key;
   if (typeof window !== "undefined" && pathId) {
-    // Always same-origin proxy so post/download hit the API via web
     return `${window.location.origin}/dio-api/api/media-temp/${pathId}`;
   }
-  return data?.publicUrl || data?.url || data?.downloadURL || "";
+  return raw;
 }
 
 /**
