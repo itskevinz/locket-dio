@@ -6,6 +6,7 @@ const { logError, logInfo } = require("../../utils/logEventUtils");
 const { getTodayFolder } = require("../../helpers/dayHelpers");
 const r2Storage = require("./r2Storage");
 
+// Deployment marker: direct R2 temp-media reads are required in production.
 function extractTempMediaId(value) {
   if (!value) return null;
   try {
