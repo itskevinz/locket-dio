@@ -23,6 +23,8 @@ const { antiBotMiddleware, globalDDoSShield, wafSecurityShield } = require("./sr
 const { securityHeaders } = require("./src/middlewares/securityHeaders.js");
 const { requireJsonContentType, sanitizeBodyStrings, validateUploadBuffer, ALLOWED_IMAGE_MIMES, ALLOWED_VIDEO_MIMES } = require("./src/middlewares/payloadValidation.js");
 const { startSlotMonitorWorker } = require("./src/modules/slotMonitor");
+const slotMonitorStore = require("./src/modules/slotMonitor/store");
+const { getEncryptionKey } = require("./src/modules/slotMonitor/crypto");
 const { deepHealthController } = require("./src/controllers/systemController.js");
 const {
   mediaUpload,
@@ -30,6 +32,13 @@ const {
 } = require("./src/modules/storage/storage.controller");
 
 const allowedMediaMimes = new Set([...ALLOWED_IMAGE_MIMES, ...ALLOWED_VIDEO_MIMES]);
+
+function slotWorkerRoleEnabled() {
+  const value = String(process.env.SLOT_MONITOR_WORKER_ENABLED || "true")
+    .trim()
+    .toLowerCase();
+  return !["0", "false", "off", "no", "disabled"].includes(value);
+}
 
 const {
   connectRedis,
@@ -139,6 +148,33 @@ initChatSocket(io);
 
 app.use(globalDDoSShield);
 app.get("/health/deep", deepHealthController);
+
+// Narrow machine-to-machine health endpoint for the merged Render API + Slot worker.
+// It must run before browser-focused anti-bot/WAF middleware because Vercel probes
+// originate from cloud-provider IPs. Only safe status metadata is returned.
+app.get("/health/slot-worker", securityHeaders, (_req, res) => {
+  const databaseConfigured = Boolean(slotMonitorStore?.isConfigured?.());
+  const encryptionConfigured = Boolean(getEncryptionKey());
+  const enabled = slotWorkerRoleEnabled();
+  const running = Boolean(
+    !isVercel && enabled && databaseConfigured && encryptionConfigured,
+  );
+  const uptimeSeconds = Math.max(0, Math.floor(process.uptime()));
+
+  return res.status(running ? 200 : 503).json({
+    status: running ? "healthy" : "unhealthy",
+    worker: running ? "running" : "stopped",
+    service: "huy-locket-media-api",
+    merged: true,
+    uptimeSeconds,
+    checks: {
+      enabled,
+      databaseConfigured,
+      encryptionConfigured,
+      host: isVercel ? "vercel" : "node",
+    },
+  });
+});
 
 // Supabase Edge Function calls this bridge from cloud IPs / Deno. It already has
 // its own rate limiter and verifies either a real Firebase bearer or our short-lived
